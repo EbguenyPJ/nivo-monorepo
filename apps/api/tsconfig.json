@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "target": "ES2022",
+    "module": "commonjs",
+    "incremental": true,
+    "strictPropertyInitialization": false,
+    "paths": {
+      "@nivo/database": ["../../packages/database/src"],
+      "@nivo/types": ["../../packages/types/src"]
+    }
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "Nivo Mobile",
+    "slug": "nivo-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "nivo",
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nivo.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.nivo.mobile"
+    },
+    "plugins": ["expo-router", "expo-camera"]
+  }
+}
