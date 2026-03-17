@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -32,16 +32,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, userType, tenant, logout } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     if (!isAuthenticated) {
       router.replace('/login');
     } else if (userType === 'super-admin') {
       router.replace('/admin');
     }
-  }, [isAuthenticated, userType, router]);
+  }, [isAuthenticated, userType, router, mounted]);
 
-  if (!isAuthenticated || userType === 'super-admin') {
+  if (!mounted || !isAuthenticated || userType === 'super-admin') {
     return null;
   }
 

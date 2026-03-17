@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   Button, Badge, Card, CardContent, CardHeader, CardTitle, Input, Label,
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,
+  Skeleton, toast,
 } from '@nivo/ui';
 import { Plus, MapPin, Pencil, Trash2 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
@@ -69,7 +70,7 @@ export default function BranchesPage() {
       setEditingBranch(null);
       await fetchBranches();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al guardar la sucursal');
+      toast({ title: 'Error', description: error.response?.data?.message || 'Error al guardar la sucursal', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -81,7 +82,7 @@ export default function BranchesPage() {
       await apiClient.delete(`/branches/${branch.id}`);
       await fetchBranches();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al eliminar la sucursal');
+      toast({ title: 'Error', description: error.response?.data?.message || 'Error al eliminar la sucursal', variant: 'destructive' });
     }
   };
 
@@ -154,7 +155,11 @@ export default function BranchesPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Cargando sucursales...</p>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-40 rounded-lg" />
+          ))}
+        </div>
       ) : branches.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">

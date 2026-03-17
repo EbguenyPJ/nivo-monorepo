@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   Button, Badge, Card, CardContent, Input, Label,
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Skeleton, toast,
 } from '@nivo/ui';
 import { Plus, Search, Package, Trash2, X } from 'lucide-react';
 import { apiClient } from '@/lib/api';
@@ -104,7 +105,7 @@ export default function InventoryPage() {
       setDialogOpen(false);
       await fetchProducts();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al crear el producto');
+      toast({ title: 'Error', description: error.response?.data?.message || 'Error al crear el producto', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -116,7 +117,7 @@ export default function InventoryPage() {
       await apiClient.delete(`/products/${product.id}`);
       await fetchProducts();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al eliminar el producto');
+      toast({ title: 'Error', description: error.response?.data?.message || 'Error al eliminar el producto', variant: 'destructive' });
     }
   };
 
@@ -259,7 +260,11 @@ export default function InventoryPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Cargando productos...</p>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-lg" />
+          ))}
+        </div>
       ) : filteredProducts.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">

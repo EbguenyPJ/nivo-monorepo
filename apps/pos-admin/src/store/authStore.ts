@@ -64,6 +64,8 @@ export const useAuthStore = create<AuthState>()(
         });
       },
     }),
-    { name: 'nivo-auth' },
+    {
+      name: 'nivo-auth',
+    },
   ),
 );

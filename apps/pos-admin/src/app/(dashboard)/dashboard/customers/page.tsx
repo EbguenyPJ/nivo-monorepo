@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   Button, Badge, Card, CardContent, Input, Label,
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Skeleton, toast,
 } from '@nivo/ui';
 import { Plus, UserCircle, Star, Phone, Mail } from 'lucide-react';
 import { apiClient } from '@/lib/api';
@@ -53,7 +54,7 @@ export default function CustomersPage() {
       setForm({ name: '', email: '', phone: '' });
       await fetchCustomers();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al crear el cliente');
+      toast({ title: 'Error', description: error.response?.data?.message || 'Error al crear el cliente', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -123,7 +124,11 @@ export default function CustomersPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Cargando clientes...</p>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-36 rounded-lg" />
+          ))}
+        </div>
       ) : customers.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">

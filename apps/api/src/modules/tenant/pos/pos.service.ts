@@ -4,6 +4,15 @@ import { PosSession, Sale, SaleItem, Inventory } from '@nivo/database';
 
 @Injectable()
 export class PosService {
+  async getActiveSession(connection: DataSource, user: any) {
+    const repo = connection.getRepository(PosSession);
+    const session = await repo.findOne({
+      where: { employee_id: user.sub, status: 'open' },
+      relations: ['branch'],
+    });
+    return session || null;
+  }
+
   async openSession(connection: DataSource, user: any, data: { branch_id: string; opening_amount: number }) {
     const repo = connection.getRepository(PosSession);
 

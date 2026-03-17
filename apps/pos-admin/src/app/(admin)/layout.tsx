@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { LayoutDashboard, Store, LogOut } from 'lucide-react';
@@ -17,14 +17,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, userType, logout } = useAuthStore();
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
     if (!isAuthenticated || userType !== 'super-admin') {
       router.replace('/login');
     }
-  }, [isAuthenticated, userType, router]);
+  }, [isAuthenticated, userType, router, mounted]);
 
-  if (!isAuthenticated || userType !== 'super-admin') {
+  if (!mounted || !isAuthenticated || userType !== 'super-admin') {
     return null;
   }
 

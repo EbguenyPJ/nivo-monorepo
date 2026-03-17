@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import {
   Button, Badge, Card, CardContent, CardHeader, CardTitle, Input, Label,
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Skeleton, toast,
 } from '@nivo/ui';
 import { Plus, Users, Pencil } from 'lucide-react';
 import { apiClient } from '@/lib/api';
@@ -109,7 +110,7 @@ export default function EmployeesPage() {
       setEditingEmployee(null);
       await fetchData();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al guardar el empleado');
+      toast({ title: 'Error', description: error.response?.data?.message || 'Error al guardar el empleado', variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -225,7 +226,11 @@ export default function EmployeesPage() {
       </div>
 
       {loading ? (
-        <p className="text-muted-foreground">Cargando empleados...</p>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-36 rounded-lg" />
+          ))}
+        </div>
       ) : employees.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
