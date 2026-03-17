@@ -4,8 +4,22 @@ import { Customer } from '@nivo/database';
 
 @Injectable()
 export class CustomersService {
-  async findAll(connection: DataSource) {
-    return connection.getRepository(Customer).find({ order: { created_at: 'DESC' } });
+  async findAll(connection: DataSource, search?: string) {
+    const repo = connection.getRepository(Customer);
+
+    if (search && search.trim()) {
+      const q = `%${search.trim().toLowerCase()}%`;
+      return repo
+        .createQueryBuilder('customer')
+        .where('LOWER(customer.name) LIKE :q', { q })
+        .orWhere('LOWER(customer.email) LIKE :q', { q })
+        .orWhere('customer.phone LIKE :q', { q })
+        .orderBy('customer.name', 'ASC')
+        .take(20)
+        .getMany();
+    }
+
+    return repo.find({ order: { created_at: 'DESC' } });
   }
 
   async create(connection: DataSource, data: any) {

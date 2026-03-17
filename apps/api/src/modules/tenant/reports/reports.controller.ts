@@ -40,6 +40,19 @@ export class ReportsController {
     });
   }
 
+  @Get('daily-sales')
+  getDailySales(
+    @Req() req: Request,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getDailySales(
+      (req as any).tenantConnection,
+      startDate,
+      endDate,
+    );
+  }
+
   @Post('export-csv')
   exportCsv(@Req() req: Request) {
     return this.reportsService.enqueueExport((req as any).tenant);

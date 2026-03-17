@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Query, Body, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { PosService } from './pos.service';
@@ -24,6 +24,11 @@ export class PosController {
   @Post('sessions/close')
   closeSession(@Req() req: Request, @Body() body: { session_id: string; closing_amount: number }) {
     return this.posService.closeSession(req.tenantConnection!, body);
+  }
+
+  @Get('products')
+  getProductsWithStock(@Req() req: Request, @Query('branch_id') branchId: string) {
+    return this.posService.getProductsWithStock(req.tenantConnection!, branchId);
   }
 
   @Post('transactions')

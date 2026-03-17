@@ -72,6 +72,36 @@ export class ReportsService {
     return { data, total };
   }
 
+  async getDailySales(
+    connection: DataSource,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const saleRepo = connection.getRepository(Sale);
+    const qb = saleRepo
+      .createQueryBuilder('sale')
+      .select("DATE(sale.created_at)", 'date')
+      .addSelect('COUNT(sale.id)', 'count')
+      .addSelect('SUM(sale.total_amount)', 'revenue')
+      .where('sale.status = :status', { status: 'completed' })
+      .groupBy("DATE(sale.created_at)")
+      .orderBy("DATE(sale.created_at)", 'ASC');
+
+    if (startDate) {
+      qb.andWhere('sale.created_at >= :startDate', { startDate });
+    }
+    if (endDate) {
+      qb.andWhere('sale.created_at <= :endDate', { endDate });
+    }
+
+    const rows = await qb.getRawMany();
+    return rows.map((r) => ({
+      date: r.date,
+      count: parseInt(r.count, 10),
+      revenue: parseFloat(r.revenue || '0'),
+    }));
+  }
+
   async enqueueExport(tenant: any) {
     await this.reportQueue.add('generate-report', {
       database_name: tenant.database_name,

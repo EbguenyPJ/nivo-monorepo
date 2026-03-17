@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { CustomersService } from './customers.service';
@@ -12,8 +12,8 @@ export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
   @Get()
-  findAll(@Req() req: Request) {
-    return this.customersService.findAll(req.tenantConnection!);
+  findAll(@Req() req: Request, @Query('search') search?: string) {
+    return this.customersService.findAll(req.tenantConnection!, search);
   }
 
   @Post()

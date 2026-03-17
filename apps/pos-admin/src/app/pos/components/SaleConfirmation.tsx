@@ -4,16 +4,19 @@ import {
   Button, Badge,
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@nivo/ui';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Printer } from 'lucide-react';
 
 interface SaleConfirmationProps {
   open: boolean;
   onClose: () => void;
+  onPrintReceipt?: () => void;
   sale: {
     id: string;
     total: number;
     paymentMethod: string;
     itemCount: number;
+    customerName?: string;
+    items: { name: string; variant: string; qty: number; price: number }[];
   } | null;
 }
 
@@ -22,7 +25,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   card: 'Tarjeta',
 };
 
-export function SaleConfirmation({ open, onClose, sale }: SaleConfirmationProps) {
+export function SaleConfirmation({ open, onClose, onPrintReceipt, sale }: SaleConfirmationProps) {
   if (!sale) return null;
 
   return (
@@ -49,12 +52,24 @@ export function SaleConfirmation({ open, onClose, sale }: SaleConfirmationProps)
             <span className="text-sm text-muted-foreground">Productos</span>
             <span className="text-sm font-medium">{sale.itemCount} artículos</span>
           </div>
+          {sale.customerName && (
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-muted-foreground">Cliente</span>
+              <span className="text-sm font-medium">{sale.customerName}</span>
+            </div>
+          )}
           <div className="flex justify-between items-center">
             <span className="text-sm text-muted-foreground">ID</span>
             <span className="text-xs font-mono text-muted-foreground">{sale.id.slice(0, 8)}...</span>
           </div>
         </div>
-        <DialogFooter>
+        <DialogFooter className="flex flex-col gap-2 sm:flex-col">
+          {onPrintReceipt && (
+            <Button variant="outline" onClick={onPrintReceipt} className="w-full gap-2">
+              <Printer className="h-4 w-4" />
+              Imprimir Ticket
+            </Button>
+          )}
           <Button onClick={onClose} className="w-full">
             Nueva Venta
           </Button>

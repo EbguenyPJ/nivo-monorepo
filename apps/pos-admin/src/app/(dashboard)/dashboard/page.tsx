@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, Badge, Skeleton } from '@nivo/ui';
-import { DollarSign, ShoppingCart, Package, Users } from 'lucide-react';
+import { DollarSign, ShoppingCart, Package, Users, TrendingUp } from 'lucide-react';
 import { apiClient } from '@/lib/api';
-import { getTodayRange, getThisMonthRange, formatCurrency, formatDate } from '@/lib/date-utils';
+import { getTodayRange, getThisMonthRange, getThisWeekRange, formatCurrency, formatDate } from '@/lib/date-utils';
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line,
+} from 'recharts';
 
 interface DashboardData {
   todayRevenue: number;
@@ -15,6 +18,12 @@ interface DashboardData {
   recentSales: any[];
 }
 
+interface DailyData {
+  date: string;
+  count: number;
+  revenue: number;
+}
+
 const PAYMENT_LABELS: Record<string, string> = {
   cash: 'Efectivo',
   card: 'Tarjeta',
@@ -22,8 +31,28 @@ const PAYMENT_LABELS: Record<string, string> = {
   online: 'Online',
 };
 
+function formatShortDate(dateStr: string) {
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
+}
+
+function CustomTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-background border rounded-lg p-3 shadow-lg text-sm">
+      <p className="font-medium mb-1">{formatShortDate(label)}</p>
+      {payload.map((entry: any) => (
+        <p key={entry.dataKey} style={{ color: entry.color }}>
+          {entry.dataKey === 'revenue' ? formatCurrency(entry.value) : `${entry.value} ventas`}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [dailyData, setDailyData] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,12 +63,13 @@ export default function DashboardPage() {
         const todayParams = `start_date=${todayRange.start_date}&end_date=${todayRange.end_date}`;
         const monthParams = `start_date=${monthRange.start_date}&end_date=${monthRange.end_date}`;
 
-        const [todaySummary, monthSummary, products, customers, recentSales] = await Promise.all([
+        const [todaySummary, monthSummary, products, customers, recentSales, daily] = await Promise.all([
           apiClient.get(`/reports/summary?${todayParams}`),
           apiClient.get(`/reports/summary?${monthParams}`),
           apiClient.get('/products'),
           apiClient.get('/customers'),
           apiClient.get('/reports/sales?limit=5'),
+          apiClient.get(`/reports/daily-sales?${monthParams}`),
         ]);
 
         setData({
@@ -50,6 +80,7 @@ export default function DashboardPage() {
           customerCount: customers.data.length,
           recentSales: recentSales.data.data || [],
         });
+        setDailyData(daily.data || []);
       } catch (error) {
         console.error('Failed to load dashboard:', error);
       } finally {
@@ -87,7 +118,7 @@ export default function DashboardPage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Tickets</CardTitle>
+            <CardTitle className="text-sm font-medium">Tickets del mes</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -137,6 +168,89 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* Charts */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">Ingresos del Mes</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : dailyData.length === 0 ? (
+              <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                No hay datos para mostrar
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={dailyData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={formatShortDate}
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <YAxis
+                    tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-base">Ventas por Día</CardTitle>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <Skeleton className="h-64 w-full" />
+            ) : dailyData.length === 0 ? (
+              <div className="h-64 flex items-center justify-center text-muted-foreground text-sm">
+                No hay datos para mostrar
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={260}>
+                <LineChart data={dailyData}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis
+                    dataKey="date"
+                    tickFormatter={formatShortDate}
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <YAxis
+                    className="text-xs"
+                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Line
+                    type="monotone"
+                    dataKey="count"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    dot={{ fill: 'hsl(var(--primary))', r: 3 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Recent Sales */}
       <Card>
         <CardHeader>
           <CardTitle>Ventas Recientes</CardTitle>

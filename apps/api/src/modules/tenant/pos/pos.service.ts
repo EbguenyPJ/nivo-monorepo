@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { PosSession, Sale, SaleItem, Inventory } from '@nivo/database';
+import { PosSession, Sale, SaleItem, Inventory, Product } from '@nivo/database';
 
 @Injectable()
 export class PosService {
@@ -43,12 +43,55 @@ export class PosService {
     return repo.save(session);
   }
 
+  async getProductsWithStock(connection: DataSource, branchId: string) {
+    const products = await connection.getRepository(Product)
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.variants', 'variant')
+      .leftJoinAndSelect('product.brand', 'brand')
+      .leftJoinAndSelect('product.category', 'category')
+      .where('product.deleted_at IS NULL')
+      .getMany();
+
+    // Fetch inventory for this branch
+    const inventoryRows = await connection.getRepository(Inventory)
+      .createQueryBuilder('inv')
+      .where('inv.branch_id = :branchId', { branchId })
+      .getMany();
+
+    const stockMap = new Map<string, number>();
+    for (const inv of inventoryRows) {
+      stockMap.set(inv.variant_id, inv.stock_available);
+    }
+
+    // Attach stock to each variant
+    return products.map((p) => ({
+      ...p,
+      variants: (p.variants || []).map((v: any) => ({
+        ...v,
+        stock_available: stockMap.get(v.id) ?? 0,
+      })),
+    }));
+  }
+
   async createSale(connection: DataSource, user: any, data: any) {
     return connection.transaction(async (manager) => {
+      // Validate stock before processing
+      for (const item of data.items) {
+        const inventory = await manager.findOne(Inventory, {
+          where: { variant_id: item.variant_id, branch_id: data.branch_id },
+        });
+        const available = inventory?.stock_available ?? 0;
+        if (available < item.quantity) {
+          throw new BadRequestException(
+            `Stock insuficiente para variante ${item.variant_id}. Disponible: ${available}, solicitado: ${item.quantity}`,
+          );
+        }
+      }
+
       const sale = manager.create(Sale, {
         id: data.id,
         pos_session_id: data.pos_session_id,
-        customer_id: data.customer_id,
+        customer_id: data.customer_id || null,
         employee_id: user.sub,
         branch_id: data.branch_id,
         total_amount: data.total_amount || 0,
