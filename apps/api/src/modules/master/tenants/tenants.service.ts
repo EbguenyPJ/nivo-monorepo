@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Repository } from 'typeorm';
 import { Queue } from 'bullmq';
-import { Tenant } from '@nivo/database';
+import { Tenant, Subscription } from '@nivo/database';
 import { QUEUE_NAMES } from '../../../core/queue/queue.module';
 
 @Injectable()
@@ -11,6 +11,8 @@ export class TenantsService {
   constructor(
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(Subscription)
+    private readonly subscriptionRepo: Repository<Subscription>,
     @InjectQueue(QUEUE_NAMES.TENANT_PROVISIONING)
     private readonly provisioningQueue: Queue,
   ) {}
@@ -67,5 +69,140 @@ export class TenantsService {
     if (data.theme_settings !== undefined) tenant.theme_settings = data.theme_settings;
 
     return this.tenantRepo.save(tenant);
+  }
+
+  async getDashboardMetrics() {
+    const now = new Date();
+    const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+    // All tenants
+    const allTenants = await this.tenantRepo.find({
+      relations: ['subscriptions'],
+      order: { created_at: 'DESC' },
+    });
+
+    const total = allTenants.length;
+    const active = allTenants.filter((t) => t.is_active).length;
+    const inactive = total - active;
+
+    // This month vs last month registrations
+    const thisMonth = allTenants.filter((t) => new Date(t.created_at) >= firstOfMonth).length;
+    const lastMonth = allTenants.filter(
+      (t) => new Date(t.created_at) >= firstOfLastMonth && new Date(t.created_at) < firstOfMonth,
+    ).length;
+
+    // All subscriptions
+    const allSubs = await this.subscriptionRepo.find();
+
+    // Plan distribution
+    const planCounts: Record<string, number> = {};
+    for (const sub of allSubs) {
+      const plan = sub.plan_name || 'unknown';
+      planCounts[plan] = (planCounts[plan] || 0) + 1;
+    }
+    const planDistribution = Object.entries(planCounts).map(([name, count]) => ({ name, count }));
+
+    // MRR calculation (simplified: count active subscriptions by plan with estimated pricing)
+    const PLAN_PRICES: Record<string, number> = {
+      basic: 499,
+      professional: 999,
+      enterprise: 2499,
+    };
+    const activeSubs = allSubs.filter((s) => s.status === 'active');
+    const mrr = activeSubs.reduce((sum, s) => sum + (PLAN_PRICES[s.plan_name] || 0), 0);
+
+    // Churn: canceled in this month / active at start of month
+    const canceledThisMonth = allSubs.filter(
+      (s) => s.status === 'canceled' && new Date(s.updated_at) >= firstOfMonth,
+    ).length;
+    const activeStartOfMonth = allSubs.filter(
+      (s) => new Date(s.created_at) < firstOfMonth && s.status !== 'canceled',
+    ).length;
+    const churnRate = activeStartOfMonth > 0 ? (canceledThisMonth / activeStartOfMonth) * 100 : 0;
+
+    // Monthly growth data (last 6 months)
+    const monthlyGrowth: { month: string; tenants: number; revenue: number }[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+      const monthLabel = monthStart.toLocaleDateString('es-MX', { month: 'short', year: '2-digit' });
+
+      const tenantsInMonth = allTenants.filter(
+        (t) => new Date(t.created_at) >= monthStart && new Date(t.created_at) < monthEnd,
+      ).length;
+
+      // Revenue: active subs that existed during this month
+      const subsInMonth = allSubs.filter(
+        (s) => new Date(s.created_at) < monthEnd && (s.status === 'active' || new Date(s.updated_at) >= monthStart),
+      );
+      const monthRevenue = subsInMonth.reduce((sum, s) => sum + (PLAN_PRICES[s.plan_name] || 0), 0);
+
+      monthlyGrowth.push({ month: monthLabel, tenants: tenantsInMonth, revenue: monthRevenue });
+    }
+
+    // Activity feed (recent events)
+    const activityFeed: { type: string; message: string; time: string; tenantName?: string }[] = [];
+
+    // Recent registrations
+    const recentTenants = allTenants.slice(0, 5);
+    for (const t of recentTenants) {
+      activityFeed.push({
+        type: 'registration',
+        message: `${t.name} se registró en la plataforma`,
+        time: t.created_at.toString(),
+        tenantName: t.name,
+      });
+    }
+
+    // Recent subscription changes
+    const recentSubs = [...allSubs]
+      .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+      .slice(0, 5);
+    for (const s of recentSubs) {
+      const tenant = allTenants.find((t) => t.id === s.tenant_id);
+      if (!tenant) continue;
+      if (s.status === 'canceled') {
+        activityFeed.push({
+          type: 'cancellation',
+          message: `${tenant.name} canceló su suscripción`,
+          time: s.updated_at.toString(),
+          tenantName: tenant.name,
+        });
+      } else if (s.status === 'past_due') {
+        activityFeed.push({
+          type: 'payment_issue',
+          message: `Error de cobro en ${tenant.name}`,
+          time: s.updated_at.toString(),
+          tenantName: tenant.name,
+        });
+      } else if (s.plan_name === 'enterprise' || s.plan_name === 'professional') {
+        activityFeed.push({
+          type: 'upgrade',
+          message: `${tenant.name} actualizó a plan ${s.plan_name === 'enterprise' ? 'Empresarial' : 'Profesional'}`,
+          time: s.updated_at.toString(),
+          tenantName: tenant.name,
+        });
+      }
+    }
+
+    // Sort feed by time and take latest 10
+    activityFeed.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+    return {
+      kpis: {
+        total,
+        active,
+        inactive,
+        thisMonth,
+        lastMonth,
+        mrr,
+        churnRate: Math.round(churnRate * 10) / 10,
+        activeSubs: activeSubs.length,
+      },
+      planDistribution,
+      monthlyGrowth,
+      activityFeed: activityFeed.slice(0, 10),
+    };
   }
 }

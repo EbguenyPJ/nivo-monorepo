@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Tenant } from '@nivo/database';
+import { Tenant, Subscription } from '@nivo/database';
 import { TenantsController } from './tenants.controller';
 import { TenantsService } from './tenants.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Tenant])],
+  imports: [TypeOrmModule.forFeature([Tenant, Subscription])],
   controllers: [TenantsController],
   providers: [TenantsService],
   exports: [TenantsService],

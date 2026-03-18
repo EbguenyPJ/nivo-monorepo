@@ -24,6 +24,12 @@ export class TenantsController {
     return this.tenantsService.findAll(+page, +limit);
   }
 
+  @Get('dashboard/metrics')
+  @Roles('super-admin')
+  getDashboardMetrics() {
+    return this.tenantsService.getDashboardMetrics();
+  }
+
   @Get(':id')
   @Roles('super-admin', 'soporte')
   findOne(@Param('id') id: string) {
