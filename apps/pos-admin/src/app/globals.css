@@ -53,3 +53,342 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ========================================
+   LOGIN PAGE — Glassmorphism + Carousel
+   ======================================== */
+
+.login-page {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  overflow: hidden;
+}
+
+/* Background Carousel */
+.login-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.login-bg-slide {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  transition: opacity 1.5s ease-in-out;
+}
+
+.login-bg-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+/* Glass Card */
+.login-glass-card {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: 100%;
+  max-width: 920px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(1.8);
+  -webkit-backdrop-filter: blur(20px) saturate(1.8);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+/* Left: Login Form Section */
+.login-form-section {
+  flex: 1;
+  padding: 44px 40px;
+}
+
+.login-brand h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 6px;
+}
+
+.login-brand-accent {
+  background: linear-gradient(135deg, hsl(217, 91%, 60%), hsl(260, 80%, 65%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.login-brand p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  margin-bottom: 32px;
+}
+
+.login-form-container h2 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 24px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.login-field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+  margin-bottom: 6px;
+}
+
+.login-input-wrapper {
+  position: relative;
+}
+
+.login-input-wrapper input {
+  width: 100%;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.3s;
+}
+
+.login-input-wrapper input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.login-input-wrapper input:focus {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.06);
+}
+
+.login-eye-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  transition: color 0.2s;
+}
+
+.login-eye-btn:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.login-error {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #fca5a5;
+  font-size: 13px;
+  animation: loginShake 0.4s ease;
+}
+
+@keyframes loginShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.login-submit-btn {
+  width: 100%;
+  padding: 13px;
+  background: linear-gradient(135deg, hsl(217, 91%, 55%), hsl(260, 80%, 60%));
+  color: #fff;
+  font-weight: 600;
+  font-size: 15px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.login-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+}
+
+.login-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: loginSpin 0.6s linear infinite;
+}
+
+@keyframes loginSpin {
+  to { transform: rotate(360deg); }
+}
+
+.login-switch-btn {
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.2s;
+  text-align: left;
+}
+
+.login-switch-btn:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.login-footer {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.login-footer p {
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+}
+
+/* Right: Decorative Section */
+.login-deco-section {
+  flex: 1;
+  background: rgba(99, 102, 241, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+.login-deco-content {
+  text-align: center;
+  color: #fff;
+}
+
+.login-deco-content > svg {
+  margin-bottom: 16px;
+  opacity: 0.9;
+}
+
+.login-deco-content h2 {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #fff, rgba(255, 255, 255, 0.7));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.login-deco-content > p {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  margin-bottom: 36px;
+}
+
+.login-features {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+}
+
+.login-feature {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.login-feature-num {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 13px;
+  color: hsl(217, 91%, 70%);
+  flex-shrink: 0;
+}
+
+.login-feature span {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+}
+
+/* Tenant Badge */
+.login-tenant-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  border-radius: 8px;
+  padding: 8px 14px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.login-tenant-badge strong {
+  color: #fff;
+  text-transform: capitalize;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .login-glass-card {
+    flex-direction: column;
+    max-width: 100%;
+  }
+
+  .login-deco-section {
+    display: none;
+  }
+
+  .login-form-section {
+    padding: 32px 24px;
+  }
+
+  .login-brand h1 {
+    font-size: 22px;
+  }
+}

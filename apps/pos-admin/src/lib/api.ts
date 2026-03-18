@@ -16,9 +16,20 @@ apiClient.interceptors.request.use((config) => {
         if (parsed.state?.token) {
           config.headers.Authorization = `Bearer ${parsed.state.token}`;
         }
-        // Inject X-Tenant-Id for tenant-scoped API calls (needed in localhost dev)
+        // Inject X-Tenant-Id: from store first, fallback to subdomain detection
         if (parsed.state?.tenant?.subdomain) {
           config.headers['X-Tenant-Id'] = parsed.state.tenant.subdomain;
+        } else {
+          const hostname = window.location.hostname;
+          if (hostname.endsWith('.localhost')) {
+            const sub = hostname.replace('.localhost', '');
+            if (sub) config.headers['X-Tenant-Id'] = sub;
+          } else {
+            const parts = hostname.split('.');
+            if (parts.length >= 3) {
+              config.headers['X-Tenant-Id'] = parts[0];
+            }
+          }
         }
       } catch {}
     }
