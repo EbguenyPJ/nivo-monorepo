@@ -1,13 +1,16 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Repository } from 'typeorm';
+import { Repository, Like, FindOptionsWhere } from 'typeorm';
 import { Queue } from 'bullmq';
-import { Tenant, Subscription } from '@nivo/database';
+import { Tenant, Subscription, Product, Sale, Customer, Employee, Branch } from '@nivo/database';
 import { QUEUE_NAMES } from '../../../core/queue/queue.module';
+import { TenantConnectionManager } from '../../../core/database/tenant-connection.manager';
 
 @Injectable()
 export class TenantsService {
+  private readonly logger = new Logger(TenantsService.name);
+
   constructor(
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
@@ -15,6 +18,7 @@ export class TenantsService {
     private readonly subscriptionRepo: Repository<Subscription>,
     @InjectQueue(QUEUE_NAMES.TENANT_PROVISIONING)
     private readonly provisioningQueue: Queue,
+    private readonly tenantConnectionManager: TenantConnectionManager,
   ) {}
 
   async create(data: { name: string; subdomain: string; owner_email: string; owner_password: string; plan_name: string }) {
@@ -45,12 +49,31 @@ export class TenantsService {
     return { ...tenant, message: 'Tenant created. Database provisioning in progress.' };
   }
 
-  async findAll(page: number, limit: number) {
-    const [tenants, total] = await this.tenantRepo.findAndCount({
-      skip: (page - 1) * limit,
-      take: limit,
-      order: { created_at: 'DESC' },
-    });
+  async findAll(page: number, limit: number, filters?: { search?: string; status?: string; plan?: string }) {
+    const qb = this.tenantRepo
+      .createQueryBuilder('tenant')
+      .leftJoinAndSelect('tenant.subscriptions', 'sub')
+      .orderBy('tenant.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit);
+
+    if (filters?.search) {
+      qb.andWhere('(LOWER(tenant.name) LIKE :search OR LOWER(tenant.subdomain) LIKE :search)', {
+        search: `%${filters.search.toLowerCase()}%`,
+      });
+    }
+
+    if (filters?.status === 'active') {
+      qb.andWhere('tenant.is_active = :isActive', { isActive: true });
+    } else if (filters?.status === 'inactive') {
+      qb.andWhere('tenant.is_active = :isActive', { isActive: false });
+    }
+
+    if (filters?.plan) {
+      qb.andWhere('sub.plan_name = :plan', { plan: filters.plan });
+    }
+
+    const [tenants, total] = await qb.getManyAndCount();
 
     return { data: tenants, total, page, limit };
   }
@@ -61,6 +84,14 @@ export class TenantsService {
     return tenant;
   }
 
+  async toggleStatus(id: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    tenant.is_active = !tenant.is_active;
+    await this.tenantRepo.save(tenant);
+    return { ...tenant, message: tenant.is_active ? 'Tenant activado' : 'Tenant suspendido' };
+  }
+
   async updateTheme(id: string, data: { logo_url?: string; theme_settings?: Record<string, unknown> }) {
     const tenant = await this.tenantRepo.findOne({ where: { id } });
     if (!tenant) throw new NotFoundException('Tenant not found');
@@ -69,6 +100,118 @@ export class TenantsService {
     if (data.theme_settings !== undefined) tenant.theme_settings = data.theme_settings;
 
     return this.tenantRepo.save(tenant);
+  }
+
+  async getUsageMetrics(id: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    try {
+      const connection = await this.tenantConnectionManager.getConnection(tenant.database_name);
+
+      const productRepo = connection.getRepository(Product);
+      const saleRepo = connection.getRepository(Sale);
+      const customerRepo = connection.getRepository(Customer);
+      const employeeRepo = connection.getRepository(Employee);
+      const branchRepo = connection.getRepository(Branch);
+
+      const now = new Date();
+      const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+      // Product count
+      const totalProducts = await productRepo.count();
+
+      // Branches count
+      const totalBranches = await branchRepo.count();
+
+      // Customer count
+      const totalCustomers = await customerRepo.count();
+
+      // Employees count
+      const totalEmployees = await employeeRepo.count();
+
+      // Sales this month
+      const salesThisMonth = await saleRepo
+        .createQueryBuilder('sale')
+        .where('sale.status = :status', { status: 'completed' })
+        .andWhere('sale.created_at >= :start', { start: firstOfMonth })
+        .getCount();
+
+      // Revenue this month
+      const revenueResult = await saleRepo
+        .createQueryBuilder('sale')
+        .select('SUM(sale.total_amount)', 'total')
+        .where('sale.status = :status', { status: 'completed' })
+        .andWhere('sale.created_at >= :start', { start: firstOfMonth })
+        .getRawOne();
+      const revenueThisMonth = parseFloat(revenueResult?.total || '0');
+
+      // Sales last month (for comparison)
+      const salesLastMonth = await saleRepo
+        .createQueryBuilder('sale')
+        .where('sale.status = :status', { status: 'completed' })
+        .andWhere('sale.created_at >= :start', { start: firstOfLastMonth })
+        .andWhere('sale.created_at < :end', { end: firstOfMonth })
+        .getCount();
+
+      // Last activity (most recent sale as proxy for usage)
+      const lastSale = await saleRepo
+        .createQueryBuilder('sale')
+        .orderBy('sale.created_at', 'DESC')
+        .getOne();
+      const lastActivity = lastSale?.created_at?.toString() || null;
+
+      // Total sales all time
+      const totalSalesAllTime = await saleRepo.count({ where: { status: 'completed' } });
+
+      return {
+        totalProducts,
+        totalBranches,
+        totalCustomers,
+        totalEmployees,
+        salesThisMonth,
+        salesLastMonth,
+        revenueThisMonth,
+        totalSalesAllTime,
+        lastActivity,
+      };
+    } catch (error) {
+      this.logger.warn(`Could not connect to tenant DB ${tenant.database_name}: ${(error as Error).message}`);
+      return {
+        totalProducts: 0,
+        totalBranches: 0,
+        totalCustomers: 0,
+        totalEmployees: 0,
+        salesThisMonth: 0,
+        salesLastMonth: 0,
+        revenueThisMonth: 0,
+        totalSalesAllTime: 0,
+        lastActivity: null,
+        error: 'No se pudo conectar a la base de datos del tenant',
+      };
+    }
+  }
+
+  async changePlan(id: string, newPlan: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id }, relations: ['subscriptions'] });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    const activeSub = tenant.subscriptions?.find((s) => s.status === 'active');
+    if (activeSub) {
+      activeSub.plan_name = newPlan;
+      await this.subscriptionRepo.save(activeSub);
+      return { message: `Plan actualizado a ${newPlan}`, subscription: activeSub };
+    }
+
+    // Create new subscription if none active
+    const newSub = this.subscriptionRepo.create({
+      tenant_id: tenant.id,
+      plan_name: newPlan,
+      status: 'active',
+    });
+    await this.subscriptionRepo.save(newSub);
+    return { message: `Suscripción creada con plan ${newPlan}`, subscription: newSub };
   }
 
   async getDashboardMetrics() {

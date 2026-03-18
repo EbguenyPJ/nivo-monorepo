@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantsService } from './tenants.service';
 import { JwtAuthGuard } from '../../../core/auth/jwt-auth.guard';
@@ -20,8 +20,14 @@ export class TenantsController {
 
   @Get()
   @Roles('super-admin', 'soporte')
-  findAll(@Query('page') page = 1, @Query('limit') limit = 20) {
-    return this.tenantsService.findAll(+page, +limit);
+  findAll(
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('plan') plan?: string,
+  ) {
+    return this.tenantsService.findAll(+page, +limit, { search, status, plan });
   }
 
   @Get('dashboard/metrics')
@@ -34,6 +40,24 @@ export class TenantsController {
   @Roles('super-admin', 'soporte')
   findOne(@Param('id') id: string) {
     return this.tenantsService.findOne(id);
+  }
+
+  @Get(':id/usage')
+  @Roles('super-admin', 'soporte')
+  getUsageMetrics(@Param('id') id: string) {
+    return this.tenantsService.getUsageMetrics(id);
+  }
+
+  @Patch(':id/toggle-status')
+  @Roles('super-admin')
+  toggleStatus(@Param('id') id: string) {
+    return this.tenantsService.toggleStatus(id);
+  }
+
+  @Patch(':id/plan')
+  @Roles('super-admin')
+  changePlan(@Param('id') id: string, @Body() body: { plan_name: string }) {
+    return this.tenantsService.changePlan(id, body.plan_name);
   }
 
   @Put(':id/theme')
