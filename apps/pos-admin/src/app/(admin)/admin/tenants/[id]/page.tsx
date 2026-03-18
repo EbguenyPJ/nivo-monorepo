@@ -61,16 +61,16 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 const PLAN_BADGE_COLORS: Record<string, string> = {
-  basic: 'bg-blue-50 text-blue-700 border-blue-200/60',
-  professional: 'bg-purple-50 text-purple-700 border-purple-200/60',
-  enterprise: 'bg-amber-50 text-amber-700 border-amber-200/60',
+  basic: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  professional: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20',
+  enterprise: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
 };
 
 const SUB_STATUS_LABELS: Record<string, { label: string; className: string }> = {
-  active: { label: 'Activa', className: 'bg-emerald-50 text-emerald-700 border-emerald-200/60' },
-  past_due: { label: 'Pago Pendiente', className: 'bg-amber-50 text-amber-700 border-amber-200/60' },
-  canceled: { label: 'Cancelada', className: 'bg-red-50 text-red-600 border-red-200/60' },
-  paused: { label: 'Pausada', className: 'bg-slate-50 text-slate-600 border-slate-200/60' },
+  active: { label: 'Activa', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  past_due: { label: 'Pago Pendiente', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+  canceled: { label: 'Cancelada', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
+  paused: { label: 'Pausada', className: 'bg-white/[0.04] text-white/40 border-white/10' },
 };
 
 function formatCurrency(value: number) {
@@ -207,10 +207,10 @@ export default function TenantDetailPage() {
   if (!tenant) {
     return (
       <div className="text-center py-20">
-        <div className="h-16 w-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
+        <div className="h-16 w-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-4">
           <Store className="h-8 w-8 text-red-400" />
         </div>
-        <h3 className="font-semibold text-foreground mb-1">Zapatería no encontrada</h3>
+        <h3 className="font-semibold text-white/80 mb-1">Zapatería no encontrada</h3>
         <p className="text-sm text-muted-foreground mb-4">El tenant solicitado no existe o fue eliminado.</p>
         <Button variant="outline" onClick={() => router.push('/admin/tenants')}>
           Volver al listado
@@ -231,19 +231,19 @@ export default function TenantDetailPage() {
         <div className="flex items-center gap-4 flex-1 min-w-0">
           <button
             onClick={() => router.push('/admin/tenants')}
-            className="h-9 w-9 rounded-lg border border-border/60 bg-card flex items-center justify-center hover:bg-accent transition-colors shadow-sm shrink-0"
+            className="h-9 w-9 rounded-lg border border-white/[0.06] bg-white/[0.04] flex items-center justify-center hover:bg-white/[0.08] transition-colors shrink-0"
           >
-            <ArrowLeft className="h-4 w-4 text-muted-foreground" />
+            <ArrowLeft className="h-4 w-4 text-white/40" />
           </button>
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-2xl font-bold tracking-tight text-foreground truncate">{tenant.name}</h2>
+              <h2 className="text-xl font-bold tracking-tight text-white truncate">{tenant.name}</h2>
               <Badge
                 variant="outline"
                 className={
                   tenant.is_active
-                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50'
-                    : 'bg-red-50 text-red-600 border-red-200/50'
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-red-500/10 text-red-400 border-red-500/20'
                 }
               >
                 {tenant.is_active ? 'Activa' : 'Suspendida'}
@@ -254,7 +254,7 @@ export default function TenantDetailPage() {
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-muted-foreground mt-0.5">{tenant.subdomain}.nivo.com</p>
+            <p className="text-sm text-white/30 mt-0.5">{tenant.subdomain}.nivo.com</p>
           </div>
         </div>
 
@@ -262,7 +262,7 @@ export default function TenantDetailPage() {
         <Button
           onClick={handleImpersonate}
           disabled={impersonating}
-          className="gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 border-0 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 shrink-0"
+          className="gap-2 bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 border-0 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 shrink-0"
         >
           <Eye className="h-4 w-4" />
           {impersonating ? 'Accediendo...' : 'Entrar como Admin'}
@@ -272,94 +272,98 @@ export default function TenantDetailPage() {
       {/* Usage Metrics Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Ventas este mes */}
-        <Card className="hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-shadow">
+        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Ventas este mes</p>
+                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Ventas este mes</p>
                 {usageLoading ? (
-                  <Skeleton className="h-8 w-16" />
+                  <Skeleton className="h-8 w-16 bg-white/10" />
                 ) : (
                   <div className="flex items-baseline gap-2">
-                    <p className="text-2xl font-bold">{usage?.salesThisMonth || 0}</p>
+                    <p className="text-2xl font-bold text-white">{usage?.salesThisMonth || 0}</p>
                     {usage && usage.salesLastMonth > 0 && (
-                      <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${salesDelta >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${salesDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {salesDelta >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
                         {Math.abs(salesGrowth)}%
                       </span>
                     )}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground/70">vs {usage?.salesLastMonth || 0} mes anterior</p>
+                <p className="text-[11px] text-white/25">vs {usage?.salesLastMonth || 0} mes anterior</p>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
-                <ShoppingBag className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                <ShoppingBag className="h-5 w-5 text-purple-400" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Ingresos este mes */}
-        <Card className="hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-shadow">
+        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Ingresos del mes</p>
+                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Ingresos del mes</p>
                 {usageLoading ? (
-                  <Skeleton className="h-8 w-24" />
+                  <Skeleton className="h-8 w-24 bg-white/10" />
                 ) : (
-                  <p className="text-2xl font-bold">{formatCurrency(usage?.revenueThisMonth || 0)}</p>
+                  <p className="text-2xl font-bold text-white">{formatCurrency(usage?.revenueThisMonth || 0)}</p>
                 )}
-                <p className="text-xs text-muted-foreground/70">{usage?.totalSalesAllTime || 0} ventas totales</p>
+                <p className="text-[11px] text-white/25">{usage?.totalSalesAllTime || 0} ventas totales</p>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                <DollarSign className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+                <DollarSign className="h-5 w-5 text-emerald-400" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Productos */}
-        <Card className="hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-shadow">
+        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Productos</p>
+                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Productos</p>
                 {usageLoading ? (
-                  <Skeleton className="h-8 w-12" />
+                  <Skeleton className="h-8 w-12 bg-white/10" />
                 ) : (
-                  <p className="text-2xl font-bold">{usage?.totalProducts || 0}</p>
+                  <p className="text-2xl font-bold text-white">{usage?.totalProducts || 0}</p>
                 )}
-                <p className="text-xs text-muted-foreground/70">registrados en catálogo</p>
+                <p className="text-[11px] text-white/25">registrados en catálogo</p>
               </div>
-              <div className="h-10 w-10 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600">
-                <Package className="h-5 w-5" />
+              <div className="h-10 w-10 rounded-xl bg-fuchsia-500/10 flex items-center justify-center">
+                <Package className="h-5 w-5 text-fuchsia-400" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Última actividad */}
-        <Card className="hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-shadow">
+        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-sm font-medium text-muted-foreground">Última actividad</p>
+                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Última actividad</p>
                 {usageLoading ? (
-                  <Skeleton className="h-8 w-20" />
+                  <Skeleton className="h-8 w-20 bg-white/10" />
                 ) : usage?.lastActivity ? (
-                  <p className="text-2xl font-bold">{timeAgo(usage.lastActivity)}</p>
+                  <p className="text-2xl font-bold text-white">{timeAgo(usage.lastActivity)}</p>
                 ) : (
-                  <p className="text-lg font-semibold text-muted-foreground">Sin actividad</p>
+                  <p className="text-lg font-semibold text-white/30">Sin actividad</p>
                 )}
-                <p className="text-xs text-muted-foreground/70">último uso del sistema</p>
+                <p className="text-[11px] text-white/25">último uso del sistema</p>
               </div>
               <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
                 usage?.lastActivity && (Date.now() - new Date(usage.lastActivity).getTime()) < 86400000 * 7
-                  ? 'bg-emerald-50 text-emerald-600'
-                  : 'bg-amber-50 text-amber-600'
+                  ? 'bg-emerald-500/10'
+                  : 'bg-orange-500/10'
               }`}>
-                <Clock className="h-5 w-5" />
+                <Clock className={`h-5 w-5 ${
+                  usage?.lastActivity && (Date.now() - new Date(usage.lastActivity).getTime()) < 86400000 * 7
+                    ? 'text-emerald-400'
+                    : 'text-orange-400'
+                }`} />
               </div>
             </div>
           </CardContent>
@@ -371,15 +375,15 @@ export default function TenantDetailPage() {
         {/* Left Column (2/3) */}
         <div className="lg:col-span-2 space-y-5">
           {/* Usage Detail Card */}
-          <Card>
+          <Card className="bg-white/[0.04] border-white/[0.06]">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-5">
-                <div className="h-8 w-8 rounded-lg bg-blue-50 flex items-center justify-center">
-                  <Activity className="h-4 w-4 text-blue-600" />
+                <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                  <Activity className="h-4 w-4 text-purple-400" />
                 </div>
-                <h3 className="font-semibold text-foreground">Métricas de Uso</h3>
+                <h3 className="font-semibold text-white/80">Métricas de Uso</h3>
                 {usage?.error && (
-                  <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200/60 ml-auto text-xs">
+                  <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 ml-auto text-xs">
                     DB no disponible
                   </Badge>
                 )}
@@ -387,47 +391,47 @@ export default function TenantDetailPage() {
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
-                  { icon: Package, label: 'Productos', value: usage?.totalProducts, color: 'text-purple-600 bg-purple-50' },
-                  { icon: Users, label: 'Clientes', value: usage?.totalCustomers, color: 'text-blue-600 bg-blue-50' },
-                  { icon: UserCog, label: 'Empleados', value: usage?.totalEmployees, color: 'text-emerald-600 bg-emerald-50' },
-                  { icon: MapPin, label: 'Sucursales', value: usage?.totalBranches, color: 'text-amber-600 bg-amber-50' },
+                  { icon: Package, label: 'Productos', value: usage?.totalProducts, color: 'text-purple-400 bg-purple-500/10' },
+                  { icon: Users, label: 'Clientes', value: usage?.totalCustomers, color: 'text-blue-400 bg-blue-500/10' },
+                  { icon: UserCog, label: 'Empleados', value: usage?.totalEmployees, color: 'text-emerald-400 bg-emerald-500/10' },
+                  { icon: MapPin, label: 'Sucursales', value: usage?.totalBranches, color: 'text-orange-400 bg-orange-500/10' },
                 ].map((metric) => (
-                  <div key={metric.label} className="rounded-xl bg-muted/40 border border-border/30 p-4 text-center">
+                  <div key={metric.label} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 text-center">
                     <div className={`h-9 w-9 rounded-lg ${metric.color} flex items-center justify-center mx-auto mb-2`}>
                       <metric.icon className="h-4 w-4" />
                     </div>
                     {usageLoading ? (
-                      <Skeleton className="h-7 w-10 mx-auto mb-1" />
+                      <Skeleton className="h-7 w-10 mx-auto mb-1 bg-white/10" />
                     ) : (
-                      <p className="text-xl font-bold text-foreground">{metric.value ?? 0}</p>
+                      <p className="text-xl font-bold text-white">{metric.value ?? 0}</p>
                     )}
-                    <p className="text-xs text-muted-foreground">{metric.label}</p>
+                    <p className="text-xs text-white/30">{metric.label}</p>
                   </div>
                 ))}
               </div>
 
               {/* Health Indicator */}
               {!usageLoading && usage && (
-                <div className="mt-5 rounded-xl bg-muted/30 border border-border/30 p-4">
+                <div className="mt-5 rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
                   <div className="flex items-center gap-3">
                     {usage.salesThisMonth > 0 || (usage.lastActivity && (Date.now() - new Date(usage.lastActivity).getTime()) < 86400000 * 7) ? (
                       <>
-                        <div className="h-10 w-10 rounded-lg bg-emerald-50 flex items-center justify-center">
-                          <TrendingUp className="h-5 w-5 text-emerald-600" />
+                        <div className="h-10 w-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                          <TrendingUp className="h-5 w-5 text-emerald-400" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-emerald-700">Cliente activo</p>
-                          <p className="text-xs text-muted-foreground">Este negocio está usando el sistema activamente</p>
+                          <p className="text-sm font-medium text-emerald-400">Cliente activo</p>
+                          <p className="text-xs text-white/30">Este negocio está usando el sistema activamente</p>
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="h-10 w-10 rounded-lg bg-amber-50 flex items-center justify-center">
-                          <TrendingDown className="h-5 w-5 text-amber-600" />
+                        <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                          <TrendingDown className="h-5 w-5 text-orange-400" />
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-amber-700">Riesgo de abandono</p>
-                          <p className="text-xs text-muted-foreground">Sin ventas este mes ni actividad reciente. Considerar contactar al cliente.</p>
+                          <p className="text-sm font-medium text-orange-400">Riesgo de abandono</p>
+                          <p className="text-xs text-white/30">Sin ventas este mes ni actividad reciente. Considerar contactar al cliente.</p>
                         </div>
                       </>
                     )}
@@ -438,13 +442,13 @@ export default function TenantDetailPage() {
           </Card>
 
           {/* General Info Card */}
-          <Card>
+          <Card className="bg-white/[0.04] border-white/[0.06]">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-5">
-                <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-slate-600" />
+                <div className="h-8 w-8 rounded-lg bg-white/[0.06] flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-white/40" />
                 </div>
-                <h3 className="font-semibold text-foreground">Información General</h3>
+                <h3 className="font-semibold text-white/80">Información General</h3>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 {[
@@ -459,13 +463,13 @@ export default function TenantDetailPage() {
                     }),
                   },
                 ].map((item) => (
-                  <div key={item.label} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30">
-                    <div className="h-8 w-8 rounded-lg bg-card border border-border/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <item.icon className="h-4 w-4 text-muted-foreground" />
+                  <div key={item.label} className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.03]">
+                    <div className="h-8 w-8 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <item.icon className="h-4 w-4 text-white/30" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-muted-foreground/70 uppercase tracking-wide">{item.label}</p>
-                      <p className={`text-sm text-foreground mt-0.5 truncate ${item.mono ? 'font-mono text-xs' : ''}`}>
+                      <p className="text-xs font-medium text-white/25 uppercase tracking-wide">{item.label}</p>
+                      <p className={`text-sm text-white/80 mt-0.5 truncate ${item.mono ? 'font-mono text-xs' : ''}`}>
                         {item.value}
                       </p>
                     </div>
@@ -479,19 +483,19 @@ export default function TenantDetailPage() {
         {/* Right Column (1/3) — Subscription & Actions */}
         <div className="space-y-5">
           {/* Subscription Card */}
-          <Card>
+          <Card className="bg-white/[0.04] border-white/[0.06]">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-5">
-                <div className="h-8 w-8 rounded-lg bg-purple-50 flex items-center justify-center">
-                  <CreditCard className="h-4 w-4 text-purple-600" />
+                <div className="h-8 w-8 rounded-lg bg-fuchsia-500/10 flex items-center justify-center">
+                  <CreditCard className="h-4 w-4 text-fuchsia-400" />
                 </div>
-                <h3 className="font-semibold text-foreground">Suscripción</h3>
+                <h3 className="font-semibold text-white/80">Suscripción</h3>
               </div>
 
               {activeSub ? (
                 <div className="space-y-4">
                   {/* Plan Badge + Status */}
-                  <div className="rounded-xl bg-gradient-to-br from-muted/40 to-muted/20 border border-border/30 p-4">
+                  <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
                     <div className="flex items-center justify-between mb-3">
                       <Badge variant="outline" className={PLAN_BADGE_COLORS[activeSub.plan_name] || ''}>
                         {PLAN_LABELS[activeSub.plan_name] || activeSub.plan_name}
@@ -500,16 +504,16 @@ export default function TenantDetailPage() {
                         {SUB_STATUS_LABELS[activeSub.status]?.label || activeSub.status}
                       </Badge>
                     </div>
-                    <p className="text-2xl font-bold text-foreground">
+                    <p className="text-2xl font-bold text-white">
                       {formatCurrency(PLAN_PRICES[activeSub.plan_name] || 0)}
-                      <span className="text-sm font-normal text-muted-foreground">/mes</span>
+                      <span className="text-sm font-normal text-white/30">/mes</span>
                     </p>
                   </div>
 
                   {/* Billing Info */}
                   <div className="space-y-3 text-sm">
                     {activeSub.current_period_end && (
-                      <div className="flex items-center justify-between py-2 border-b border-border/30">
+                      <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
                         <span className="text-muted-foreground">Próximo corte</span>
                         <span className="font-medium">
                           {new Date(activeSub.current_period_end).toLocaleDateString('es-MX', {
@@ -518,7 +522,7 @@ export default function TenantDetailPage() {
                         </span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between py-2 border-b border-border/30">
+                    <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
                       <span className="text-muted-foreground">Inicio suscripción</span>
                       <span className="font-medium">
                         {new Date(activeSub.created_at).toLocaleDateString('es-MX', {
@@ -526,7 +530,7 @@ export default function TenantDetailPage() {
                         })}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between py-2 border-b border-border/30">
+                    <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
                       <span className="text-muted-foreground">Método de pago</span>
                       <span className="font-medium text-muted-foreground">
                         {tenant.stripe_customer_id ? '•••• registrado' : 'No configurado'}
@@ -563,8 +567,8 @@ export default function TenantDetailPage() {
                               onClick={() => setSelectedPlan(plan)}
                               className={`rounded-xl border-2 p-4 text-center transition-all ${
                                 selectedPlan === plan
-                                  ? 'border-blue-500 bg-blue-50/50 shadow-md'
-                                  : 'border-border/40 hover:border-border'
+                                  ? 'border-purple-500 bg-purple-500/10 shadow-md shadow-purple-500/10'
+                                  : 'border-white/[0.06] hover:border-white/10'
                               }`}
                             >
                               <p className="font-semibold text-sm">{PLAN_LABELS[plan]}</p>
@@ -582,7 +586,7 @@ export default function TenantDetailPage() {
                         <Button
                           onClick={handleChangePlan}
                           disabled={changingPlan || selectedPlan === activeSub.plan_name}
-                          className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 border-0"
+                          className="bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 border-0"
                         >
                           {changingPlan ? 'Cambiando...' : 'Confirmar Cambio'}
                         </Button>
@@ -601,13 +605,13 @@ export default function TenantDetailPage() {
           </Card>
 
           {/* Quick Actions Card */}
-          <Card>
+          <Card className="bg-white/[0.04] border-white/[0.06]">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-4">
-                <div className="h-8 w-8 rounded-lg bg-slate-100 flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-slate-600" />
+                <div className="h-8 w-8 rounded-lg bg-white/[0.06] flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-white/40" />
                 </div>
-                <h3 className="font-semibold text-foreground">Acciones</h3>
+                <h3 className="font-semibold text-white/80">Acciones</h3>
               </div>
               <div className="space-y-2">
                 <Button
@@ -623,8 +627,8 @@ export default function TenantDetailPage() {
                   variant="outline"
                   className={`w-full justify-start gap-2 ${
                     tenant.is_active
-                      ? 'text-red-600 hover:text-red-700 hover:bg-red-50'
-                      : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'
+                      ? 'text-red-400 hover:text-red-300 hover:bg-red-500/10'
+                      : 'text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10'
                   }`}
                   onClick={handleToggleStatus}
                 >

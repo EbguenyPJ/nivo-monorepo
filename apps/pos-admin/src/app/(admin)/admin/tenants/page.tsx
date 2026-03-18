@@ -39,22 +39,22 @@ const PAGE_SIZE = 15;
 const STATUS_BADGES: Record<string, { label: string; className: string }> = {
   active: {
     label: 'Activa',
-    className: 'bg-emerald-50 text-emerald-700 border-emerald-200/60 hover:bg-emerald-50',
+    className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/15',
   },
   inactive: {
     label: 'Suspendida',
-    className: 'bg-red-50 text-red-600 border-red-200/60 hover:bg-red-50',
+    className: 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/15',
   },
   trial: {
     label: 'Prueba Gratuita',
-    className: 'bg-amber-50 text-amber-700 border-amber-200/60 hover:bg-amber-50',
+    className: 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/15',
   },
 };
 
 const PLAN_BADGES: Record<string, { label: string; className: string }> = {
-  basic: { label: 'Básico', className: 'bg-blue-50 text-blue-700 border-blue-200/60' },
-  professional: { label: 'Profesional', className: 'bg-purple-50 text-purple-700 border-purple-200/60' },
-  enterprise: { label: 'Empresarial', className: 'bg-amber-50 text-amber-700 border-amber-200/60' },
+  basic: { label: 'Básico', className: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+  professional: { label: 'Profesional', className: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20' },
+  enterprise: { label: 'Empresarial', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
 };
 
 function getTenantStatus(tenant: Tenant): string {
@@ -201,15 +201,15 @@ export default function TenantsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-foreground">Zapaterías</h2>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h2 className="text-xl font-bold tracking-tight text-white">Zapaterías</h2>
+          <p className="text-sm text-white/30 mt-0.5">
             {total} negocios registrados en la plataforma
           </p>
         </div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 border-0">
+            <Button className="gap-2 bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 border-0">
               <Plus className="h-4 w-4" />
               Nueva Zapatería
             </Button>
@@ -288,7 +288,7 @@ export default function TenantsPage() {
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={creating}
-                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 border-0">
+                  className="bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 border-0">
                   {creating ? 'Creando...' : 'Crear Zapatería'}
                 </Button>
               </DialogFooter>
@@ -373,11 +373,11 @@ export default function TenantsPage() {
           </CardContent>
         ) : tenants.length === 0 && !hasFilters ? (
           <CardContent className="py-16 text-center">
-            <div className="h-16 w-16 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
-              <Store className="h-8 w-8 text-blue-500" />
+            <div className="h-16 w-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto mb-4">
+              <Store className="h-8 w-8 text-purple-400" />
             </div>
-            <h3 className="font-semibold text-foreground mb-1">Sin zapaterías registradas</h3>
-            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+            <h3 className="font-semibold text-white/80 mb-1">Sin zapaterías registradas</h3>
+            <p className="text-sm text-white/30 max-w-sm mx-auto">
               Haz clic en &quot;Nueva Zapatería&quot; para registrar el primer negocio en la plataforma.
             </p>
           </CardContent>
@@ -418,8 +418,8 @@ export default function TenantsPage() {
                     <TableRow key={tenant.id} className="group">
                       <TableCell>
                         <div className="flex items-center gap-3">
-                          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center border border-blue-100/50 shrink-0">
-                            <Store className="h-4 w-4 text-blue-600" />
+                          <div className="h-9 w-9 rounded-lg bg-purple-500/10 flex items-center justify-center border border-purple-500/10 shrink-0">
+                            <Store className="h-4 w-4 text-purple-400" />
                           </div>
                           <div className="min-w-0">
                             <p className="font-medium text-foreground truncate">{tenant.name}</p>
@@ -559,7 +559,7 @@ export default function TenantsPage() {
                           key={item}
                           variant={page === item ? 'default' : 'ghost'}
                           size="sm"
-                          className={`h-8 w-8 p-0 ${page === item ? 'bg-gradient-to-r from-blue-500 to-purple-600 border-0 text-white' : ''}`}
+                          className={`h-8 w-8 p-0 ${page === item ? 'bg-gradient-to-r from-purple-500 to-fuchsia-600 border-0 text-white' : ''}`}
                           onClick={() => setPage(item as number)}
                         >
                           {item}
