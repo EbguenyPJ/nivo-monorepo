@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Button, Badge, Card, CardContent, CardHeader, CardTitle, Input, Label,
+  Button, Badge, Card, CardContent, Input, Label, Skeleton, toast,
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,
+  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@nivo/ui';
-import { Plus, Store, ExternalLink } from 'lucide-react';
+import { Plus, Store, ChevronRight, Search, Globe } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 
 interface Tenant {
@@ -23,6 +24,7 @@ export default function TenantsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [form, setForm] = useState({
     name: '',
     subdomain: '',
@@ -48,14 +50,27 @@ export default function TenantsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.name.trim() || !form.owner_email.trim() || !form.owner_password.trim()) {
+      toast({ title: 'Campos requeridos', description: 'Completa todos los campos obligatorios.', variant: 'destructive' });
+      return;
+    }
+    if (form.owner_password.length < 8) {
+      toast({ title: 'Contraseña muy corta', description: 'La contraseña debe tener al menos 8 caracteres.', variant: 'destructive' });
+      return;
+    }
     setCreating(true);
     try {
       await apiClient.post('/tenants', form);
       setDialogOpen(false);
       setForm({ name: '', subdomain: '', owner_email: '', owner_password: '', plan_name: 'basic' });
+      toast({ title: 'Zapatería creada', description: `${form.name} se registró correctamente.` });
       await fetchTenants();
     } catch (error: any) {
-      alert(error.response?.data?.message || 'Error al crear la zapatería');
+      toast({
+        title: 'Error',
+        description: error.response?.data?.message || 'No se pudo crear la zapatería.',
+        variant: 'destructive',
+      });
     } finally {
       setCreating(false);
     }
@@ -63,7 +78,6 @@ export default function TenantsPage() {
 
   const updateForm = (field: string, value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
-    // Auto-generate subdomain from name
     if (field === 'name') {
       const subdomain = value
         .toLowerCase()
@@ -75,17 +89,26 @@ export default function TenantsPage() {
     }
   };
 
+  const filteredTenants = tenants.filter((t) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return t.name.toLowerCase().includes(q) || t.subdomain.toLowerCase().includes(q);
+  });
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Zapaterías</h2>
-          <p className="text-muted-foreground">Gestiona los negocios registrados en la plataforma</p>
+          <h2 className="text-2xl font-bold tracking-tight text-foreground">Zapaterías</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {tenants.length} negocios registrados en la plataforma
+          </p>
         </div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
+            <Button className="gap-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/30 border-0">
               <Plus className="h-4 w-4" />
               Nueva Zapatería
             </Button>
@@ -147,23 +170,24 @@ export default function TenantsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="plan">Plan</Label>
-                  <select
-                    id="plan"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    value={form.plan_name}
-                    onChange={(e) => setForm((prev) => ({ ...prev, plan_name: e.target.value }))}
-                  >
-                    <option value="basic">Básico</option>
-                    <option value="professional">Profesional</option>
-                    <option value="enterprise">Empresarial</option>
-                  </select>
+                  <Select value={form.plan_name} onValueChange={(v) => setForm((prev) => ({ ...prev, plan_name: v }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="basic">Básico</SelectItem>
+                      <SelectItem value="professional">Profesional</SelectItem>
+                      <SelectItem value="enterprise">Empresarial</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={creating}>
+                <Button type="submit" disabled={creating}
+                  className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 border-0">
                   {creating ? 'Creando...' : 'Crear Zapatería'}
                 </Button>
               </DialogFooter>
@@ -172,39 +196,75 @@ export default function TenantsPage() {
         </Dialog>
       </div>
 
+      {/* Search */}
+      {tenants.length > 0 && (
+        <div className="relative max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar zapatería..."
+            className="pl-10"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </div>
+      )}
+
+      {/* Tenant List */}
       {loading ? (
-        <p className="text-muted-foreground">Cargando zapaterías...</p>
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))}
+        </div>
       ) : tenants.length === 0 ? (
         <Card>
-          <CardContent className="py-12 text-center">
-            <Store className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No hay zapaterías registradas aún.</p>
-            <p className="text-sm text-muted-foreground">Haz clic en &quot;Nueva Zapatería&quot; para crear la primera.</p>
+          <CardContent className="py-16 text-center">
+            <div className="h-16 w-16 rounded-2xl bg-blue-50 flex items-center justify-center mx-auto mb-4">
+              <Store className="h-8 w-8 text-blue-500" />
+            </div>
+            <h3 className="font-semibold text-foreground mb-1">Sin zapaterías registradas</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+              Haz clic en &quot;Nueva Zapatería&quot; para registrar el primer negocio en la plataforma.
+            </p>
           </CardContent>
         </Card>
+      ) : filteredTenants.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground text-sm">No se encontraron resultados para &quot;{searchQuery}&quot;</p>
+        </div>
       ) : (
-        <div className="grid gap-4">
-          {tenants.map((tenant) => (
+        <div className="space-y-2">
+          {filteredTenants.map((tenant) => (
             <Link key={tenant.id} href={`/admin/tenants/${tenant.id}`}>
-              <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-                <CardContent className="flex items-center justify-between py-4">
+              <Card className="hover:shadow-[0_4px_20px_rgba(0,0,0,0.06)] transition-all duration-200 group cursor-pointer">
+                <CardContent className="flex items-center justify-between py-4 px-5">
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Store className="h-5 w-5 text-primary" />
+                    <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center border border-blue-100/50">
+                      <Store className="h-5 w-5 text-blue-600" />
                     </div>
                     <div>
-                      <p className="font-medium">{tenant.name}</p>
-                      <p className="text-sm text-muted-foreground">{tenant.subdomain}.nivo.com</p>
+                      <p className="font-semibold text-foreground">{tenant.name}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Globe className="h-3 w-3 text-muted-foreground/50" />
+                        <p className="text-sm text-muted-foreground">{tenant.subdomain}.nivo.com</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant={tenant.is_active ? 'default' : 'destructive'}>
+                  <div className="flex items-center gap-4">
+                    <Badge
+                      className={
+                        tenant.is_active
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200/50 hover:bg-emerald-50'
+                          : 'bg-red-50 text-red-600 border-red-200/50 hover:bg-red-50'
+                      }
+                      variant="outline"
+                    >
                       {tenant.is_active ? 'Activa' : 'Inactiva'}
                     </Badge>
-                    <span className="text-sm text-muted-foreground">
-                      {new Date(tenant.created_at).toLocaleDateString('es-MX')}
+                    <span className="text-xs text-muted-foreground/60 min-w-[80px] text-right">
+                      {new Date(tenant.created_at).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', year: 'numeric' })}
                     </span>
-                    <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/30 group-hover:text-primary group-hover:translate-x-0.5 transition-all duration-200" />
                   </div>
                 </CardContent>
               </Card>
