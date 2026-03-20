@@ -1,16 +1,27 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { SupportTicket, TicketMessage } from '@nivo/database';
+import { join } from 'path';
+import { existsSync, mkdirSync } from 'fs';
+import { SupportTicket, TicketMessage, TicketAttachment } from '@nivo/database';
 
 @Injectable()
-export class SupportService {
+export class SupportService implements OnModuleInit {
   constructor(
     @InjectRepository(SupportTicket)
     private readonly ticketRepo: Repository<SupportTicket>,
     @InjectRepository(TicketMessage)
     private readonly messageRepo: Repository<TicketMessage>,
+    @InjectRepository(TicketAttachment)
+    private readonly attachmentRepo: Repository<TicketAttachment>,
   ) {}
+
+  onModuleInit() {
+    const uploadDir = join(process.cwd(), 'uploads', 'support');
+    if (!existsSync(uploadDir)) {
+      mkdirSync(uploadDir, { recursive: true });
+    }
+  }
 
   async findAll(
     page: number,
@@ -50,23 +61,26 @@ export class SupportService {
       order: { messages: { created_at: 'ASC' } },
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
-    return ticket;
+
+    const attachments = await this.attachmentRepo.find({
+      where: { ticket_id: id },
+      order: { created_at: 'ASC' },
+    });
+
+    return { ...ticket, attachments };
   }
 
-  async create(data: {
-    tenant_id: string;
-    tenant_name: string;
-    subject: string;
-    category?: string;
-    message: string;
-  }) {
+  async create(
+    data: Record<string, any>,
+    files?: Express.Multer.File[],
+  ) {
     const ticket = this.ticketRepo.create({
       tenant_id: data.tenant_id,
       tenant_name: data.tenant_name,
       subject: data.subject,
       category: data.category || 'general',
       status: 'open',
-      priority: 'medium',
+      priority: data.priority || 'medium',
     });
 
     const savedTicket = await this.ticketRepo.save(ticket);
@@ -78,7 +92,22 @@ export class SupportService {
       message: data.message,
     });
 
-    await this.messageRepo.save(firstMessage);
+    const savedMessage = await this.messageRepo.save(firstMessage);
+
+    if (files && files.length > 0) {
+      const attachments = files.map((file) =>
+        this.attachmentRepo.create({
+          ticket_id: savedTicket.id,
+          message_id: savedMessage.id,
+          original_name: file.originalname,
+          stored_name: file.filename,
+          mime_type: file.mimetype,
+          size: file.size,
+          path: file.path,
+        }),
+      );
+      await this.attachmentRepo.save(attachments);
+    }
 
     return this.findOne(savedTicket.id);
   }

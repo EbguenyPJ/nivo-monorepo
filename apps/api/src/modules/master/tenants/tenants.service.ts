@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Repository, Like, FindOptionsWhere } from 'typeorm';
 import { Queue } from 'bullmq';
-import { Tenant, Subscription, Product, Sale, Customer, Employee, Branch } from '@nivo/database';
+import { Tenant, Subscription, PlanConfig, Product, Sale, Customer, Employee, Branch } from '@nivo/database';
 import { QUEUE_NAMES } from '../../../core/queue/queue.module';
 import { TenantConnectionManager } from '../../../core/database/tenant-connection.manager';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -17,11 +17,37 @@ export class TenantsService {
     private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
+    @InjectRepository(PlanConfig)
+    private readonly planConfigRepo: Repository<PlanConfig>,
     @InjectQueue(QUEUE_NAMES.TENANT_PROVISIONING)
     private readonly provisioningQueue: Queue,
     private readonly tenantConnectionManager: TenantConnectionManager,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  /**
+   * Build a plan_name -> monthly_price map from the plan_configs table.
+   */
+  private async getPlanPrices(): Promise<Record<string, number>> {
+    const plans = await this.planConfigRepo.find();
+    const map: Record<string, number> = {};
+    for (const p of plans) {
+      map[p.plan_name] = Number(p.monthly_price) || 0;
+    }
+    return map;
+  }
+
+  /**
+   * Build a plan_name -> display_name map from the plan_configs table.
+   */
+  private async getPlanLabels(): Promise<Record<string, string>> {
+    const plans = await this.planConfigRepo.find();
+    const map: Record<string, string> = {};
+    for (const p of plans) {
+      map[p.plan_name] = p.display_name;
+    }
+    return map;
+  }
 
   async create(data: { name: string; subdomain: string; owner_email: string; owner_password: string; plan_name: string }) {
     const existing = await this.tenantRepo.findOne({ where: { subdomain: data.subdomain } });
@@ -258,6 +284,10 @@ export class TenantsService {
     const firstOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
 
+    // Load plan prices from DB
+    const planPrices = await this.getPlanPrices();
+    const planLabels = await this.getPlanLabels();
+
     // All tenants
     const allTenants = await this.tenantRepo.find({
       relations: ['subscriptions'],
@@ -285,14 +315,9 @@ export class TenantsService {
     }
     const planDistribution = Object.entries(planCounts).map(([name, count]) => ({ name, count }));
 
-    // MRR calculation (simplified: count active subscriptions by plan with estimated pricing)
-    const PLAN_PRICES: Record<string, number> = {
-      basic: 499,
-      professional: 999,
-      enterprise: 2499,
-    };
+    // MRR calculation — using real plan prices from plan_configs
     const activeSubs = allSubs.filter((s) => s.status === 'active');
-    const mrr = activeSubs.reduce((sum, s) => sum + (PLAN_PRICES[s.plan_name] || 0), 0);
+    const mrr = activeSubs.reduce((sum, s) => sum + (planPrices[s.plan_name] || 0), 0);
 
     // Churn: canceled in this month / active at start of month
     const canceledThisMonth = allSubs.filter(
@@ -318,7 +343,7 @@ export class TenantsService {
       const subsInMonth = allSubs.filter(
         (s) => new Date(s.created_at) < monthEnd && (s.status === 'active' || new Date(s.updated_at) >= monthStart),
       );
-      const monthRevenue = subsInMonth.reduce((sum, s) => sum + (PLAN_PRICES[s.plan_name] || 0), 0);
+      const monthRevenue = subsInMonth.reduce((sum, s) => sum + (planPrices[s.plan_name] || 0), 0);
 
       monthlyGrowth.push({ month: monthLabel, tenants: tenantsInMonth, revenue: monthRevenue });
     }
@@ -358,10 +383,10 @@ export class TenantsService {
           time: s.updated_at.toString(),
           tenantName: tenant.name,
         });
-      } else if (s.plan_name === 'enterprise' || s.plan_name === 'professional') {
+      } else if (s.plan_name !== 'basic' && planLabels[s.plan_name]) {
         activityFeed.push({
           type: 'upgrade',
-          message: `${tenant.name} actualizó a plan ${s.plan_name === 'enterprise' ? 'Empresarial' : 'Profesional'}`,
+          message: `${tenant.name} actualizó a plan ${planLabels[s.plan_name]}`,
           time: s.updated_at.toString(),
           tenantName: tenant.name,
         });

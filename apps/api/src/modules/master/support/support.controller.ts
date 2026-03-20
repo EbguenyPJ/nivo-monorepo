@@ -1,5 +1,22 @@
-import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Patch,
+  Param,
+  Body,
+  Query,
+  UseGuards,
+  UseInterceptors,
+  UploadedFiles,
+  Res,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Response } from 'express';
+import { join } from 'path';
 import { SupportService } from './support.service';
 import { JwtAuthGuard } from '../../../core/auth/jwt-auth.guard';
 import { RolesGuard } from '../../../core/auth/roles.guard';
@@ -41,10 +58,13 @@ export class SupportController {
   }
 
   @Post('tickets')
+  @UseInterceptors(FilesInterceptor('attachments', 3))
+  @UsePipes(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false, transform: false }))
   create(
-    @Body() body: { tenant_id: string; tenant_name: string; subject: string; category?: string; message: string },
+    @Body() body: Record<string, any>,
+    @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    return this.supportService.create(body);
+    return this.supportService.create(body, files);
   }
 
   @Post('tickets/:id/messages')
@@ -58,5 +78,13 @@ export class SupportController {
   @Patch('tickets/:id/status')
   updateStatus(@Param('id') id: string, @Body() body: { status: string }) {
     return this.supportService.updateStatus(id, body.status);
+  }
+
+  @Get('uploads/:filename')
+  getFile(@Param('filename') filename: string, @Res() res: Response) {
+    // Sanitize filename to prevent path traversal
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, '');
+    const filePath = join(process.cwd(), 'uploads', 'support', safeName);
+    return res.sendFile(filePath);
   }
 }

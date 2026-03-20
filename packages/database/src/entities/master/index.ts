@@ -7,3 +7,4 @@ export { SystemSetting } from './system-setting.entity';
 export { Integration } from './integration.entity';
 export { SupportTicket } from './support-ticket.entity';
 export { TicketMessage } from './ticket-message.entity';
+export { TicketAttachment } from './ticket-attachment.entity';

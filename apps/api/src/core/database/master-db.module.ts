@@ -11,6 +11,7 @@ import {
   Integration,
   SupportTicket,
   TicketMessage,
+  TicketAttachment,
 } from '@nivo/database';
 
 const masterEntities = [
@@ -23,6 +24,7 @@ const masterEntities = [
   Integration,
   SupportTicket,
   TicketMessage,
+  TicketAttachment,
 ];
 
 @Module({

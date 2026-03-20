@@ -48,23 +48,21 @@ interface UsageMetrics {
   error?: string;
 }
 
-const PLAN_PRICES: Record<string, number> = {
-  basic: 499,
-  professional: 999,
-  enterprise: 2499,
-};
+interface PlanOption {
+  id: string;
+  plan_name: string;
+  display_name: string;
+  monthly_price: number;
+  is_active: boolean;
+}
 
-const PLAN_LABELS: Record<string, string> = {
-  basic: 'Básico',
-  professional: 'Profesional',
-  enterprise: 'Empresarial',
-};
-
-const PLAN_BADGE_COLORS: Record<string, string> = {
-  basic: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-  professional: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20',
-  enterprise: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-};
+const DEFAULT_BADGE_COLORS = [
+  'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20',
+  'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'bg-blue-500/10 text-blue-400 border-blue-500/20',
+];
 
 const SUB_STATUS_LABELS: Record<string, { label: string; className: string }> = {
   active: { label: 'Activa', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
@@ -102,14 +100,25 @@ export default function TenantDetailPage() {
   const [changingPlan, setChangingPlan] = useState(false);
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState('');
+  const [plans, setPlans] = useState<PlanOption[]>([]);
   const loginAsEmployee = useAuthStore((state) => state.loginAsEmployee);
+
+  // Helper maps derived from loaded plans
+  const PLAN_PRICES: Record<string, number> = {};
+  const PLAN_LABELS: Record<string, string> = {};
+  const PLAN_BADGE_COLORS: Record<string, string> = {};
+  plans.forEach((p, i) => {
+    PLAN_PRICES[p.plan_name] = Number(p.monthly_price) || 0;
+    PLAN_LABELS[p.plan_name] = p.display_name;
+    PLAN_BADGE_COLORS[p.plan_name] = DEFAULT_BADGE_COLORS[i % DEFAULT_BADGE_COLORS.length];
+  });
 
   useEffect(() => {
     const fetchTenant = async () => {
       try {
         const response = await apiClient.get(`/tenants/${params.id}`);
         setTenant(response.data);
-        setSelectedPlan(response.data.subscriptions?.[0]?.plan_name || 'basic');
+        setSelectedPlan(response.data.subscriptions?.[0]?.plan_name || '');
       } catch (error) {
         console.error('Failed to fetch tenant:', error);
       } finally {
@@ -128,8 +137,19 @@ export default function TenantDetailPage() {
       }
     };
 
+    const fetchPlans = async () => {
+      try {
+        const res = await apiClient.get('/settings/plans');
+        const activePlans = (res.data.data || []).filter((p: PlanOption) => p.is_active);
+        setPlans(activePlans);
+      } catch (error) {
+        console.error('Failed to fetch plans:', error);
+      }
+    };
+
     fetchTenant();
     fetchUsage();
+    fetchPlans();
   }, [params.id]);
 
   const handleImpersonate = async () => {
@@ -560,21 +580,21 @@ export default function TenantDetailPage() {
                         </DialogDescription>
                       </DialogHeader>
                       <div className="py-4 space-y-4">
-                        <div className="grid grid-cols-3 gap-3">
-                          {['basic', 'professional', 'enterprise'].map((plan) => (
+                        <div className={`grid gap-3 ${plans.length <= 3 ? 'grid-cols-3' : plans.length <= 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}>
+                          {plans.map((plan) => (
                             <button
-                              key={plan}
-                              onClick={() => setSelectedPlan(plan)}
+                              key={plan.plan_name}
+                              onClick={() => setSelectedPlan(plan.plan_name)}
                               className={`rounded-xl border-2 p-4 text-center transition-all ${
-                                selectedPlan === plan
+                                selectedPlan === plan.plan_name
                                   ? 'border-purple-500 bg-purple-500/10 shadow-md shadow-purple-500/10'
                                   : 'border-border hover:border-border'
                               }`}
                             >
-                              <p className="font-semibold text-sm">{PLAN_LABELS[plan]}</p>
-                              <p className="text-lg font-bold mt-1">{formatCurrency(PLAN_PRICES[plan])}</p>
+                              <p className="font-semibold text-sm">{plan.display_name}</p>
+                              <p className="text-lg font-bold mt-1">{formatCurrency(Number(plan.monthly_price))}</p>
                               <p className="text-xs text-muted-foreground">/mes</p>
-                              {activeSub.plan_name === plan && (
+                              {activeSub.plan_name === plan.plan_name && (
                                 <Badge className="mt-2 text-[10px]" variant="secondary">Actual</Badge>
                               )}
                             </button>

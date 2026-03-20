@@ -35,6 +35,7 @@ import {
   Loader2,
   ChevronDown,
   X,
+  ImagePlus,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 
@@ -165,11 +166,22 @@ export default function SupportPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createForm, setCreateForm] = useState({
-    tenant_name: '',
     subject: '',
     category: 'general',
+    priority: 'medium',
     message: '',
   });
+
+  // ---- Tenant search (create dialog) ----
+  const [tenantSearch, setTenantSearch] = useState('');
+  const [tenantResults, setTenantResults] = useState<{ id: string; name: string; subdomain: string }[]>([]);
+  const [tenantSearching, setTenantSearching] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<{ id: string; name: string } | null>(null);
+  const tenantDropdownRef = useRef<HTMLDivElement>(null);
+
+  // ---- Attachments (create dialog) ----
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // -------------------------------------------------------------------
   // Fetch tickets list
@@ -272,10 +284,36 @@ export default function SupportPage() {
       if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) {
         setStatusDropdownOpen(false);
       }
+      if (tenantDropdownRef.current && !tenantDropdownRef.current.contains(e.target as Node)) {
+        setTenantResults([]);
+      }
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Debounced tenant search
+  useEffect(() => {
+    if (!tenantSearch.trim() || selectedTenant) {
+      setTenantResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setTenantSearching(true);
+      try {
+        const res = await apiClient.get(`/tenants?search=${encodeURIComponent(tenantSearch.trim())}&limit=6&page=1`);
+        const items = res.data.data || res.data || [];
+        setTenantResults(
+          items.map((t: any) => ({ id: t.id, name: t.name, subdomain: t.subdomain || '' }))
+        );
+      } catch {
+        setTenantResults([]);
+      } finally {
+        setTenantSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [tenantSearch, selectedTenant]);
 
   // -------------------------------------------------------------------
   // Handlers
@@ -328,25 +366,38 @@ export default function SupportPage() {
 
   const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!createForm.tenant_name.trim() || !createForm.subject.trim() || !createForm.message.trim()) {
-      toast({
-        title: 'Campos requeridos',
-        description: 'Completa todos los campos.',
-        variant: 'destructive',
-      });
+    if (!selectedTenant) {
+      toast({ title: 'Selecciona un tenant', description: 'Busca y selecciona una zapatería.', variant: 'destructive' });
+      return;
+    }
+    if (!createForm.subject.trim() || !createForm.message.trim()) {
+      toast({ title: 'Campos requeridos', description: 'Completa todos los campos.', variant: 'destructive' });
       return;
     }
     setCreating(true);
     try {
-      await apiClient.post('/support/tickets', {
-        tenant_id: 'test-tenant',
-        tenant_name: createForm.tenant_name.trim(),
-        subject: createForm.subject.trim(),
-        category: createForm.category,
-        message: createForm.message.trim(),
+      const formData = new FormData();
+      formData.append('tenant_id', selectedTenant.id);
+      formData.append('tenant_name', selectedTenant.name);
+      formData.append('subject', createForm.subject.trim());
+      formData.append('category', createForm.category);
+      formData.append('priority', createForm.priority);
+      formData.append('message', createForm.message.trim());
+
+      // Append each file with the key 'attachments'
+      attachments.forEach((file) => {
+        formData.append('attachments', file);
       });
+
+      await apiClient.post('/support/tickets', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
       setCreateOpen(false);
-      setCreateForm({ tenant_name: '', subject: '', category: 'general', message: '' });
+      setCreateForm({ subject: '', category: 'general', priority: 'medium', message: '' });
+      setSelectedTenant(null);
+      setTenantSearch('');
+      setAttachments([]);
       toast({ title: 'Ticket creado', description: 'El ticket se creó correctamente.' });
       await fetchTickets();
       await fetchStats();
@@ -662,6 +713,30 @@ export default function SupportPage() {
                 </div>
               </div>
 
+              {/* Attachments */}
+              {(selectedTicket as any).attachments && (selectedTicket as any).attachments.length > 0 && (
+                <div className="px-4 pb-3">
+                  <p className="text-xs text-muted-foreground mb-2">Evidencia adjunta</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(selectedTicket as any).attachments.map((att: any) => (
+                      <a
+                        key={att.id}
+                        href={`${apiClient.defaults.baseURL?.replace('/api/v1', '')}/uploads/support/${att.stored_name}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block h-20 w-20 rounded-lg overflow-hidden border border-border hover:ring-2 hover:ring-purple-500/40 transition-all"
+                      >
+                        <img
+                          src={`${apiClient.defaults.baseURL?.replace('/api/v1', '')}/uploads/support/${att.stored_name}`}
+                          alt={att.original_name}
+                          className="h-full w-full object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Conversation thread */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
                 {selectedTicket.messages.map((msg) => {
@@ -730,26 +805,79 @@ export default function SupportPage() {
       {/* ============================================================= */}
       {/* CREATE TICKET DIALOG                                            */}
       {/* ============================================================= */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+      <Dialog open={createOpen} onOpenChange={(open) => {
+        setCreateOpen(open);
+        if (!open) {
+          setTenantSearch('');
+          setTenantResults([]);
+          setSelectedTenant(null);
+          setAttachments([]);
+          setCreateForm({ subject: '', category: 'general', priority: 'medium', message: '' });
+        }
+      }}>
+        <DialogContent className="sm:max-w-xl">
           <form onSubmit={handleCreateTicket}>
             <DialogHeader>
               <DialogTitle>Nuevo Ticket de Soporte</DialogTitle>
               <DialogDescription>
-                Crea un ticket de prueba para simular una solicitud de soporte.
+                Crea un ticket en nombre de un tenant.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {/* Tenant search / select */}
               <div className="space-y-2">
-                <Label htmlFor="create-tenant">Nombre del Tenant</Label>
-                <Input
-                  id="create-tenant"
-                  placeholder="Zapatería El Paso"
-                  value={createForm.tenant_name}
-                  onChange={(e) => setCreateForm((prev) => ({ ...prev, tenant_name: e.target.value }))}
-                  required
-                />
+                <Label>Tenant</Label>
+                {selectedTenant ? (
+                  <div className="flex items-center gap-2 rounded-md border border-border bg-muted px-3 py-2 text-sm">
+                    <span className="flex-1 text-foreground">{selectedTenant.name}</span>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setSelectedTenant(null);
+                        setTenantSearch('');
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative" ref={tenantDropdownRef}>
+                    <Input
+                      placeholder="Buscar tenant por nombre..."
+                      value={tenantSearch}
+                      onChange={(e) => setTenantSearch(e.target.value)}
+                      autoComplete="off"
+                    />
+                    {tenantSearching && (
+                      <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                    )}
+                    {tenantResults.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-popover/95 backdrop-blur-xl border border-border rounded-md shadow-lg z-50 max-h-48 overflow-y-auto">
+                        {tenantResults.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            onClick={() => {
+                              setSelectedTenant({ id: t.id, name: t.name });
+                              setTenantSearch('');
+                              setTenantResults([]);
+                            }}
+                          >
+                            <span className="font-medium text-foreground">{t.name}</span>
+                            {t.subdomain && (
+                              <span className="ml-2 text-muted-foreground">{t.subdomain}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {/* Subject */}
               <div className="space-y-2">
                 <Label htmlFor="create-subject">Asunto</Label>
                 <Input
@@ -760,24 +888,47 @@ export default function SupportPage() {
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="create-category">Categor&iacute;a</Label>
-                <Select
-                  value={createForm.category}
-                  onValueChange={(v) => setCreateForm((prev) => ({ ...prev, category: v }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORY_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+
+              {/* Category + Priority side by side */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="create-category">Categor&iacute;a</Label>
+                  <Select
+                    value={createForm.category}
+                    onValueChange={(v) => setCreateForm((prev) => ({ ...prev, category: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CATEGORY_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="create-priority">Prioridad</Label>
+                  <Select
+                    value={createForm.priority}
+                    onValueChange={(v) => setCreateForm((prev) => ({ ...prev, priority: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Baja</SelectItem>
+                      <SelectItem value="medium">Media</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                      <SelectItem value="urgent">Urgente</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+              {/* Message */}
               <div className="space-y-2">
                 <Label htmlFor="create-message">Mensaje</Label>
                 <textarea
@@ -789,6 +940,60 @@ export default function SupportPage() {
                   onChange={(e) => setCreateForm((prev) => ({ ...prev, message: e.target.value }))}
                   required
                 />
+              </div>
+
+              {/* Image upload */}
+              <div className="space-y-2">
+                <Label>Evidencia (opcional, máx. 3 imágenes)</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) => {
+                    const files = Array.from(e.target.files || []);
+                    setAttachments((prev) => [...prev, ...files].slice(0, 3));
+                    e.target.value = '';
+                  }}
+                />
+                {attachments.length < 3 && (
+                  <div
+                    className="flex items-center justify-center gap-2 rounded-md border-2 border-dashed border-border bg-muted/50 px-4 py-6 cursor-pointer hover:border-muted-foreground transition-colors text-muted-foreground text-sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const files = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'));
+                      setAttachments((prev) => [...prev, ...files].slice(0, 3));
+                    }}
+                  >
+                    <ImagePlus className="h-5 w-5" />
+                    <span>Arrastra imágenes aquí o haz clic para seleccionar</span>
+                  </div>
+                )}
+                {attachments.length > 0 && (
+                  <div className="flex gap-2 flex-wrap">
+                    {attachments.map((file, idx) => (
+                      <div key={idx} className="relative group w-20 h-20 rounded-md overflow-hidden border border-border bg-muted">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={file.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          className="absolute top-0.5 right-0.5 bg-background/80 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== idx))}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>

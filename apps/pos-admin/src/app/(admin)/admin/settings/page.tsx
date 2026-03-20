@@ -27,16 +27,9 @@ import {
   Settings,
   DollarSign,
   BarChart3,
-  Key,
   Save,
-  Eye,
-  EyeOff,
   Check,
   Loader2,
-  CreditCard,
-  Mail,
-  Globe,
-  ShieldCheck,
   Layers,
   Plus,
   ArrowLeft,
@@ -105,16 +98,6 @@ interface PlanFormData {
   support_description: string;
 }
 
-interface SystemSetting {
-  id: string;
-  key: string;
-  value: string;
-  value_type: string;
-  category: string;
-  description: string;
-  is_secret: boolean;
-}
-
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -172,33 +155,9 @@ const COMPARISON_MODULE_ROWS = [
   { key: 'mod_ecommerce', label: 'Integración E-commerce' },
 ];
 
-const SETTING_GROUPS: { title: string; icon: React.ElementType; keys: string[] }[] = [
-  {
-    title: 'Pagos',
-    icon: CreditCard,
-    keys: ['stripe_secret_key', 'stripe_webhook_secret', 'stripe_publishable_key'],
-  },
-  {
-    title: 'Correo',
-    icon: Mail,
-    keys: ['sendgrid_api_key', 'smtp_host', 'smtp_port', 'smtp_user', 'smtp_password'],
-  },
-  {
-    title: 'General',
-    icon: Globe,
-    keys: ['app_name', 'support_email', 'default_currency'],
-  },
-];
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatKeyLabel(key: string): string {
-  return key
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 function slugify(text: string): string {
   return text
@@ -329,15 +288,6 @@ export default function SettingsPage() {
   // Deactivate confirmation dialog
   const [deactivateDialog, setDeactivateDialog] = useState<Plan | null>(null);
 
-  // Settings state
-  const [settings, setSettings] = useState<SystemSetting[]>([]);
-  const [settingsLoading, setSettingsLoading] = useState(false);
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
-  const [settingsDraft, setSettingsDraft] = useState<Record<string, string>>({});
-  const [settingsDirty, setSettingsDirty] = useState<Set<string>>(new Set());
-  const [revealedSecrets, setRevealedSecrets] = useState<Set<string>>(new Set());
-  const [savingSettings, setSavingSettings] = useState(false);
-
   // -----------------------------------------------------------------------
   // Data fetching
   // -----------------------------------------------------------------------
@@ -360,40 +310,9 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const fetchSettings = useCallback(async () => {
-    if (settingsLoaded) return;
-    setSettingsLoading(true);
-    try {
-      const response = await apiClient.get('/settings?category=payment');
-      const data: SystemSetting[] = response.data.data || [];
-      setSettings(data);
-      const draft: Record<string, string> = {};
-      data.forEach((s) => {
-        draft[s.key] = s.is_secret ? '' : s.value;
-      });
-      setSettingsDraft(draft);
-      setSettingsLoaded(true);
-    } catch (error) {
-      console.error('Failed to fetch settings:', error);
-      toast({
-        title: 'Error',
-        description: 'No se pudieron cargar las configuraciones.',
-        variant: 'destructive',
-      });
-    } finally {
-      setSettingsLoading(false);
-    }
-  }, [settingsLoaded]);
-
   useEffect(() => {
     fetchPlans();
   }, [fetchPlans]);
-
-  useEffect(() => {
-    if (activeTab === 'apikeys') {
-      fetchSettings();
-    }
-  }, [activeTab, fetchSettings]);
 
   // -----------------------------------------------------------------------
   // Plans tab handlers
@@ -499,61 +418,10 @@ export default function SettingsPage() {
   }, [formData.monthly_price, formData.annual_price]);
 
   // -----------------------------------------------------------------------
-  // API Keys tab handlers
-  // -----------------------------------------------------------------------
-
-  const updateSettingDraft = (key: string, value: string) => {
-    setSettingsDraft((prev) => ({ ...prev, [key]: value }));
-    setSettingsDirty((prev) => new Set(prev).add(key));
-  };
-
-  const toggleReveal = (key: string) => {
-    setRevealedSecrets((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const handleSaveSettings = async () => {
-    if (settingsDirty.size === 0) {
-      toast({ title: 'Sin cambios', description: 'No hay configuraciones modificadas.' });
-      return;
-    }
-    setSavingSettings(true);
-    try {
-      const settingsPayload = Array.from(settingsDirty).map((key) => ({
-        key,
-        value: settingsDraft[key],
-      }));
-      await apiClient.patch('/settings', { settings: settingsPayload });
-      toast({ title: 'Configuraciones guardadas', description: `${settingsPayload.length} configuracion(es) actualizada(s).` });
-      setSettingsDirty(new Set());
-      setSettingsLoaded(false);
-    } catch (error: any) {
-      toast({
-        title: 'Error',
-        description: error.response?.data?.message || 'No se pudieron guardar las configuraciones.',
-        variant: 'destructive',
-      });
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
-  // -----------------------------------------------------------------------
   // Sort plans for display
   // -----------------------------------------------------------------------
 
   const sortedPlans = [...plans].sort((a, b) => a.sort_order - b.sort_order);
-
-  // -----------------------------------------------------------------------
-  // Render helpers
-  // -----------------------------------------------------------------------
-
-  const getSettingByKey = (key: string): SystemSetting | undefined =>
-    settings.find((s) => s.key === key);
 
   // -----------------------------------------------------------------------
   // Render
@@ -568,13 +436,13 @@ export default function SettingsPage() {
           Configuración
         </h2>
         <p className="text-sm text-muted-foreground mt-0.5">
-          Administra los planes, comparación y configuraciones del sistema.
+          Administra los planes y comparación del sistema.
         </p>
       </div>
 
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3 max-w-md">
+        <TabsList className="grid w-full grid-cols-2 max-w-md">
           <TabsTrigger value="plans" className="gap-2">
             <DollarSign className="h-4 w-4" />
             Planes
@@ -582,10 +450,6 @@ export default function SettingsPage() {
           <TabsTrigger value="comparison" className="gap-2">
             <BarChart3 className="h-4 w-4" />
             Comparación
-          </TabsTrigger>
-          <TabsTrigger value="apikeys" className="gap-2">
-            <Key className="h-4 w-4" />
-            API Keys
           </TabsTrigger>
         </TabsList>
 
@@ -1295,117 +1159,6 @@ export default function SettingsPage() {
                 </div>
               </CardContent>
             </Card>
-          )}
-        </TabsContent>
-
-        {/* =============================================================== */}
-        {/* TAB 3: API Keys / System Settings                               */}
-        {/* =============================================================== */}
-        <TabsContent value="apikeys" className="mt-6">
-          {settingsLoading ? (
-            <div className="space-y-6">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Card key={i}>
-                  <CardHeader>
-                    <Skeleton className="h-6 w-32" />
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {Array.from({ length: 3 }).map((_, j) => (
-                      <div key={j} className="space-y-2">
-                        <Skeleton className="h-4 w-40" />
-                        <Skeleton className="h-10 w-full" />
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {SETTING_GROUPS.map((group) => {
-                const GroupIcon = group.icon;
-                return (
-                  <Card key={group.title}>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <GroupIcon className="h-4 w-4 text-muted-foreground" />
-                        {group.title}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-5">
-                      {group.keys.map((key) => {
-                        const setting = getSettingByKey(key);
-                        const isSecret = setting?.is_secret ?? false;
-                        const isRevealed = revealedSecrets.has(key);
-                        const isDirty = settingsDirty.has(key);
-                        const label = setting?.description || formatKeyLabel(key);
-                        const maskedValue = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022';
-
-                        return (
-                          <div key={key} className="space-y-1.5">
-                            <div className="flex items-center gap-2">
-                              <Label htmlFor={`setting-${key}`} className="text-sm">
-                                {label}
-                              </Label>
-                              {isSecret && (
-                                <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
-                              )}
-                              {isDirty && (
-                                <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-500 border-amber-500/20">
-                                  Modificado
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="relative">
-                              <Input
-                                id={`setting-${key}`}
-                                type={isSecret && !isRevealed ? 'password' : 'text'}
-                                placeholder={isSecret ? maskedValue : `Valor de ${formatKeyLabel(key)}`}
-                                value={settingsDraft[key] ?? ''}
-                                onChange={(e) => updateSettingDraft(key, e.target.value)}
-                                className="pr-10"
-                              />
-                              {isSecret && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleReveal(key)}
-                                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                  aria-label={isRevealed ? 'Ocultar valor' : 'Mostrar valor'}
-                                >
-                                  {isRevealed ? (
-                                    <EyeOff className="h-4 w-4" />
-                                  ) : (
-                                    <Eye className="h-4 w-4" />
-                                  )}
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </CardContent>
-                  </Card>
-                );
-              })}
-
-              {/* Save all settings */}
-              <div className="flex justify-end">
-                <Button
-                  className="gap-2"
-                  disabled={settingsDirty.size === 0 || savingSettings}
-                  onClick={handleSaveSettings}
-                >
-                  {savingSettings ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  {savingSettings
-                    ? 'Guardando...'
-                    : `Guardar configuraciones${settingsDirty.size > 0 ? ` (${settingsDirty.size})` : ''}`}
-                </Button>
-              </div>
-            </div>
           )}
         </TabsContent>
       </Tabs>

@@ -34,6 +34,14 @@ interface Tenant {
   subscriptions?: Subscription[];
 }
 
+interface PlanOption {
+  id: string;
+  plan_name: string;
+  display_name: string;
+  monthly_price: number;
+  is_active: boolean;
+}
+
 const PAGE_SIZE = 15;
 
 const STATUS_BADGES: Record<string, { label: string; className: string }> = {
@@ -78,6 +86,7 @@ export default function TenantsPage() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [plans, setPlans] = useState<PlanOption[]>([]);
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
@@ -116,6 +125,23 @@ export default function TenantsPage() {
   useEffect(() => {
     fetchTenants();
   }, [fetchTenants]);
+
+  // Fetch available plans
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const res = await apiClient.get('/settings/plans');
+        const activePlans = (res.data.data || []).filter((p: PlanOption) => p.is_active);
+        setPlans(activePlans);
+        if (activePlans.length > 0 && !activePlans.find((p: PlanOption) => p.plan_name === form.plan_name)) {
+          setForm((prev) => ({ ...prev, plan_name: activePlans[0].plan_name }));
+        }
+      } catch (error) {
+        console.error('Failed to fetch plans:', error);
+      }
+    };
+    fetchPlans();
+  }, []);
 
   // Debounced search
   useEffect(() => {
@@ -273,12 +299,20 @@ export default function TenantsPage() {
                   <Label htmlFor="plan">Plan</Label>
                   <Select value={form.plan_name} onValueChange={(v) => setForm((prev) => ({ ...prev, plan_name: v }))}>
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Seleccionar plan" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="basic">Básico</SelectItem>
-                      <SelectItem value="professional">Profesional</SelectItem>
-                      <SelectItem value="enterprise">Empresarial</SelectItem>
+                      {plans.length > 0 ? plans.map((plan) => (
+                        <SelectItem key={plan.id} value={plan.plan_name}>
+                          {plan.display_name} — ${Number(plan.monthly_price).toLocaleString()}/mes
+                        </SelectItem>
+                      )) : (
+                        <>
+                          <SelectItem value="basic">Básico</SelectItem>
+                          <SelectItem value="professional">Profesional</SelectItem>
+                          <SelectItem value="enterprise">Empresarial</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -337,9 +371,9 @@ export default function TenantsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los planes</SelectItem>
-                <SelectItem value="basic">Básico</SelectItem>
-                <SelectItem value="professional">Profesional</SelectItem>
-                <SelectItem value="enterprise">Empresarial</SelectItem>
+                {plans.map((plan) => (
+                  <SelectItem key={plan.id} value={plan.plan_name}>{plan.display_name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
 

@@ -1,13 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Tenant, Subscription } from '@nivo/database';
-
-const PLAN_PRICES: Record<string, number> = {
-  basic: 499,
-  professional: 999,
-  enterprise: 2499,
-};
+import { Tenant, Subscription, PlanConfig } from '@nivo/database';
 
 @Injectable()
 export class MasterReportsService {
@@ -16,10 +10,25 @@ export class MasterReportsService {
     private readonly tenantRepo: Repository<Tenant>,
     @InjectRepository(Subscription)
     private readonly subscriptionRepo: Repository<Subscription>,
+    @InjectRepository(PlanConfig)
+    private readonly planConfigRepo: Repository<PlanConfig>,
   ) {}
+
+  /**
+   * Build a plan_name -> monthly_price map from the plan_configs table.
+   */
+  private async getPlanPrices(): Promise<Record<string, number>> {
+    const plans = await this.planConfigRepo.find();
+    const map: Record<string, number> = {};
+    for (const p of plans) {
+      map[p.plan_name] = Number(p.monthly_price) || 0;
+    }
+    return map;
+  }
 
   async getMrrHistory(months: number) {
     const now = new Date();
+    const planPrices = await this.getPlanPrices();
     const result: { month: string; mrr: number; tenants: number }[] = [];
 
     for (let i = months - 1; i >= 0; i--) {
@@ -36,7 +45,7 @@ export class MasterReportsService {
         })
         .getMany();
 
-      const mrr = subs.reduce((sum, s) => sum + (PLAN_PRICES[s.plan_name] || 0), 0);
+      const mrr = subs.reduce((sum, s) => sum + (planPrices[s.plan_name] || 0), 0);
 
       const tenantCount = await this.tenantRepo
         .createQueryBuilder('t')
@@ -47,18 +56,19 @@ export class MasterReportsService {
       result.push({ month: monthLabel, mrr, tenants: tenantCount });
     }
 
-    return result;
+    return { data: result };
   }
 
   async getRevenueReport(startDate: string, endDate: string) {
     const start = new Date(startDate);
     const end = new Date(endDate);
+    const planPrices = await this.getPlanPrices();
 
     const allSubs = await this.subscriptionRepo.find();
     const allTenants = await this.tenantRepo.find();
 
     const activeSubs = allSubs.filter((s) => s.status === 'active');
-    const totalRevenue = activeSubs.reduce((sum, s) => sum + (PLAN_PRICES[s.plan_name] || 0), 0);
+    const totalRevenue = activeSubs.reduce((sum, s) => sum + (planPrices[s.plan_name] || 0), 0);
 
     const newTenants = allTenants.filter(
       (t) => new Date(t.created_at) >= start && new Date(t.created_at) <= end,
@@ -80,34 +90,32 @@ export class MasterReportsService {
 
   async getRetentionData() {
     const now = new Date();
-    const result: { month: string; retentionRate: number }[] = [];
+    const result: { month: string; rate: number; survived: number; total: number }[] = [];
 
     for (let i = 5; i >= 0; i--) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
-      const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - i - 1, 1);
       const monthLabel = monthStart.toLocaleDateString('es-MX', { month: 'short', year: '2-digit' });
 
       // Active subs at end of previous month
-      const prevActive = await this.subscriptionRepo
+      const total = await this.subscriptionRepo
         .createQueryBuilder('sub')
         .where('sub.created_at < :monthStart', { monthStart })
         .andWhere('(sub.status = :active OR (sub.updated_at >= :monthStart))', { active: 'active', monthStart })
         .getCount();
 
-      // Of those, how many survived (still active or not canceled during this month)
+      // Of those, how many survived (still active)
       const survived = await this.subscriptionRepo
         .createQueryBuilder('sub')
         .where('sub.created_at < :monthStart', { monthStart })
         .andWhere('sub.status = :active', { active: 'active' })
         .getCount();
 
-      const retentionRate = prevActive > 0 ? Math.round((survived / prevActive) * 100 * 10) / 10 : 100;
+      const rate = total > 0 ? Math.round((survived / total) * 100 * 10) / 10 : 100;
 
-      result.push({ month: monthLabel, retentionRate });
+      result.push({ month: monthLabel, rate, survived, total });
     }
 
-    return result;
+    return { data: result };
   }
 
   async getTenantGrowth(startDate: string, endDate: string) {
@@ -137,12 +145,13 @@ export class MasterReportsService {
       current.setMonth(current.getMonth() + 1);
     }
 
-    return result;
+    return { data: result };
   }
 
   async exportCsv(startDate: string, endDate: string) {
     const start = new Date(startDate);
     const end = new Date(endDate);
+    const planPrices = await this.getPlanPrices();
 
     const tenants = await this.tenantRepo
       .createQueryBuilder('t')
@@ -156,7 +165,7 @@ export class MasterReportsService {
       const activeSub = t.subscriptions?.find((s) => s.status === 'active');
       const plan = activeSub?.plan_name || 'none';
       const status = t.is_active ? 'active' : 'inactive';
-      const revenue = PLAN_PRICES[plan] || 0;
+      const revenue = planPrices[plan] || 0;
       const createdAt = t.created_at.toISOString();
       return `"${t.name}","${t.subdomain}","${plan}","${status}",${revenue},"${createdAt}"`;
     });

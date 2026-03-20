@@ -49,19 +49,15 @@ interface DashboardMetrics {
   activityFeed: { type: string; message: string; time: string; tenantName?: string }[];
 }
 
-const PLAN_COLORS: Record<string, string> = {
-  basic: '#a78bfa',
-  professional: '#f59e0b',
-  enterprise: '#f472b6',
-  unknown: '#64748b',
-};
+interface PlanOption {
+  id: string;
+  plan_name: string;
+  display_name: string;
+  monthly_price: number;
+}
 
-const PLAN_LABELS: Record<string, string> = {
-  basic: 'Básico',
-  professional: 'Profesional',
-  enterprise: 'Empresarial',
-  unknown: 'Sin plan',
-};
+const PALETTE = ['#a78bfa', '#f59e0b', '#f472b6', '#34d399', '#60a5fa', '#fb923c'];
+const FALLBACK_PLAN_LABELS: Record<string, string> = { unknown: 'Sin plan' };
 
 const ACTIVITY_ICONS: Record<string, { icon: typeof Store; color: string; dot: string }> = {
   registration: { icon: UserPlus, color: 'text-purple-400', dot: 'bg-purple-400' },
@@ -124,6 +120,8 @@ function PieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: any) 
 export default function AdminDashboardPage() {
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [planLabels, setPlanLabels] = useState<Record<string, string>>(FALLBACK_PLAN_LABELS);
+  const [planColors, setPlanColors] = useState<Record<string, string>>({ unknown: '#64748b' });
 
   useEffect(() => {
     const fetchMetrics = async () => {
@@ -136,7 +134,26 @@ export default function AdminDashboardPage() {
         setLoading(false);
       }
     };
+
+    const fetchPlans = async () => {
+      try {
+        const res = await apiClient.get('/settings/plans');
+        const plans: PlanOption[] = res.data.data || [];
+        const labels: Record<string, string> = { unknown: 'Sin plan' };
+        const colors: Record<string, string> = { unknown: '#64748b' };
+        plans.forEach((p, i) => {
+          labels[p.plan_name] = p.display_name;
+          colors[p.plan_name] = PALETTE[i % PALETTE.length];
+        });
+        setPlanLabels(labels);
+        setPlanColors(colors);
+      } catch (error) {
+        console.error('Failed to fetch plans:', error);
+      }
+    };
+
     fetchMetrics();
+    fetchPlans();
   }, []);
 
   const kpis = metrics?.kpis;
@@ -329,14 +346,14 @@ export default function AdminDashboardPage() {
                     stroke="none"
                   >
                     {metrics.planDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={PLAN_COLORS[entry.name] || PLAN_COLORS.unknown} />
+                      <Cell key={`cell-${index}`} fill={planColors[entry.name] || planColors.unknown || '#64748b'} />
                     ))}
                   </Pie>
                   <Legend
                     verticalAlign="bottom"
                     height={36}
                     formatter={(value: string) => (
-                      <span className="text-[11px] text-muted-foreground">{PLAN_LABELS[value] || value}</span>
+                      <span className="text-[11px] text-muted-foreground">{planLabels[value] || value}</span>
                     )}
                   />
                 </PieChart>

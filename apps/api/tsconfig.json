@@ -11,5 +11,9 @@
       "@nivo/types": ["../../packages/types/src"]
     }
   },
-  "include": ["src"]
+  "include": [
+    "src",
+    "../../packages/database/src",
+    "../../packages/types/src"
+  ]
 }

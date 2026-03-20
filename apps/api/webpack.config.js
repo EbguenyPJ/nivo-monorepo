@@ -11,6 +11,12 @@ module.exports = (options) => {
         '@nivo/database': path.resolve(__dirname, '../../packages/database/src'),
         '@nivo/types': path.resolve(__dirname, '../../packages/types/src'),
       },
+      modules: [
+        path.resolve(__dirname, 'node_modules'),
+        path.resolve(__dirname, '../../node_modules'),
+        path.resolve(__dirname, '../../packages/database/node_modules'),
+        'node_modules',
+      ],
     },
     module: {
       rules: [
@@ -37,6 +43,10 @@ module.exports = (options) => {
       nodeExternals({
         allowlist: [/^@nivo\//],
         modulesDir: path.resolve(__dirname, 'node_modules'),
+      }),
+      nodeExternals({
+        allowlist: [/^@nivo\//],
+        modulesDir: path.resolve(__dirname, '../../packages/database/node_modules'),
       }),
     ],
     ignoreWarnings: [/^(?!CriticalDependenciesWarning$)/],

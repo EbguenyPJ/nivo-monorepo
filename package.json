@@ -24,5 +24,8 @@
       "msgpackr-extract",
       "@nestjs/core"
     ]
+  },
+  "dependencies": {
+    "typeorm": "^0.3.28"
   }
 }

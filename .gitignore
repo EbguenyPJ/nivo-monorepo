@@ -42,5 +42,8 @@ pnpm-debug.log*
 postgres-data/
 redis-data/
 
+# Uploads
+uploads/
+
 CLAUDE.md
 commit.md
