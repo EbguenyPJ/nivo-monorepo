@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Patch, Body, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -23,6 +23,16 @@ export class AuthController {
     @Body() body: { pin_code: string; tenant: string; branch_id: string },
   ) {
     return this.authService.loginByPin(body.pin_code, body.tenant, body.branch_id);
+  }
+
+  @Patch('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async changePassword(
+    @Request() req: any,
+    @Body() body: { current_password: string; new_password: string },
+  ) {
+    return this.authService.changePassword(req.user.sub, body.current_password, body.new_password);
   }
 
   @Post('impersonate/:tenantId')

@@ -31,9 +31,6 @@ import {
   Pie,
   Cell,
   Legend,
-  ScatterChart,
-  Scatter,
-  ZAxis,
 } from 'recharts';
 
 interface DashboardMetrics {
@@ -91,17 +88,17 @@ function timeAgo(dateStr: string) {
   return date.toLocaleDateString('es-MX', { day: 'numeric', month: 'short' });
 }
 
-// Custom tooltip — dark glass style
+// Custom tooltip
 function GrowthTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1e1636]/95 backdrop-blur-sm border border-white/10 rounded-lg shadow-xl p-3 text-sm">
-      <p className="font-semibold text-white/90 mb-1.5">{label}</p>
+    <div className="bg-card/95 backdrop-blur-sm border border-border rounded-lg shadow-xl p-3 text-sm">
+      <p className="font-semibold text-foreground mb-1.5">{label}</p>
       {payload.map((entry: any, i: number) => (
-        <p key={i} className="text-white/60 flex items-center gap-2">
+        <p key={i} className="text-muted-foreground flex items-center gap-2">
           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entry.color }} />
           {entry.name === 'tenants' ? 'Registros' : 'Ingresos'}:{' '}
-          <span className="font-medium text-white/90">
+          <span className="font-medium text-foreground">
             {entry.name === 'revenue' ? formatCurrency(entry.value) : entry.value}
           </span>
         </p>
@@ -151,25 +148,25 @@ export default function AdminDashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-white">Overview</h2>
-          <p className="text-sm text-white/30 mt-0.5">Resumen general de la plataforma Nivo</p>
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Overview</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Resumen general de la plataforma Nivo</p>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* MRR */}
-        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all duration-300">
+        <Card className="bg-card border-border hover:shadow-lg transition-all duration-300">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">MRR</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">MRR</p>
                 {loading ? (
-                  <Skeleton className="h-8 w-28 bg-white/10" />
+                  <Skeleton className="h-8 w-28 bg-muted" />
                 ) : (
-                  <p className="text-2xl font-bold tracking-tight text-white">{formatCurrency(kpis?.mrr || 0)}</p>
+                  <p className="text-2xl font-bold tracking-tight text-foreground">{formatCurrency(kpis?.mrr || 0)}</p>
                 )}
-                <p className="text-[11px] text-white/25">Ingreso Mensual Recurrente</p>
+                <p className="text-[11px] text-muted-foreground/60">Ingreso Mensual Recurrente</p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
                 <DollarSign className="h-5 w-5 text-emerald-400" />
@@ -179,16 +176,16 @@ export default function AdminDashboardPage() {
         </Card>
 
         {/* Nuevos este mes */}
-        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all duration-300">
+        <Card className="bg-card border-border hover:shadow-lg transition-all duration-300">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Nuevos</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Nuevos</p>
                 {loading ? (
-                  <Skeleton className="h-8 w-16 bg-white/10" />
+                  <Skeleton className="h-8 w-16 bg-muted" />
                 ) : (
                   <div className="flex items-baseline gap-2">
-                    <p className="text-2xl font-bold tracking-tight text-white">{kpis?.thisMonth || 0}</p>
+                    <p className="text-2xl font-bold tracking-tight text-foreground">{kpis?.thisMonth || 0}</p>
                     {kpis && kpis.lastMonth > 0 && (
                       <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${growthDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {growthDelta >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
@@ -197,7 +194,7 @@ export default function AdminDashboardPage() {
                     )}
                   </div>
                 )}
-                <p className="text-[11px] text-white/25">vs {kpis?.lastMonth || 0} mes pasado</p>
+                <p className="text-[11px] text-muted-foreground/60">vs {kpis?.lastMonth || 0} mes pasado</p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
                 <CalendarPlus className="h-5 w-5 text-purple-400" />
@@ -207,17 +204,17 @@ export default function AdminDashboardPage() {
         </Card>
 
         {/* Suscripciones activas */}
-        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all duration-300">
+        <Card className="bg-card border-border hover:shadow-lg transition-all duration-300">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Activas</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Activas</p>
                 {loading ? (
-                  <Skeleton className="h-8 w-16 bg-white/10" />
+                  <Skeleton className="h-8 w-16 bg-muted" />
                 ) : (
-                  <p className="text-2xl font-bold tracking-tight text-white">{kpis?.activeSubs || 0}</p>
+                  <p className="text-2xl font-bold tracking-tight text-foreground">{kpis?.activeSubs || 0}</p>
                 )}
-                <p className="text-[11px] text-white/25">de {kpis?.total || 0} registradas</p>
+                <p className="text-[11px] text-muted-foreground/60">de {kpis?.total || 0} registradas</p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-fuchsia-500/10 flex items-center justify-center">
                 <CreditCard className="h-5 w-5 text-fuchsia-400" />
@@ -227,19 +224,19 @@ export default function AdminDashboardPage() {
         </Card>
 
         {/* Churn Rate */}
-        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all duration-300">
+        <Card className="bg-card border-border hover:shadow-lg transition-all duration-300">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Churn</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Churn</p>
                 {loading ? (
-                  <Skeleton className="h-8 w-16 bg-white/10" />
+                  <Skeleton className="h-8 w-16 bg-muted" />
                 ) : (
-                  <p className={`text-2xl font-bold tracking-tight ${(kpis?.churnRate || 0) > 5 ? 'text-red-400' : 'text-white'}`}>
+                  <p className={`text-2xl font-bold tracking-tight ${(kpis?.churnRate || 0) > 5 ? 'text-red-400' : 'text-foreground'}`}>
                     {kpis?.churnRate || 0}%
                   </p>
                 )}
-                <p className="text-[11px] text-white/25">Tasa de cancelación</p>
+                <p className="text-[11px] text-muted-foreground/60">Tasa de cancelación</p>
               </div>
               <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${(kpis?.churnRate || 0) > 5 ? 'bg-red-500/10' : 'bg-orange-500/10'}`}>
                 <Activity className={`h-5 w-5 ${(kpis?.churnRate || 0) > 5 ? 'text-red-400' : 'text-orange-400'}`} />
@@ -252,23 +249,23 @@ export default function AdminDashboardPage() {
       {/* Charts Row */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Line Chart — Growth */}
-        <Card className="lg:col-span-2 bg-white/[0.04] border-white/[0.06]">
+        <Card className="lg:col-span-2 bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-white/70">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground/70">
               <TrendingUp className="h-4 w-4 text-purple-400" />
               Crecimiento (últimos 6 meses)
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             {loading ? (
-              <Skeleton className="h-[280px] w-full rounded-lg bg-white/5" />
+              <Skeleton className="h-[280px] w-full rounded-lg bg-muted" />
             ) : (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={metrics?.monthlyGrowth || []} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={{ stroke: 'rgba(255,255,255,0.06)' }} tickLine={false} />
-                  <YAxis yAxisId="left" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} axisLine={false} tickLine={false} />
-                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: 'rgba(255,255,255,0.3)' }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} className="text-muted-foreground [&_.recharts-text]:fill-muted-foreground" axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="left" tick={{ fontSize: 11 }} className="[&_.recharts-text]:fill-muted-foreground" axisLine={false} tickLine={false} />
+                  <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} className="[&_.recharts-text]:fill-muted-foreground" axisLine={false} tickLine={false} />
                   <Tooltip content={<GrowthTooltip />} />
                   <Line
                     yAxisId="left"
@@ -277,8 +274,8 @@ export default function AdminDashboardPage() {
                     name="tenants"
                     stroke="#a78bfa"
                     strokeWidth={2.5}
-                    dot={{ r: 5, fill: '#a78bfa', strokeWidth: 2, stroke: '#1a1030' }}
-                    activeDot={{ r: 7, strokeWidth: 2, stroke: '#a78bfa', fill: '#1a1030' }}
+                    dot={{ r: 5, fill: '#a78bfa', strokeWidth: 2, stroke: 'hsl(var(--card))' }}
+                    activeDot={{ r: 7, strokeWidth: 2, stroke: '#a78bfa', fill: 'hsl(var(--card))' }}
                   />
                   <Line
                     yAxisId="right"
@@ -287,13 +284,13 @@ export default function AdminDashboardPage() {
                     name="revenue"
                     stroke="#f59e0b"
                     strokeWidth={2.5}
-                    dot={{ r: 5, fill: '#f59e0b', strokeWidth: 2, stroke: '#1a1030' }}
-                    activeDot={{ r: 7, strokeWidth: 2, stroke: '#f59e0b', fill: '#1a1030' }}
+                    dot={{ r: 5, fill: '#f59e0b', strokeWidth: 2, stroke: 'hsl(var(--card))' }}
+                    activeDot={{ r: 7, strokeWidth: 2, stroke: '#f59e0b', fill: 'hsl(var(--card))' }}
                   />
                 </LineChart>
               </ResponsiveContainer>
             )}
-            <div className="flex items-center justify-center gap-6 mt-2 text-[11px] text-white/30">
+            <div className="flex items-center justify-center gap-6 mt-2 text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-purple-400 inline-block" /> Registros
               </span>
@@ -305,16 +302,16 @@ export default function AdminDashboardPage() {
         </Card>
 
         {/* Donut — Plan Distribution */}
-        <Card className="bg-white/[0.04] border-white/[0.06]">
+        <Card className="bg-card border-border">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-white/70">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground/70">
               <Store className="h-4 w-4 text-fuchsia-400" />
               Distribución de Planes
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
             {loading ? (
-              <Skeleton className="h-[280px] w-full rounded-lg bg-white/5" />
+              <Skeleton className="h-[280px] w-full rounded-lg bg-muted" />
             ) : metrics?.planDistribution && metrics.planDistribution.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
@@ -339,13 +336,13 @@ export default function AdminDashboardPage() {
                     verticalAlign="bottom"
                     height={36}
                     formatter={(value: string) => (
-                      <span className="text-[11px] text-white/40">{PLAN_LABELS[value] || value}</span>
+                      <span className="text-[11px] text-muted-foreground">{PLAN_LABELS[value] || value}</span>
                     )}
                   />
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[280px] flex items-center justify-center text-white/20 text-sm">
+              <div className="h-[280px] flex items-center justify-center text-muted-foreground text-sm">
                 Sin datos de suscripciones
               </div>
             )}
@@ -356,9 +353,9 @@ export default function AdminDashboardPage() {
       {/* Bottom Row: Activity + Quick Actions */}
       <div className="grid gap-4 lg:grid-cols-3">
         {/* Activity Feed */}
-        <Card className="lg:col-span-2 bg-white/[0.04] border-white/[0.06]">
+        <Card className="lg:col-span-2 bg-card border-border">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-white/70">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2 text-foreground/70">
               <Activity className="h-4 w-4 text-orange-400" />
               Actividad Reciente
             </CardTitle>
@@ -368,8 +365,8 @@ export default function AdminDashboardPage() {
               <div className="space-y-3">
                 {[...Array(5)].map((_, i) => (
                   <div key={i} className="flex items-center gap-3">
-                    <Skeleton className="h-2 w-2 rounded-full bg-white/10 shrink-0" />
-                    <Skeleton className="h-4 w-full bg-white/5" />
+                    <Skeleton className="h-2 w-2 rounded-full bg-muted shrink-0" />
+                    <Skeleton className="h-4 w-full bg-muted" />
                   </div>
                 ))}
               </div>
@@ -380,24 +377,21 @@ export default function AdminDashboardPage() {
                   return (
                     <div
                       key={i}
-                      className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-white/[0.03] transition-colors group"
+                      className="flex items-center gap-3 py-2.5 px-3 rounded-lg hover:bg-muted/50 transition-colors group"
                     >
-                      {/* Color dot */}
                       <span className={`h-2 w-2 rounded-full shrink-0 ${config.dot}`} />
-                      {/* Content */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-[13px] text-white/60 group-hover:text-white/80 truncate transition-colors">
+                        <p className="text-[13px] text-muted-foreground group-hover:text-foreground truncate transition-colors">
                           {event.message}
                         </p>
                       </div>
-                      {/* Time */}
-                      <span className="text-[11px] text-white/20 shrink-0">{timeAgo(event.time)}</span>
+                      <span className="text-[11px] text-muted-foreground/50 shrink-0">{timeAgo(event.time)}</span>
                     </div>
                   );
                 })}
               </div>
             ) : (
-              <div className="py-8 text-center text-white/20 text-sm">
+              <div className="py-8 text-center text-muted-foreground text-sm">
                 No hay actividad reciente
               </div>
             )}
@@ -406,19 +400,19 @@ export default function AdminDashboardPage() {
 
         {/* Quick Actions */}
         <div className="space-y-4">
-          <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all duration-300">
+          <Card className="bg-card border-border hover:shadow-lg transition-all duration-300">
             <CardContent className="p-5">
               <div className="flex items-center gap-4">
                 <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-500 via-fuchsia-500 to-orange-400 flex items-center justify-center shadow-lg shadow-purple-500/20">
                   <TrendingUp className="h-6 w-6 text-white" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-white/90 text-sm">Vista Rápida</h3>
-                  <p className="text-xs text-white/30 mt-0.5">
+                  <h3 className="font-semibold text-foreground text-sm">Vista Rápida</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {loading ? '...' : `${kpis?.active || 0} de ${kpis?.total || 0} zapaterías activas`}
                   </p>
                   {!loading && kpis && kpis.total > 0 && (
-                    <div className="mt-3 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                    <div className="mt-3 h-1.5 rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full rounded-full bg-gradient-to-r from-purple-500 to-fuchsia-500 transition-all duration-700"
                         style={{ width: `${(kpis.active / kpis.total) * 100}%` }}
@@ -431,46 +425,46 @@ export default function AdminDashboardPage() {
           </Card>
 
           <Link href="/admin/tenants">
-            <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all duration-300 group cursor-pointer">
+            <Card className="bg-card border-border hover:shadow-lg transition-all duration-300 group cursor-pointer">
               <CardContent className="p-5 flex items-center gap-4">
                 <div className="h-12 w-12 rounded-xl bg-purple-500/10 flex items-center justify-center">
                   <Store className="h-6 w-6 text-purple-400" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-semibold text-white/90 text-sm">Gestionar Zapaterías</h3>
-                  <p className="text-xs text-white/30 mt-0.5">Crear, editar y administrar</p>
+                  <h3 className="font-semibold text-foreground text-sm">Gestionar Zapaterías</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">Crear, editar y administrar</p>
                 </div>
-                <ArrowUpRight className="h-5 w-5 text-white/10 group-hover:text-purple-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
+                <ArrowUpRight className="h-5 w-5 text-muted-foreground/30 group-hover:text-purple-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all duration-200" />
               </CardContent>
             </Card>
           </Link>
 
           {/* Stats Summary */}
-          <Card className="bg-white/[0.04] border-white/[0.06]">
+          <Card className="bg-card border-border">
             <CardContent className="p-5 space-y-4">
-              <h3 className="text-xs font-semibold text-white/50 uppercase tracking-wider flex items-center gap-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                 <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
                 Resumen
               </h3>
               {loading ? (
                 <div className="space-y-3">
-                  {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-4 w-full bg-white/5" />)}
+                  {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-4 w-full bg-muted" />)}
                 </div>
               ) : (
                 <div className="space-y-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-white/30">Activas</span>
+                    <span className="text-muted-foreground">Activas</span>
                     <span className="font-semibold text-emerald-400">{kpis?.active || 0}</span>
                   </div>
-                  <div className="h-px bg-white/[0.04]" />
+                  <div className="h-px bg-border" />
                   <div className="flex items-center justify-between">
-                    <span className="text-white/30">Inactivas</span>
+                    <span className="text-muted-foreground">Inactivas</span>
                     <span className="font-semibold text-red-400">{kpis?.inactive || 0}</span>
                   </div>
-                  <div className="h-px bg-white/[0.04]" />
+                  <div className="h-px bg-border" />
                   <div className="flex items-center justify-between">
-                    <span className="text-white/30">Churn</span>
-                    <span className={`font-semibold ${(kpis?.churnRate || 0) > 5 ? 'text-red-400' : 'text-white/70'}`}>
+                    <span className="text-muted-foreground">Churn</span>
+                    <span className={`font-semibold ${(kpis?.churnRate || 0) > 5 ? 'text-red-400' : 'text-foreground/70'}`}>
                       {kpis?.churnRate || 0}%
                     </span>
                   </div>

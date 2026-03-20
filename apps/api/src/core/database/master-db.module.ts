@@ -1,7 +1,29 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { Tenant, Subscription, SuperAdmin } from '@nivo/database';
+import {
+  Tenant,
+  Subscription,
+  SuperAdmin,
+  Notification,
+  PlanConfig,
+  SystemSetting,
+  Integration,
+  SupportTicket,
+  TicketMessage,
+} from '@nivo/database';
+
+const masterEntities = [
+  Tenant,
+  Subscription,
+  SuperAdmin,
+  Notification,
+  PlanConfig,
+  SystemSetting,
+  Integration,
+  SupportTicket,
+  TicketMessage,
+];
 
 @Module({
   imports: [
@@ -14,12 +36,12 @@ import { Tenant, Subscription, SuperAdmin } from '@nivo/database';
         username: config.get('MASTER_DB_USERNAME', 'nivo_admin'),
         password: config.get('MASTER_DB_PASSWORD', 'nivo_secret_2024'),
         database: config.get('MASTER_DB_NAME', 'nivo_master_db'),
-        entities: [Tenant, Subscription, SuperAdmin],
+        entities: masterEntities,
         synchronize: config.get('NODE_ENV') === 'development',
         logging: config.get('NODE_ENV') === 'development',
       }),
     }),
-    TypeOrmModule.forFeature([Tenant, Subscription, SuperAdmin]),
+    TypeOrmModule.forFeature(masterEntities),
   ],
   exports: [TypeOrmModule],
 })

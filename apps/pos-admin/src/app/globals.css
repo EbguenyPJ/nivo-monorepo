@@ -8,6 +8,8 @@
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
     --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96.1%;
@@ -32,6 +34,8 @@
     --foreground: 250 20% 92%;
     --card: 252 30% 10%;
     --card-foreground: 250 20% 92%;
+    --popover: 252 35% 11%;
+    --popover-foreground: 250 20% 92%;
     --primary: 263 70% 58%;
     --primary-foreground: 250 20% 98%;
     --secondary: 252 25% 14%;
@@ -48,6 +52,57 @@
     --sidebar: 252 35% 5%;
     --sidebar-foreground: 250 20% 92%;
     --sidebar-accent: 263 70% 58%;
+
+    /* Admin-specific tokens for hardcoded elements */
+    --admin-surface: 252 30% 10%;
+    --admin-surface-hover: 252 25% 14%;
+    --admin-text: 250 20% 92%;
+    --admin-text-secondary: 250 12% 55%;
+    --admin-text-muted: 250 10% 40%;
+    --admin-border: 252 20% 16%;
+    --admin-sidebar: 252 35% 5%;
+    --admin-dropdown: 252 40% 12%;
+    --admin-glass: 0 0% 100% / 0.04;
+    --admin-glass-hover: 0 0% 100% / 0.08;
+    --admin-glass-border: 0 0% 100% / 0.06;
+  }
+
+  /* Light theme for admin panel */
+  .light-admin {
+    --background: 250 20% 97%;
+    --foreground: 252 30% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 252 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 252 30% 15%;
+    --primary: 263 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 250 15% 93%;
+    --secondary-foreground: 252 30% 15%;
+    --muted: 250 15% 93%;
+    --muted-foreground: 252 15% 45%;
+    --accent: 250 15% 93%;
+    --accent-foreground: 252 30% 15%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 250 15% 88%;
+    --input: 250 15% 91%;
+    --ring: 263 70% 55%;
+    --sidebar: 252 30% 18%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-accent: 263 70% 58%;
+
+    --admin-surface: 0 0% 100%;
+    --admin-surface-hover: 250 15% 96%;
+    --admin-text: 252 30% 15%;
+    --admin-text-secondary: 252 15% 45%;
+    --admin-text-muted: 252 10% 60%;
+    --admin-border: 250 15% 88%;
+    --admin-sidebar: 252 30% 18%;
+    --admin-dropdown: 0 0% 100%;
+    --admin-glass: 0 0% 100% / 0.7;
+    --admin-glass-hover: 0 0% 100% / 0.9;
+    --admin-glass-border: 252 15% 88%;
   }
 }
 

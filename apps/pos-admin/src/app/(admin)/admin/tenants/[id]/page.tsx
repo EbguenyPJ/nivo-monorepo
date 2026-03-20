@@ -70,7 +70,7 @@ const SUB_STATUS_LABELS: Record<string, { label: string; className: string }> = 
   active: { label: 'Activa', className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
   past_due: { label: 'Pago Pendiente', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
   canceled: { label: 'Cancelada', className: 'bg-red-500/10 text-red-400 border-red-500/20' },
-  paused: { label: 'Pausada', className: 'bg-white/[0.04] text-white/40 border-white/10' },
+  paused: { label: 'Pausada', className: 'bg-muted text-muted-foreground border-border' },
 };
 
 function formatCurrency(value: number) {
@@ -210,7 +210,7 @@ export default function TenantDetailPage() {
         <div className="h-16 w-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-4">
           <Store className="h-8 w-8 text-red-400" />
         </div>
-        <h3 className="font-semibold text-white/80 mb-1">Zapatería no encontrada</h3>
+        <h3 className="font-semibold text-foreground mb-1">Zapatería no encontrada</h3>
         <p className="text-sm text-muted-foreground mb-4">El tenant solicitado no existe o fue eliminado.</p>
         <Button variant="outline" onClick={() => router.push('/admin/tenants')}>
           Volver al listado
@@ -231,13 +231,13 @@ export default function TenantDetailPage() {
         <div className="flex items-center gap-4 flex-1 min-w-0">
           <button
             onClick={() => router.push('/admin/tenants')}
-            className="h-9 w-9 rounded-lg border border-white/[0.06] bg-white/[0.04] flex items-center justify-center hover:bg-white/[0.08] transition-colors shrink-0"
+            className="h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center hover:bg-muted transition-colors shrink-0"
           >
-            <ArrowLeft className="h-4 w-4 text-white/40" />
+            <ArrowLeft className="h-4 w-4 text-muted-foreground" />
           </button>
           <div className="min-w-0">
             <div className="flex items-center gap-3 flex-wrap">
-              <h2 className="text-xl font-bold tracking-tight text-white truncate">{tenant.name}</h2>
+              <h2 className="text-xl font-bold tracking-tight text-foreground truncate">{tenant.name}</h2>
               <Badge
                 variant="outline"
                 className={
@@ -254,7 +254,7 @@ export default function TenantDetailPage() {
                 </Badge>
               )}
             </div>
-            <p className="text-sm text-white/30 mt-0.5">{tenant.subdomain}.nivo.com</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{tenant.subdomain}.nivo.com</p>
           </div>
         </div>
 
@@ -272,16 +272,16 @@ export default function TenantDetailPage() {
       {/* Usage Metrics Cards */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Ventas este mes */}
-        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all">
+        <Card className="bg-card border-border hover:bg-muted transition-all">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Ventas este mes</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ventas este mes</p>
                 {usageLoading ? (
-                  <Skeleton className="h-8 w-16 bg-white/10" />
+                  <Skeleton className="h-8 w-16 bg-muted" />
                 ) : (
                   <div className="flex items-baseline gap-2">
-                    <p className="text-2xl font-bold text-white">{usage?.salesThisMonth || 0}</p>
+                    <p className="text-2xl font-bold text-foreground">{usage?.salesThisMonth || 0}</p>
                     {usage && usage.salesLastMonth > 0 && (
                       <span className={`inline-flex items-center gap-0.5 text-xs font-semibold ${salesDelta >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                         {salesDelta >= 0 ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
@@ -290,7 +290,7 @@ export default function TenantDetailPage() {
                     )}
                   </div>
                 )}
-                <p className="text-[11px] text-white/25">vs {usage?.salesLastMonth || 0} mes anterior</p>
+                <p className="text-[11px] text-muted-foreground/60">vs {usage?.salesLastMonth || 0} mes anterior</p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
                 <ShoppingBag className="h-5 w-5 text-purple-400" />
@@ -300,17 +300,17 @@ export default function TenantDetailPage() {
         </Card>
 
         {/* Ingresos este mes */}
-        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all">
+        <Card className="bg-card border-border hover:bg-muted transition-all">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Ingresos del mes</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Ingresos del mes</p>
                 {usageLoading ? (
-                  <Skeleton className="h-8 w-24 bg-white/10" />
+                  <Skeleton className="h-8 w-24 bg-muted" />
                 ) : (
-                  <p className="text-2xl font-bold text-white">{formatCurrency(usage?.revenueThisMonth || 0)}</p>
+                  <p className="text-2xl font-bold text-foreground">{formatCurrency(usage?.revenueThisMonth || 0)}</p>
                 )}
-                <p className="text-[11px] text-white/25">{usage?.totalSalesAllTime || 0} ventas totales</p>
+                <p className="text-[11px] text-muted-foreground/60">{usage?.totalSalesAllTime || 0} ventas totales</p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
                 <DollarSign className="h-5 w-5 text-emerald-400" />
@@ -320,17 +320,17 @@ export default function TenantDetailPage() {
         </Card>
 
         {/* Productos */}
-        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all">
+        <Card className="bg-card border-border hover:bg-muted transition-all">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Productos</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Productos</p>
                 {usageLoading ? (
-                  <Skeleton className="h-8 w-12 bg-white/10" />
+                  <Skeleton className="h-8 w-12 bg-muted" />
                 ) : (
-                  <p className="text-2xl font-bold text-white">{usage?.totalProducts || 0}</p>
+                  <p className="text-2xl font-bold text-foreground">{usage?.totalProducts || 0}</p>
                 )}
-                <p className="text-[11px] text-white/25">registrados en catálogo</p>
+                <p className="text-[11px] text-muted-foreground/60">registrados en catálogo</p>
               </div>
               <div className="h-10 w-10 rounded-xl bg-fuchsia-500/10 flex items-center justify-center">
                 <Package className="h-5 w-5 text-fuchsia-400" />
@@ -340,19 +340,19 @@ export default function TenantDetailPage() {
         </Card>
 
         {/* Última actividad */}
-        <Card className="bg-white/[0.04] border-white/[0.06] hover:bg-white/[0.06] transition-all">
+        <Card className="bg-card border-border hover:bg-muted transition-all">
           <CardContent className="p-5">
             <div className="flex items-start justify-between">
               <div className="space-y-2">
-                <p className="text-xs font-medium text-white/40 uppercase tracking-wider">Última actividad</p>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Última actividad</p>
                 {usageLoading ? (
-                  <Skeleton className="h-8 w-20 bg-white/10" />
+                  <Skeleton className="h-8 w-20 bg-muted" />
                 ) : usage?.lastActivity ? (
-                  <p className="text-2xl font-bold text-white">{timeAgo(usage.lastActivity)}</p>
+                  <p className="text-2xl font-bold text-foreground">{timeAgo(usage.lastActivity)}</p>
                 ) : (
-                  <p className="text-lg font-semibold text-white/30">Sin actividad</p>
+                  <p className="text-lg font-semibold text-muted-foreground">Sin actividad</p>
                 )}
-                <p className="text-[11px] text-white/25">último uso del sistema</p>
+                <p className="text-[11px] text-muted-foreground/60">último uso del sistema</p>
               </div>
               <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
                 usage?.lastActivity && (Date.now() - new Date(usage.lastActivity).getTime()) < 86400000 * 7
@@ -375,13 +375,13 @@ export default function TenantDetailPage() {
         {/* Left Column (2/3) */}
         <div className="lg:col-span-2 space-y-5">
           {/* Usage Detail Card */}
-          <Card className="bg-white/[0.04] border-white/[0.06]">
+          <Card className="bg-card border-border">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-5">
                 <div className="h-8 w-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
                   <Activity className="h-4 w-4 text-purple-400" />
                 </div>
-                <h3 className="font-semibold text-white/80">Métricas de Uso</h3>
+                <h3 className="font-semibold text-foreground">Métricas de Uso</h3>
                 {usage?.error && (
                   <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 ml-auto text-xs">
                     DB no disponible
@@ -396,23 +396,23 @@ export default function TenantDetailPage() {
                   { icon: UserCog, label: 'Empleados', value: usage?.totalEmployees, color: 'text-emerald-400 bg-emerald-500/10' },
                   { icon: MapPin, label: 'Sucursales', value: usage?.totalBranches, color: 'text-orange-400 bg-orange-500/10' },
                 ].map((metric) => (
-                  <div key={metric.label} className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4 text-center">
+                  <div key={metric.label} className="rounded-xl bg-muted/50 border border-border p-4 text-center">
                     <div className={`h-9 w-9 rounded-lg ${metric.color} flex items-center justify-center mx-auto mb-2`}>
                       <metric.icon className="h-4 w-4" />
                     </div>
                     {usageLoading ? (
-                      <Skeleton className="h-7 w-10 mx-auto mb-1 bg-white/10" />
+                      <Skeleton className="h-7 w-10 mx-auto mb-1 bg-muted" />
                     ) : (
-                      <p className="text-xl font-bold text-white">{metric.value ?? 0}</p>
+                      <p className="text-xl font-bold text-foreground">{metric.value ?? 0}</p>
                     )}
-                    <p className="text-xs text-white/30">{metric.label}</p>
+                    <p className="text-xs text-muted-foreground">{metric.label}</p>
                   </div>
                 ))}
               </div>
 
               {/* Health Indicator */}
               {!usageLoading && usage && (
-                <div className="mt-5 rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+                <div className="mt-5 rounded-xl bg-muted/50 border border-border p-4">
                   <div className="flex items-center gap-3">
                     {usage.salesThisMonth > 0 || (usage.lastActivity && (Date.now() - new Date(usage.lastActivity).getTime()) < 86400000 * 7) ? (
                       <>
@@ -421,7 +421,7 @@ export default function TenantDetailPage() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-emerald-400">Cliente activo</p>
-                          <p className="text-xs text-white/30">Este negocio está usando el sistema activamente</p>
+                          <p className="text-xs text-muted-foreground">Este negocio está usando el sistema activamente</p>
                         </div>
                       </>
                     ) : (
@@ -431,7 +431,7 @@ export default function TenantDetailPage() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-orange-400">Riesgo de abandono</p>
-                          <p className="text-xs text-white/30">Sin ventas este mes ni actividad reciente. Considerar contactar al cliente.</p>
+                          <p className="text-xs text-muted-foreground">Sin ventas este mes ni actividad reciente. Considerar contactar al cliente.</p>
                         </div>
                       </>
                     )}
@@ -442,13 +442,13 @@ export default function TenantDetailPage() {
           </Card>
 
           {/* General Info Card */}
-          <Card className="bg-white/[0.04] border-white/[0.06]">
+          <Card className="bg-card border-border">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-5">
-                <div className="h-8 w-8 rounded-lg bg-white/[0.06] flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-white/40" />
+                <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <h3 className="font-semibold text-white/80">Información General</h3>
+                <h3 className="font-semibold text-foreground">Información General</h3>
               </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 {[
@@ -463,13 +463,13 @@ export default function TenantDetailPage() {
                     }),
                   },
                 ].map((item) => (
-                  <div key={item.label} className="flex items-start gap-3 p-3 rounded-lg bg-white/[0.03]">
-                    <div className="h-8 w-8 rounded-lg bg-white/[0.04] border border-white/[0.06] flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <item.icon className="h-4 w-4 text-white/30" />
+                  <div key={item.label} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                    <div className="h-8 w-8 rounded-lg bg-card border border-border flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <item.icon className="h-4 w-4 text-muted-foreground" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-white/25 uppercase tracking-wide">{item.label}</p>
-                      <p className={`text-sm text-white/80 mt-0.5 truncate ${item.mono ? 'font-mono text-xs' : ''}`}>
+                      <p className="text-xs font-medium text-muted-foreground/60 uppercase tracking-wide">{item.label}</p>
+                      <p className={`text-sm text-foreground mt-0.5 truncate ${item.mono ? 'font-mono text-xs' : ''}`}>
                         {item.value}
                       </p>
                     </div>
@@ -483,19 +483,19 @@ export default function TenantDetailPage() {
         {/* Right Column (1/3) — Subscription & Actions */}
         <div className="space-y-5">
           {/* Subscription Card */}
-          <Card className="bg-white/[0.04] border-white/[0.06]">
+          <Card className="bg-card border-border">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-5">
                 <div className="h-8 w-8 rounded-lg bg-fuchsia-500/10 flex items-center justify-center">
                   <CreditCard className="h-4 w-4 text-fuchsia-400" />
                 </div>
-                <h3 className="font-semibold text-white/80">Suscripción</h3>
+                <h3 className="font-semibold text-foreground">Suscripción</h3>
               </div>
 
               {activeSub ? (
                 <div className="space-y-4">
                   {/* Plan Badge + Status */}
-                  <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-4">
+                  <div className="rounded-xl bg-muted/50 border border-border p-4">
                     <div className="flex items-center justify-between mb-3">
                       <Badge variant="outline" className={PLAN_BADGE_COLORS[activeSub.plan_name] || ''}>
                         {PLAN_LABELS[activeSub.plan_name] || activeSub.plan_name}
@@ -504,16 +504,16 @@ export default function TenantDetailPage() {
                         {SUB_STATUS_LABELS[activeSub.status]?.label || activeSub.status}
                       </Badge>
                     </div>
-                    <p className="text-2xl font-bold text-white">
+                    <p className="text-2xl font-bold text-foreground">
                       {formatCurrency(PLAN_PRICES[activeSub.plan_name] || 0)}
-                      <span className="text-sm font-normal text-white/30">/mes</span>
+                      <span className="text-sm font-normal text-muted-foreground">/mes</span>
                     </p>
                   </div>
 
                   {/* Billing Info */}
                   <div className="space-y-3 text-sm">
                     {activeSub.current_period_end && (
-                      <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
+                      <div className="flex items-center justify-between py-2 border-b border-border">
                         <span className="text-muted-foreground">Próximo corte</span>
                         <span className="font-medium">
                           {new Date(activeSub.current_period_end).toLocaleDateString('es-MX', {
@@ -522,7 +522,7 @@ export default function TenantDetailPage() {
                         </span>
                       </div>
                     )}
-                    <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
+                    <div className="flex items-center justify-between py-2 border-b border-border">
                       <span className="text-muted-foreground">Inicio suscripción</span>
                       <span className="font-medium">
                         {new Date(activeSub.created_at).toLocaleDateString('es-MX', {
@@ -530,7 +530,7 @@ export default function TenantDetailPage() {
                         })}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between py-2 border-b border-white/[0.06]">
+                    <div className="flex items-center justify-between py-2 border-b border-border">
                       <span className="text-muted-foreground">Método de pago</span>
                       <span className="font-medium text-muted-foreground">
                         {tenant.stripe_customer_id ? '•••• registrado' : 'No configurado'}
@@ -568,7 +568,7 @@ export default function TenantDetailPage() {
                               className={`rounded-xl border-2 p-4 text-center transition-all ${
                                 selectedPlan === plan
                                   ? 'border-purple-500 bg-purple-500/10 shadow-md shadow-purple-500/10'
-                                  : 'border-white/[0.06] hover:border-white/10'
+                                  : 'border-border hover:border-border'
                               }`}
                             >
                               <p className="font-semibold text-sm">{PLAN_LABELS[plan]}</p>
@@ -605,13 +605,13 @@ export default function TenantDetailPage() {
           </Card>
 
           {/* Quick Actions Card */}
-          <Card className="bg-white/[0.04] border-white/[0.06]">
+          <Card className="bg-card border-border">
             <CardContent className="p-6">
               <div className="flex items-center gap-2 mb-4">
-                <div className="h-8 w-8 rounded-lg bg-white/[0.06] flex items-center justify-center">
-                  <Shield className="h-4 w-4 text-white/40" />
+                <div className="h-8 w-8 rounded-lg bg-muted flex items-center justify-center">
+                  <Shield className="h-4 w-4 text-muted-foreground" />
                 </div>
-                <h3 className="font-semibold text-white/80">Acciones</h3>
+                <h3 className="font-semibold text-foreground">Acciones</h3>
               </div>
               <div className="space-y-2">
                 <Button

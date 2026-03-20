@@ -6,6 +6,7 @@ import { Queue } from 'bullmq';
 import { Tenant, Subscription, Product, Sale, Customer, Employee, Branch } from '@nivo/database';
 import { QUEUE_NAMES } from '../../../core/queue/queue.module';
 import { TenantConnectionManager } from '../../../core/database/tenant-connection.manager';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class TenantsService {
@@ -19,6 +20,7 @@ export class TenantsService {
     @InjectQueue(QUEUE_NAMES.TENANT_PROVISIONING)
     private readonly provisioningQueue: Queue,
     private readonly tenantConnectionManager: TenantConnectionManager,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(data: { name: string; subdomain: string; owner_email: string; owner_password: string; plan_name: string }) {
@@ -44,6 +46,15 @@ export class TenantsService {
       owner_email: data.owner_email,
       owner_password: data.owner_password,
       plan_name: data.plan_name,
+    });
+
+    // Auto-generate notification
+    await this.notificationsService.create({
+      type: 'tenant_registered',
+      title: 'Nueva zapatería registrada',
+      message: `${data.name} se ha registrado en la plataforma con plan ${data.plan_name}.`,
+      tenant_id: tenant.id,
+      tenant_name: data.name,
     });
 
     return { ...tenant, message: 'Tenant created. Database provisioning in progress.' };
@@ -89,6 +100,15 @@ export class TenantsService {
     if (!tenant) throw new NotFoundException('Tenant not found');
     tenant.is_active = !tenant.is_active;
     await this.tenantRepo.save(tenant);
+
+    await this.notificationsService.create({
+      type: tenant.is_active ? 'tenant_activated' : 'tenant_suspended',
+      title: tenant.is_active ? 'Zapatería activada' : 'Zapatería suspendida',
+      message: `${tenant.name} fue ${tenant.is_active ? 'activada' : 'suspendida'}.`,
+      tenant_id: tenant.id,
+      tenant_name: tenant.name,
+    });
+
     return { ...tenant, message: tenant.is_active ? 'Tenant activado' : 'Tenant suspendido' };
   }
 
@@ -199,8 +219,18 @@ export class TenantsService {
 
     const activeSub = tenant.subscriptions?.find((s) => s.status === 'active');
     if (activeSub) {
+      const oldPlan = activeSub.plan_name;
       activeSub.plan_name = newPlan;
       await this.subscriptionRepo.save(activeSub);
+
+      await this.notificationsService.create({
+        type: 'subscription_upgraded',
+        title: 'Plan de suscripción cambiado',
+        message: `${tenant.name} cambió de plan ${oldPlan} a ${newPlan}.`,
+        tenant_id: tenant.id,
+        tenant_name: tenant.name,
+      });
+
       return { message: `Plan actualizado a ${newPlan}`, subscription: activeSub };
     }
 
@@ -211,6 +241,15 @@ export class TenantsService {
       status: 'active',
     });
     await this.subscriptionRepo.save(newSub);
+
+    await this.notificationsService.create({
+      type: 'subscription_upgraded',
+      title: 'Nueva suscripción creada',
+      message: `${tenant.name} inició suscripción con plan ${newPlan}.`,
+      tenant_id: tenant.id,
+      tenant_name: tenant.name,
+    });
+
     return { message: `Suscripción creada con plan ${newPlan}`, subscription: newSub };
   }
 

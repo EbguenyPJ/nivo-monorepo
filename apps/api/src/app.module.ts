@@ -9,6 +9,11 @@ import { TenantsModule } from './modules/master/tenants/tenants.module';
 import { SubscriptionsModule } from './modules/master/subscriptions/subscriptions.module';
 import { StripeWebhooksModule } from './modules/master/stripe-webhooks/stripe-webhooks.module';
 import { SuperAdminModule } from './modules/master/super-admin/super-admin.module';
+import { NotificationsModule } from './modules/master/notifications/notifications.module';
+import { MasterReportsModule } from './modules/master/reports/reports.module';
+import { SettingsModule } from './modules/master/settings/settings.module';
+import { IntegrationsModule } from './modules/master/integrations/integrations.module';
+import { SupportModule } from './modules/master/support/support.module';
 import { InventoryModule } from './modules/tenant/inventory/inventory.module';
 import { PosModule } from './modules/tenant/pos/pos.module';
 import { EmployeesModule } from './modules/tenant/employees/employees.module';
@@ -34,6 +39,11 @@ import { HealthController } from './health.controller';
     SubscriptionsModule,
     StripeWebhooksModule,
     SuperAdminModule,
+    NotificationsModule,
+    MasterReportsModule,
+    SettingsModule,
+    IntegrationsModule,
+    SupportModule,
     // Tenant modules
     InventoryModule,
     PosModule,
@@ -50,7 +60,7 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(TenantConnectionMiddleware)
-      .exclude('api/v1/auth/(.*)', 'api/v1/tenants/(.*)', 'api/v1/webhooks/(.*)', 'api/v1/health', 'api/docs(.*)')
+      .exclude('api/v1/auth/(.*)', 'api/v1/tenants/(.*)', 'api/v1/notifications/(.*)', 'api/v1/webhooks/(.*)', 'api/v1/reports/(.*)', 'api/v1/settings/(.*)', 'api/v1/integrations/(.*)', 'api/v1/support/(.*)', 'api/v1/health', 'api/docs(.*)')
       .forRoutes('*');
   }
 }

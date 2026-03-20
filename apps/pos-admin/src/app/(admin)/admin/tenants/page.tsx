@@ -201,8 +201,8 @@ export default function TenantsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-white">Zapaterías</h2>
-          <p className="text-sm text-white/30 mt-0.5">
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Zapaterías</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
             {total} negocios registrados en la plataforma
           </p>
         </div>
@@ -376,8 +376,8 @@ export default function TenantsPage() {
             <div className="h-16 w-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mx-auto mb-4">
               <Store className="h-8 w-8 text-purple-400" />
             </div>
-            <h3 className="font-semibold text-white/80 mb-1">Sin zapaterías registradas</h3>
-            <p className="text-sm text-white/30 max-w-sm mx-auto">
+            <h3 className="font-semibold text-foreground mb-1">Sin zapaterías registradas</h3>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto">
               Haz clic en &quot;Nueva Zapatería&quot; para registrar el primer negocio en la plataforma.
             </p>
           </CardContent>

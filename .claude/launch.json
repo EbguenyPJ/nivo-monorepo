@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "pos-admin",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev", "--filter=pos-admin"],
+      "port": 3001
+    }
+  ]
+}

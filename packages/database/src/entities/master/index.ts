@@ -1,3 +1,9 @@
 export { Tenant } from './tenant.entity';
 export { Subscription } from './subscription.entity';
 export { SuperAdmin } from './super-admin.entity';
+export { Notification } from './notification.entity';
+export { PlanConfig } from './plan-config.entity';
+export { SystemSetting } from './system-setting.entity';
+export { Integration } from './integration.entity';
+export { SupportTicket } from './support-ticket.entity';
+export { TicketMessage } from './ticket-message.entity';

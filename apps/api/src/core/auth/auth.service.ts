@@ -111,6 +111,19 @@ export class AuthService {
     };
   }
 
+  async changePassword(adminId: string, currentPassword: string, newPassword: string) {
+    const admin = await this.superAdminRepo.findOne({ where: { id: adminId } });
+    if (!admin) throw new UnauthorizedException('Admin not found');
+
+    const isValid = await bcrypt.compare(currentPassword, admin.password_hash);
+    if (!isValid) throw new UnauthorizedException('Contraseña actual incorrecta');
+
+    admin.password_hash = await bcrypt.hash(newPassword, 10);
+    await this.superAdminRepo.save(admin);
+
+    return { message: 'Contraseña actualizada correctamente' };
+  }
+
   async impersonate(superAdminId: string, tenantId: string) {
     const admin = await this.superAdminRepo.findOne({ where: { id: superAdminId } });
     if (!admin || admin.role !== 'super-admin') {
