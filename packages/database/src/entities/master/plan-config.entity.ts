@@ -11,32 +11,66 @@ export class PlanConfig {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  // --- Commercial data ---
   @Column({ type: 'varchar', length: 50, unique: true })
-  plan_name: string;
+  plan_name: string; // slug: prueba, basico, profesional, corporativo
 
   @Column({ type: 'varchar', length: 100 })
-  display_name: string;
+  display_name: string; // "Plan Básico"
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  price: number;
+  @Column({ type: 'text', nullable: true })
+  description: string; // "Ideal para una sola sucursal que va empezando"
 
-  @Column({ type: 'int', default: 0 })
-  max_products: number;
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  monthly_price: number;
 
-  @Column({ type: 'int', default: 0 })
-  max_employees: number;
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  annual_price: number;
 
-  @Column({ type: 'int', default: 0 })
-  max_branches: number;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  stripe_price_id_monthly: string | null; // Stripe Price ID for monthly billing
 
-  @Column({ type: 'int', default: 0 })
-  max_support_tickets: number;
-
-  @Column({ type: 'simple-json', nullable: true })
-  features: string[];
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  stripe_price_id_annual: string | null; // Stripe Price ID for annual billing
 
   @Column({ type: 'boolean', default: true })
-  is_active: boolean;
+  is_active: boolean; // visible for purchase
+
+  @Column({ type: 'int', default: 0 })
+  sort_order: number; // display order
+
+  // --- Quantitative limits ---
+  @Column({ type: 'int', default: 1 })
+  max_branches: number; // Max branches/sucursales (0 = unlimited)
+
+  @Column({ type: 'int', default: 2 })
+  max_users: number; // Max POS users/cashiers (0 = unlimited)
+
+  @Column({ type: 'int', default: 0 })
+  storage_limit_gb: number; // Max storage in GB (0 = unlimited)
+
+  // --- Feature modules (booleans) ---
+  @Column({ type: 'boolean', default: false })
+  mod_transfers: boolean; // Inventory transfers between branches
+
+  @Column({ type: 'boolean', default: false })
+  mod_invoicing: boolean; // Electronic invoicing (facturación electrónica)
+
+  @Column({ type: 'boolean', default: false })
+  mod_loyalty: boolean; // Loyalty program / electronic wallet
+
+  @Column({ type: 'boolean', default: false })
+  mod_advanced_reports: boolean; // Advanced reports (forecasts, dead stock, etc.)
+
+  @Column({ type: 'boolean', default: false })
+  mod_ecommerce: boolean; // E-commerce integration (Shopify, WooCommerce)
+
+  // --- Support level ---
+  @Column({ type: 'varchar', length: 50, default: 'email' })
+  support_level: string; // 'email' | 'chat' | 'dedicated'
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  support_description: string; // "Correo 24-48hrs" | "Chat en vivo" | "Gerente de cuenta asignado"
 
   @CreateDateColumn()
   created_at: Date;

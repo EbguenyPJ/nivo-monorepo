@@ -41,3 +41,6 @@ pnpm-debug.log*
 # Docker
 postgres-data/
 redis-data/
+
+CLAUDE.md
+commit.md

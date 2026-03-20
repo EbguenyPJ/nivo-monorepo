@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { SettingsService } from './settings.service';
 import { JwtAuthGuard } from '../../../core/auth/jwt-auth.guard';
@@ -18,9 +18,24 @@ export class SettingsController {
     return this.settingsService.getPlans();
   }
 
+  @Get('plans/:id')
+  getPlanById(@Param('id') id: string) {
+    return this.settingsService.getPlanById(id);
+  }
+
+  @Post('plans')
+  createPlan(@Body() body: Record<string, any>) {
+    return this.settingsService.createPlan(body);
+  }
+
   @Patch('plans/:id')
   updatePlan(@Param('id') id: string, @Body() body: Record<string, any>) {
     return this.settingsService.updatePlan(id, body);
+  }
+
+  @Delete('plans/:id')
+  deletePlan(@Param('id') id: string) {
+    return this.settingsService.deletePlan(id);
   }
 
   @Get()

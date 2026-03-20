@@ -1,18 +1,10 @@
-import { Injectable, NotFoundException, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Integration } from '@nivo/database';
 
-const DEFAULT_INTEGRATIONS = [
-  { type: 'slack', display_name: 'Slack' },
-  { type: 'discord', display_name: 'Discord' },
-  { type: 'sendgrid', display_name: 'SendGrid' },
-  { type: 'aws_ses', display_name: 'AWS SES' },
-  { type: 'webhook', display_name: 'Webhook' },
-];
-
 @Injectable()
-export class IntegrationsService implements OnModuleInit {
+export class IntegrationsService {
   private readonly logger = new Logger(IntegrationsService.name);
 
   constructor(
@@ -20,12 +12,27 @@ export class IntegrationsService implements OnModuleInit {
     private readonly integrationRepo: Repository<Integration>,
   ) {}
 
-  async onModuleInit() {
-    await this.seedDefaults();
-  }
+  // ---- CRUD ----
 
   async findAll() {
-    return this.integrationRepo.find({ order: { display_name: 'ASC' } });
+    const data = await this.integrationRepo.find({ order: { display_name: 'ASC' } });
+    return { data };
+  }
+
+  async create(body: Partial<Integration>) {
+    // Prevent duplicates by type
+    if (body.type) {
+      const existing = await this.integrationRepo.findOne({ where: { type: body.type } });
+      if (existing) throw new ConflictException(`Integration "${body.type}" already exists`);
+    }
+    const integration = this.integrationRepo.create({
+      type: body.type,
+      display_name: body.display_name || body.type,
+      is_enabled: body.is_enabled ?? false,
+      config: body.config || {},
+      status: 'disconnected',
+    });
+    return this.integrationRepo.save(integration);
   }
 
   async update(id: string, data: Partial<Integration>) {
@@ -44,24 +51,6 @@ export class IntegrationsService implements OnModuleInit {
     integration.status = 'connected';
     await this.integrationRepo.save(integration);
 
-    return { success: true, message: `${integration.display_name} connection test successful` };
-  }
-
-  async seedDefaults() {
-    const count = await this.integrationRepo.count();
-    if (count > 0) return;
-
-    this.logger.log('Seeding default integrations...');
-    for (const def of DEFAULT_INTEGRATIONS) {
-      const integration = this.integrationRepo.create({
-        type: def.type,
-        display_name: def.display_name,
-        is_enabled: false,
-        config: {},
-        status: 'disconnected',
-      });
-      await this.integrationRepo.save(integration);
-    }
-    this.logger.log('Default integrations seeded.');
+    return { status: 'success', message: `Conexión con ${integration.display_name} exitosa.` };
   }
 }

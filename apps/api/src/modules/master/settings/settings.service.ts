@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PlanConfig, SystemSetting } from '@nivo/database';
@@ -12,8 +12,27 @@ export class SettingsService {
     private readonly systemSettingRepo: Repository<SystemSetting>,
   ) {}
 
+  // ---- Plans ----
+
   async getPlans() {
-    return this.planConfigRepo.find({ order: { price: 'ASC' } });
+    const plans = await this.planConfigRepo.find({ order: { sort_order: 'ASC', monthly_price: 'ASC' } });
+    return { data: plans };
+  }
+
+  async getPlanById(id: string) {
+    const plan = await this.planConfigRepo.findOne({ where: { id } });
+    if (!plan) throw new NotFoundException('Plan not found');
+    return plan;
+  }
+
+  async createPlan(data: Partial<PlanConfig>) {
+    // Check unique plan_name
+    if (data.plan_name) {
+      const existing = await this.planConfigRepo.findOne({ where: { plan_name: data.plan_name } });
+      if (existing) throw new ConflictException(`Plan with name "${data.plan_name}" already exists`);
+    }
+    const plan = this.planConfigRepo.create(data);
+    return this.planConfigRepo.save(plan);
   }
 
   async updatePlan(id: string, data: Partial<PlanConfig>) {
@@ -23,14 +42,24 @@ export class SettingsService {
     return this.planConfigRepo.save(plan);
   }
 
+  async deletePlan(id: string) {
+    const plan = await this.planConfigRepo.findOne({ where: { id } });
+    if (!plan) throw new NotFoundException('Plan not found');
+    await this.planConfigRepo.remove(plan);
+    return { deleted: true };
+  }
+
+  // ---- System Settings ----
+
   async getSettings(category?: string) {
     const where = category ? { category } : {};
     const settings = await this.systemSettingRepo.find({ where, order: { category: 'ASC', key: 'ASC' } });
 
-    return settings.map((s) => ({
+    const data = settings.map((s) => ({
       ...s,
       value: s.is_secret ? '********' : s.value,
     }));
+    return { data };
   }
 
   async updateSetting(key: string, value: string) {

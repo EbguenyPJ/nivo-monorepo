@@ -18,6 +18,11 @@ export class IntegrationsController {
     return this.integrationsService.findAll();
   }
 
+  @Post()
+  create(@Body() body: Record<string, any>) {
+    return this.integrationsService.create(body);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() body: Record<string, any>) {
     return this.integrationsService.update(id, body);
