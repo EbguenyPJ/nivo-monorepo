@@ -75,12 +75,13 @@ interface OmniResult {
 }
 
 const NAV_ITEMS: OmniResult[] = [
-  { id: 'nav-dashboard', type: 'nav', title: 'Dashboard', subtitle: 'Vista general de la plataforma', icon: LayoutDashboard, iconColor: 'text-purple-400', href: '/admin' },
-  { id: 'nav-tenants', type: 'nav', title: 'Zapaterías', subtitle: 'Gestionar todos los tenants', icon: Store, iconColor: 'text-fuchsia-400', href: '/admin/tenants' },
-  { id: 'nav-reports', type: 'nav', title: 'Reportes', subtitle: 'MRR, retención, ingresos y exportación', icon: BarChart3, iconColor: 'text-amber-400', href: '/admin/reports' },
-  { id: 'nav-settings', type: 'nav', title: 'Configuración', subtitle: 'Planes, límites y API keys', icon: Settings, iconColor: 'text-emerald-400', href: '/admin/settings' },
-  { id: 'nav-integrations', type: 'nav', title: 'Integraciones', subtitle: 'Slack, Discord, SendGrid, webhooks', icon: Network, iconColor: 'text-blue-400', href: '/admin/integrations' },
-  { id: 'nav-support', type: 'nav', title: 'Soporte', subtitle: 'Tickets de ayuda de zapaterías', icon: MessageSquare, iconColor: 'text-orange-400', href: '/admin/support' },
+  { id: 'nav-dashboard', type: 'nav', title: 'Dashboard', subtitle: 'KPIs, MRR, crecimiento y actividad', icon: LayoutDashboard, iconColor: 'text-purple-400', href: '/admin' },
+  { id: 'nav-tenants', type: 'nav', title: 'Zapaterías', subtitle: 'Listado, crear, editar y administrar tenants', icon: Store, iconColor: 'text-fuchsia-400', href: '/admin/tenants' },
+  { id: 'nav-reports', type: 'nav', title: 'Reportes', subtitle: 'MRR histórico, retención, ingresos y CSV', icon: BarChart3, iconColor: 'text-amber-400', href: '/admin/reports' },
+  { id: 'nav-settings', type: 'nav', title: 'Configuración', subtitle: 'Planes, límites y módulos', icon: Settings, iconColor: 'text-emerald-400', href: '/admin/settings' },
+  { id: 'nav-integrations', type: 'nav', title: 'Integraciones', subtitle: 'Stripe, WhatsApp, Shopify, SendGrid y más', icon: Network, iconColor: 'text-blue-400', href: '/admin/integrations' },
+  { id: 'nav-support', type: 'nav', title: 'Soporte', subtitle: 'Tickets de ayuda y chat con zapaterías', icon: MessageSquare, iconColor: 'text-orange-400', href: '/admin/support' },
+  { id: 'nav-new-tenant', type: 'action', title: 'Nueva Zapatería', subtitle: 'Registrar un nuevo negocio', icon: Store, iconColor: 'text-emerald-400', href: '/admin/tenants' },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

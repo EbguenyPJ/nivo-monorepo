@@ -144,6 +144,13 @@ export default function SupportPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
+  const [tenantFilter, setTenantFilter] = useState('');
+
+  // ---- Tenant list for filter ----
+  const [tenantList, setTenantList] = useState<{ id: string; name: string }[]>([]);
+  const [tenantFilterOpen, setTenantFilterOpen] = useState(false);
+  const [tenantFilterSearch, setTenantFilterSearch] = useState('');
+  const tenantFilterRef = useRef<HTMLDivElement>(null);
 
   // ---- Stats ----
   const [stats, setStats] = useState<TicketStats | null>(null);
@@ -156,6 +163,8 @@ export default function SupportPage() {
   // ---- Reply ----
   const [replyMessage, setReplyMessage] = useState('');
   const [sending, setSending] = useState(false);
+  const [replyAttachments, setReplyAttachments] = useState<File[]>([]);
+  const replyFileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // ---- Status dropdown ----
@@ -196,6 +205,7 @@ export default function SupportPage() {
       if (searchQuery) params.set('search', searchQuery);
       if (statusFilter) params.set('status', statusFilter);
       if (priorityFilter) params.set('priority', priorityFilter);
+      if (tenantFilter) params.set('tenant_id', tenantFilter);
 
       const response = await apiClient.get(`/support/tickets?${params.toString()}`);
       setTickets(response.data.data || []);
@@ -205,7 +215,7 @@ export default function SupportPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, searchQuery, statusFilter, priorityFilter]);
+  }, [page, searchQuery, statusFilter, priorityFilter, tenantFilter]);
 
   // -------------------------------------------------------------------
   // Fetch stats
@@ -217,6 +227,20 @@ export default function SupportPage() {
       setStats(response.data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
+    }
+  }, []);
+
+  // -------------------------------------------------------------------
+  // Fetch tenant list for filter
+  // -------------------------------------------------------------------
+
+  const fetchTenantList = useCallback(async () => {
+    try {
+      const response = await apiClient.get('/tenants?limit=200');
+      const tenants = (response.data.data || []).map((t: any) => ({ id: t.id, name: t.name }));
+      setTenantList(tenants);
+    } catch (error) {
+      console.error('Failed to fetch tenant list:', error);
     }
   }, []);
 
@@ -251,7 +275,19 @@ export default function SupportPage() {
 
   useEffect(() => {
     fetchStats();
-  }, [fetchStats]);
+    fetchTenantList();
+  }, [fetchStats, fetchTenantList]);
+
+  // Close tenant filter dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (tenantFilterRef.current && !tenantFilterRef.current.contains(e.target as Node)) {
+        setTenantFilterOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   // Debounced search
   useEffect(() => {
@@ -320,15 +356,20 @@ export default function SupportPage() {
   // -------------------------------------------------------------------
 
   const handleSendReply = async () => {
-    if (!replyMessage.trim() || !selectedTicketId) return;
+    if ((!replyMessage.trim() && replyAttachments.length === 0) || !selectedTicketId) return;
     setSending(true);
     try {
-      await apiClient.post(`/support/tickets/${selectedTicketId}/messages`, {
-        sender_type: 'admin',
-        sender_name: 'Super Admin',
-        message: replyMessage.trim(),
+      const formData = new FormData();
+      formData.append('sender_type', 'admin');
+      formData.append('sender_name', 'Super Admin');
+      formData.append('message', replyMessage.trim());
+      replyAttachments.forEach((file) => formData.append('attachments', file));
+
+      await apiClient.post(`/support/tickets/${selectedTicketId}/messages`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
       setReplyMessage('');
+      setReplyAttachments([]);
       await fetchTicket(selectedTicketId);
     } catch (error) {
       toast({
@@ -504,6 +545,74 @@ export default function SupportPage() {
                   <SelectItem value="urgent">Urgente</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+            {/* Tenant filter with search */}
+            <div className="relative" ref={tenantFilterRef}>
+              <button
+                type="button"
+                onClick={() => { setTenantFilterOpen(!tenantFilterOpen); setTenantFilterSearch(''); }}
+                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <span className={tenantFilter ? 'text-foreground' : 'text-muted-foreground'}>
+                  {tenantFilter ? tenantList.find(t => t.id === tenantFilter)?.name || 'Zapatería' : 'Zapatería'}
+                </span>
+                <ChevronDown className="h-4 w-4 opacity-50" />
+              </button>
+
+              {tenantFilterOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md border border-border bg-popover/95 backdrop-blur-xl shadow-lg">
+                  <div className="p-2 border-b border-border">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <input
+                        type="text"
+                        placeholder="Buscar zapatería..."
+                        className="w-full rounded-md border border-input bg-background pl-8 pr-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                        value={tenantFilterSearch}
+                        onChange={(e) => setTenantFilterSearch(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-48 overflow-y-auto py-1">
+                    <button
+                      type="button"
+                      className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors ${!tenantFilter ? 'text-purple-400 font-medium' : 'text-foreground'}`}
+                      onClick={() => { setTenantFilter(''); setTenantFilterOpen(false); setPage(1); }}
+                    >
+                      Todas las zapaterías
+                    </button>
+                    {tenantList
+                      .filter(t => t.name.toLowerCase().includes(tenantFilterSearch.toLowerCase()))
+                      .map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          className={`w-full text-left px-3 py-1.5 text-sm hover:bg-muted transition-colors ${tenantFilter === t.id ? 'text-purple-400 font-medium' : 'text-foreground'}`}
+                          onClick={() => { setTenantFilter(t.id); setTenantFilterOpen(false); setPage(1); }}
+                        >
+                          {t.name}
+                        </button>
+                      ))
+                    }
+                    {tenantList.filter(t => t.name.toLowerCase().includes(tenantFilterSearch.toLowerCase())).length === 0 && (
+                      <p className="px-3 py-2 text-xs text-muted-foreground text-center">Sin resultados</p>
+                    )}
+                  </div>
+                  {tenantFilter && (
+                    <div className="p-2 border-t border-border">
+                      <button
+                        type="button"
+                        className="w-full flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        onClick={() => { setTenantFilter(''); setTenantFilterOpen(false); setPage(1); }}
+                      >
+                        <X className="h-3 w-3" />
+                        Limpiar filtro
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -764,6 +873,15 @@ export default function SupportPage() {
                           <span className="text-[10px]">{formatMessageDate(msg.created_at)}</span>
                         </div>
                         <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                        {(selectedTicket as any).attachments?.filter((a: any) => a.message_id === msg.id).map((att: any) => (
+                          <img
+                            key={att.id}
+                            src={`${apiClient.defaults.baseURL?.replace('/api/v1', '')}/uploads/support/${att.stored_name}`}
+                            alt={att.original_name}
+                            className="mt-2 max-w-[200px] rounded-lg border border-border cursor-pointer"
+                            onClick={() => window.open(`${apiClient.defaults.baseURL?.replace('/api/v1', '')}/uploads/support/${att.stored_name}`, '_blank')}
+                          />
+                        ))}
                       </div>
                     </div>
                   );
@@ -774,7 +892,46 @@ export default function SupportPage() {
               {/* Reply form */}
               {selectedTicket.status !== 'closed' && (
                 <div className="p-4 border-t border-border shrink-0">
+                  {/* Attachment thumbnails */}
+                  {replyAttachments.length > 0 && (
+                    <div className="flex gap-2 mb-2 flex-wrap">
+                      {replyAttachments.map((file, i) => (
+                        <div key={i} className="relative h-14 w-14 rounded-lg overflow-hidden border border-border">
+                          <img src={URL.createObjectURL(file)} alt="" className="h-full w-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setReplyAttachments(prev => prev.filter((_, j) => j !== i))}
+                            className="absolute top-0.5 right-0.5 h-4 w-4 rounded-full bg-black/60 text-white flex items-center justify-center"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex gap-2">
+                    <input
+                      ref={replyFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        setReplyAttachments(prev => [...prev, ...files].slice(0, 3));
+                        e.target.value = '';
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="shrink-0 self-end text-muted-foreground hover:text-foreground"
+                      onClick={() => replyFileInputRef.current?.click()}
+                      disabled={replyAttachments.length >= 3}
+                    >
+                      <ImagePlus className="h-4 w-4" />
+                    </Button>
                     <textarea
                       className="flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[40px] max-h-[120px]"
                       placeholder="Escribe tu respuesta..."
@@ -785,7 +942,7 @@ export default function SupportPage() {
                     />
                     <Button
                       className="shrink-0 bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 border-0 self-end"
-                      disabled={!replyMessage.trim() || sending}
+                      disabled={(!replyMessage.trim() && replyAttachments.length === 0) || sending}
                       onClick={handleSendReply}
                     >
                       {sending ? (

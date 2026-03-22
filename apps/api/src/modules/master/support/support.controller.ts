@@ -68,11 +68,14 @@ export class SupportController {
   }
 
   @Post('tickets/:id/messages')
+  @UseInterceptors(FilesInterceptor('attachments', 3))
+  @UsePipes(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false, transform: false }))
   addMessage(
     @Param('id') id: string,
-    @Body() body: { sender_type: string; sender_name: string; message: string },
+    @Body() body: Record<string, any>,
+    @UploadedFiles() files?: Express.Multer.File[],
   ) {
-    return this.supportService.addMessage(id, body);
+    return this.supportService.addMessage(id, body as any, files);
   }
 
   @Patch('tickets/:id/status')

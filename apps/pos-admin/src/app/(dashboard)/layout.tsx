@@ -30,7 +30,7 @@ const sidebarItems = [
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isAuthenticated, userType, tenant, user, logout } = useAuthStore();
+  const { isAuthenticated, userType, tenant, user, isImpersonating, _savedImpersonatedTenantId, logout, exitImpersonation } = useAuthStore();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -55,8 +55,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     window.location.href = '/login';
   };
 
+  const handleExitImpersonation = () => {
+    const tenantId = _savedImpersonatedTenantId;
+    exitImpersonation();
+    window.location.href = tenantId ? `/admin/tenants/${tenantId}` : '/admin';
+  };
+
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex flex-col h-screen bg-background">
+      {/* Impersonation Banner */}
+      {isImpersonating && (
+        <div className="w-full h-10 bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center gap-3 text-sm font-medium text-white z-50 shrink-0">
+          <span>Estás navegando como {tenant?.name}.</span>
+          <button
+            onClick={handleExitImpersonation}
+            className="px-3 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-xs font-semibold transition-colors"
+          >
+            Salir
+          </button>
+        </div>
+      )}
+      <div className="flex flex-1 min-h-0">
       {/* Premium Dark Sidebar */}
       <aside className="w-[260px] bg-sidebar flex flex-col">
         {/* Brand */}
@@ -127,6 +146,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <main className="flex-1 overflow-auto">
         <div className="max-w-7xl mx-auto px-8 py-8">{children}</div>
       </main>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Controller, Post, Patch, Body, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Patch, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -38,8 +38,8 @@ export class AuthController {
   @Post('impersonate/:tenantId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  async impersonate(@Request() req: any, @Body() body: { tenant_id: string }) {
-    return this.authService.impersonate(req.user.sub, body.tenant_id);
+  async impersonate(@Request() req: any, @Param('tenantId') tenantId: string) {
+    return this.authService.impersonate(req.user.sub, tenantId);
   }
 
   @Post('logout')

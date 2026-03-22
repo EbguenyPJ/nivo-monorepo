@@ -112,7 +112,7 @@ export class SupportService implements OnModuleInit {
     return this.findOne(savedTicket.id);
   }
 
-  async addMessage(ticketId: string, data: { sender_type: string; sender_name: string; message: string }) {
+  async addMessage(ticketId: string, data: { sender_type: string; sender_name: string; message: string }, files?: Express.Multer.File[]) {
     const ticket = await this.ticketRepo.findOne({ where: { id: ticketId } });
     if (!ticket) throw new NotFoundException('Ticket not found');
 
@@ -123,7 +123,22 @@ export class SupportService implements OnModuleInit {
       message: data.message,
     });
 
-    await this.messageRepo.save(msg);
+    const savedMsg = await this.messageRepo.save(msg);
+
+    if (files && files.length > 0) {
+      const attachments = files.map((file) =>
+        this.attachmentRepo.create({
+          ticket_id: ticketId,
+          message_id: savedMsg.id,
+          original_name: file.originalname,
+          stored_name: file.filename,
+          mime_type: file.mimetype,
+          size: file.size,
+          path: file.path,
+        }),
+      );
+      await this.attachmentRepo.save(attachments);
+    }
 
     // Auto-update status to in_progress if admin replies to an open ticket
     if (data.sender_type === 'admin' && ticket.status === 'open') {

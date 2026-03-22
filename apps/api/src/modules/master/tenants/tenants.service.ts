@@ -239,6 +239,116 @@ export class TenantsService {
     }
   }
 
+  async checkSubdomain(subdomain: string) {
+    const existing = await this.tenantRepo.findOne({ where: { subdomain } });
+    return { available: !existing };
+  }
+
+  async updateTenantCredentials(id: string, data: { admin_email?: string; admin_password?: string }) {
+    const tenant = await this.tenantRepo.findOne({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    try {
+      const connection = await this.tenantConnectionManager.getConnection(tenant.database_name);
+      const employeeRepo = connection.getRepository(Employee);
+
+      // Find the admin employee (role = 'admin')
+      const admin = await employeeRepo.findOne({ where: { role: 'admin' } });
+      if (!admin) throw new NotFoundException('Admin employee not found in tenant database');
+
+      if (data.admin_email) {
+        admin.email = data.admin_email;
+      }
+      if (data.admin_password) {
+        const bcrypt = await import('bcrypt');
+        admin.password_hash = await bcrypt.hash(data.admin_password, 10);
+      }
+
+      await employeeRepo.save(admin);
+      return { message: 'Credenciales actualizadas correctamente' };
+    } catch (error) {
+      if (error instanceof NotFoundException) throw error;
+      this.logger.warn(`Could not connect to tenant DB: ${(error as Error).message}`);
+      throw new NotFoundException('No se pudo conectar a la base de datos del tenant');
+    }
+  }
+
+  async update(id: string, data: Partial<Tenant>) {
+    const tenant = await this.tenantRepo.findOne({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    // If subdomain is being changed, check uniqueness
+    if (data.subdomain && data.subdomain !== tenant.subdomain) {
+      const existing = await this.tenantRepo.findOne({ where: { subdomain: data.subdomain } });
+      if (existing) throw new ConflictException('Subdomain already taken');
+    }
+
+    Object.assign(tenant, data);
+    await this.tenantRepo.save(tenant);
+
+    return this.tenantRepo.findOne({ where: { id }, relations: ['subscriptions'] });
+  }
+
+  async getDailyActivity(id: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id } });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    try {
+      const connection = await this.tenantConnectionManager.getConnection(tenant.database_name);
+      const saleRepo = connection.getRepository(Sale);
+
+      const now = new Date();
+      const sevenDaysAgo = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+
+      const results = await saleRepo
+        .createQueryBuilder('sale')
+        .select("TO_CHAR(sale.created_at, 'YYYY-MM-DD')", 'day')
+        .addSelect('COUNT(*)::int', 'sales')
+        .where('sale.status = :status', { status: 'completed' })
+        .andWhere('sale.created_at >= :start', { start: sevenDaysAgo })
+        .groupBy("TO_CHAR(sale.created_at, 'YYYY-MM-DD')")
+        .orderBy('day', 'ASC')
+        .getRawMany();
+
+      // Fill in missing days with 0
+      const activity: { day: string; sales: number }[] = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(sevenDaysAgo);
+        d.setDate(d.getDate() + i);
+        const dayStr = d.toISOString().slice(0, 10);
+        const found = results.find((r: any) => r.day === dayStr);
+        activity.push({ day: dayStr, sales: found ? Number(found.sales) : 0 });
+      }
+
+      return activity;
+    } catch (error) {
+      this.logger.warn(`Could not connect to tenant DB ${tenant.database_name}: ${(error as Error).message}`);
+      return [];
+    }
+  }
+
+  async cancelSubscription(id: string) {
+    const tenant = await this.tenantRepo.findOne({ where: { id }, relations: ['subscriptions'] });
+    if (!tenant) throw new NotFoundException('Tenant not found');
+
+    const activeSub = tenant.subscriptions?.find((s) => s.status === 'active');
+    if (!activeSub) throw new NotFoundException('No active subscription found');
+
+    activeSub.status = 'canceled';
+    activeSub.updated_at = new Date();
+    await this.subscriptionRepo.save(activeSub);
+
+    await this.notificationsService.create({
+      type: 'subscription_canceled',
+      title: 'Suscripción cancelada',
+      message: `La suscripción de ${tenant.name} (plan ${activeSub.plan_name}) fue cancelada.`,
+      tenant_id: tenant.id,
+      tenant_name: tenant.name,
+    });
+
+    return { message: 'Suscripción cancelada exitosamente', subscription: activeSub };
+  }
+
   async changePlan(id: string, newPlan: string) {
     const tenant = await this.tenantRepo.findOne({ where: { id }, relations: ['subscriptions'] });
     if (!tenant) throw new NotFoundException('Tenant not found');

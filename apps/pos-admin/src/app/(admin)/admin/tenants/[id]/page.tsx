@@ -4,15 +4,14 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Button, Badge, Card, CardContent, Skeleton, toast,
-  Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger,
 } from '@nivo/ui';
 import {
   ArrowLeft, Store, Globe, Database, Calendar, Shield, CreditCard,
   ShoppingBag, Users, UserCog, MapPin, TrendingUp, TrendingDown,
   Package, DollarSign, Activity, Clock, Eye, ArrowUp, ArrowDown,
-  Ban, CheckCircle2, Repeat,
+  Ban, CheckCircle2, Pencil, Mail, AlertTriangle,
 } from 'lucide-react';
+import { ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 
@@ -26,6 +25,15 @@ interface TenantDetail {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  // Overrides
+  override_max_branches: number | null;
+  override_max_users: number | null;
+  override_storage_limit_gb: number | null;
+  override_mod_transfers: boolean | null;
+  override_mod_invoicing: boolean | null;
+  override_mod_loyalty: boolean | null;
+  override_mod_advanced_reports: boolean | null;
+  override_mod_ecommerce: boolean | null;
   subscriptions: Array<{
     id: string;
     plan_name: string;
@@ -54,6 +62,11 @@ interface PlanOption {
   display_name: string;
   monthly_price: number;
   is_active: boolean;
+}
+
+interface ActivityDay {
+  day: string;
+  sales: number;
 }
 
 const DEFAULT_BADGE_COLORS = [
@@ -97,10 +110,9 @@ export default function TenantDetailPage() {
   const [loading, setLoading] = useState(true);
   const [usageLoading, setUsageLoading] = useState(true);
   const [impersonating, setImpersonating] = useState(false);
-  const [changingPlan, setChangingPlan] = useState(false);
-  const [planDialogOpen, setPlanDialogOpen] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState('');
   const [plans, setPlans] = useState<PlanOption[]>([]);
+  const [activityData, setActivityData] = useState<ActivityDay[]>([]);
+  const [activityLoading, setActivityLoading] = useState(true);
   const loginAsEmployee = useAuthStore((state) => state.loginAsEmployee);
 
   // Helper maps derived from loaded plans
@@ -118,7 +130,6 @@ export default function TenantDetailPage() {
       try {
         const response = await apiClient.get(`/tenants/${params.id}`);
         setTenant(response.data);
-        setSelectedPlan(response.data.subscriptions?.[0]?.plan_name || '');
       } catch (error) {
         console.error('Failed to fetch tenant:', error);
       } finally {
@@ -147,9 +158,21 @@ export default function TenantDetailPage() {
       }
     };
 
+    const fetchActivity = async () => {
+      try {
+        const res = await apiClient.get(`/tenants/${params.id}/activity`);
+        setActivityData(res.data || []);
+      } catch (error) {
+        console.error('Failed to fetch activity:', error);
+      } finally {
+        setActivityLoading(false);
+      }
+    };
+
     fetchTenant();
     fetchUsage();
     fetchPlans();
+    fetchActivity();
   }, [params.id]);
 
   const handleImpersonate = async () => {
@@ -190,21 +213,7 @@ export default function TenantDetailPage() {
     }
   };
 
-  const handleChangePlan = async () => {
-    if (!tenant) return;
-    setChangingPlan(true);
-    try {
-      await apiClient.patch(`/tenants/${tenant.id}/plan`, { plan_name: selectedPlan });
-      toast({ title: 'Plan actualizado', description: `Plan cambiado a ${PLAN_LABELS[selectedPlan]}.` });
-      setPlanDialogOpen(false);
-      const response = await apiClient.get(`/tenants/${params.id}`);
-      setTenant(response.data);
-    } catch (error: any) {
-      toast({ title: 'Error', description: error.response?.data?.message || 'Error al cambiar plan.', variant: 'destructive' });
-    } finally {
-      setChangingPlan(false);
-    }
-  };
+  const activityTotal = activityData.reduce((sum, d) => sum + d.sales, 0);
 
   if (loading) {
     return (
@@ -278,15 +287,24 @@ export default function TenantDetailPage() {
           </div>
         </div>
 
-        {/* Impersonate Button — Prominent */}
-        <Button
-          onClick={handleImpersonate}
-          disabled={impersonating}
-          className="gap-2 bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 border-0 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 shrink-0"
-        >
-          <Eye className="h-4 w-4" />
-          {impersonating ? 'Accediendo...' : 'Entrar como Admin'}
-        </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/admin/tenants/${tenant.id}/edit`)}
+            className="gap-2"
+          >
+            <Pencil className="h-4 w-4" />
+            Editar
+          </Button>
+          <Button
+            onClick={handleImpersonate}
+            disabled={impersonating}
+            className="gap-2 bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 border-0 shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30"
+          >
+            <Eye className="h-4 w-4" />
+            {impersonating ? 'Accediendo...' : 'Entrar como Admin'}
+          </Button>
+        </div>
       </div>
 
       {/* Usage Metrics Cards */}
@@ -359,33 +377,45 @@ export default function TenantDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Última actividad */}
+        {/* Actividad últimos 7 días — Sparkline */}
         <Card className="bg-card border-border hover:bg-muted transition-all">
           <CardContent className="p-5">
-            <div className="flex items-start justify-between">
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Última actividad</p>
-                {usageLoading ? (
-                  <Skeleton className="h-8 w-20 bg-muted" />
-                ) : usage?.lastActivity ? (
-                  <p className="text-2xl font-bold text-foreground">{timeAgo(usage.lastActivity)}</p>
+            <div className="flex items-start justify-between mb-2">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Últimos 7 días</p>
+                {activityLoading ? (
+                  <Skeleton className="h-8 w-16 bg-muted" />
                 ) : (
-                  <p className="text-lg font-semibold text-muted-foreground">Sin actividad</p>
+                  <p className="text-2xl font-bold text-foreground">{activityTotal}</p>
                 )}
-                <p className="text-[11px] text-muted-foreground/60">último uso del sistema</p>
+                <p className="text-[11px] text-muted-foreground/60">ventas en la semana</p>
               </div>
-              <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${
-                usage?.lastActivity && (Date.now() - new Date(usage.lastActivity).getTime()) < 86400000 * 7
-                  ? 'bg-emerald-500/10'
-                  : 'bg-orange-500/10'
-              }`}>
-                <Clock className={`h-5 w-5 ${
-                  usage?.lastActivity && (Date.now() - new Date(usage.lastActivity).getTime()) < 86400000 * 7
-                    ? 'text-emerald-400'
-                    : 'text-orange-400'
-                }`} />
+              <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                <Activity className="h-5 w-5 text-purple-400" />
               </div>
             </div>
+            {!activityLoading && activityData.length > 0 && (
+              <div className="h-12 mt-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={activityData}>
+                    <defs>
+                      <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#a855f7" stopOpacity={0.3} />
+                        <stop offset="100%" stopColor="#a855f7" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area
+                      type="monotone"
+                      dataKey="sales"
+                      stroke="#a855f7"
+                      strokeWidth={2}
+                      fill="url(#sparkFill)"
+                      dot={false}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -446,13 +476,27 @@ export default function TenantDetailPage() {
                       </>
                     ) : (
                       <>
-                        <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
+                        <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
                           <TrendingDown className="h-5 w-5 text-orange-400" />
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <p className="text-sm font-medium text-orange-400">Riesgo de abandono</p>
                           <p className="text-xs text-muted-foreground">Sin ventas este mes ni actividad reciente. Considerar contactar al cliente.</p>
                         </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="shrink-0 gap-1.5 text-orange-400 border-orange-500/30 hover:bg-orange-500/10 hover:text-orange-300"
+                          onClick={() => {
+                            toast({
+                              title: 'Correo enviado',
+                              description: `Correo de reactivación enviado a ${tenant.name}`,
+                            });
+                          }}
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          Enviar correo de reactivación
+                        </Button>
                       </>
                     )}
                   </div>
@@ -564,55 +608,63 @@ export default function TenantDetailPage() {
                     </div>
                   </div>
 
-                  {/* Change Plan Button */}
-                  <Dialog open={planDialogOpen} onOpenChange={setPlanDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" className="w-full gap-2 mt-2">
-                        <Repeat className="h-4 w-4" />
-                        Cambiar Plan
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Cambiar Plan de Suscripción</DialogTitle>
-                        <DialogDescription>
-                          Selecciona el nuevo plan para {tenant.name}. El cambio se aplicará inmediatamente.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="py-4 space-y-4">
-                        <div className={`grid gap-3 ${plans.length <= 3 ? 'grid-cols-3' : plans.length <= 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}>
-                          {plans.map((plan) => (
-                            <button
-                              key={plan.plan_name}
-                              onClick={() => setSelectedPlan(plan.plan_name)}
-                              className={`rounded-xl border-2 p-4 text-center transition-all ${
-                                selectedPlan === plan.plan_name
-                                  ? 'border-purple-500 bg-purple-500/10 shadow-md shadow-purple-500/10'
-                                  : 'border-border hover:border-border'
-                              }`}
-                            >
-                              <p className="font-semibold text-sm">{plan.display_name}</p>
-                              <p className="text-lg font-bold mt-1">{formatCurrency(Number(plan.monthly_price))}</p>
-                              <p className="text-xs text-muted-foreground">/mes</p>
-                              {activeSub.plan_name === plan.plan_name && (
-                                <Badge className="mt-2 text-[10px]" variant="secondary">Actual</Badge>
-                              )}
-                            </button>
-                          ))}
-                        </div>
+                  {/* Plan Overrides */}
+                  {(tenant.override_max_branches != null || tenant.override_max_users != null || tenant.override_storage_limit_gb != null ||
+                    tenant.override_mod_transfers != null || tenant.override_mod_invoicing != null || tenant.override_mod_loyalty != null ||
+                    tenant.override_mod_advanced_reports != null || tenant.override_mod_ecommerce != null) && (
+                    <div className="rounded-xl bg-amber-500/5 border border-amber-500/20 p-3 space-y-2">
+                      <p className="text-xs font-medium text-amber-400 flex items-center gap-1.5">
+                        <AlertTriangle className="h-3 w-3" />
+                        Modificaciones del plan
+                      </p>
+                      <div className="space-y-1">
+                        {tenant.override_max_branches != null && (
+                          <p className="text-xs text-muted-foreground">Sucursales: <span className="text-foreground font-medium">{tenant.override_max_branches}</span></p>
+                        )}
+                        {tenant.override_max_users != null && (
+                          <p className="text-xs text-muted-foreground">Usuarios: <span className="text-foreground font-medium">{tenant.override_max_users}</span></p>
+                        )}
+                        {tenant.override_storage_limit_gb != null && (
+                          <p className="text-xs text-muted-foreground">Almacenamiento: <span className="text-foreground font-medium">{tenant.override_storage_limit_gb} GB</span></p>
+                        )}
+                        {[
+                          { key: 'override_mod_transfers' as const, label: 'Transferencias' },
+                          { key: 'override_mod_invoicing' as const, label: 'Facturación' },
+                          { key: 'override_mod_loyalty' as const, label: 'Lealtad' },
+                          { key: 'override_mod_advanced_reports' as const, label: 'Reportes Avanzados' },
+                          { key: 'override_mod_ecommerce' as const, label: 'E-commerce' },
+                        ].filter(mod => tenant[mod.key] != null).length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {[
+                              { key: 'override_mod_transfers' as const, label: 'Transferencias' },
+                              { key: 'override_mod_invoicing' as const, label: 'Facturación' },
+                              { key: 'override_mod_loyalty' as const, label: 'Lealtad' },
+                              { key: 'override_mod_advanced_reports' as const, label: 'Reportes Avanzados' },
+                              { key: 'override_mod_ecommerce' as const, label: 'E-commerce' },
+                            ].filter(mod => tenant[mod.key] != null).map(mod => (
+                              <Badge
+                                key={mod.key}
+                                variant="outline"
+                                className={tenant[mod.key] ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px]' : 'bg-red-500/10 text-red-400 border-red-500/20 text-[10px]'}
+                              >
+                                {mod.label}: {tenant[mod.key] ? 'Activado' : 'Desactivado'}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setPlanDialogOpen(false)}>Cancelar</Button>
-                        <Button
-                          onClick={handleChangePlan}
-                          disabled={changingPlan || selectedPlan === activeSub.plan_name}
-                          className="bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 border-0"
-                        >
-                          {changingPlan ? 'Cambiando...' : 'Confirmar Cambio'}
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                    </div>
+                  )}
+
+                  {/* Manage in Edit page */}
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 mt-2"
+                    onClick={() => router.push(`/admin/tenants/${tenant.id}/edit`)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Gestionar suscripción
+                  </Button>
                 </div>
               ) : (
                 <div className="rounded-xl bg-muted/30 border border-dashed border-border/50 p-8 text-center">

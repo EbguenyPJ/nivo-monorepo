@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -13,7 +13,7 @@ import {
 import {
   Plus, Store, Search, Globe, MoreHorizontal, Eye, Pencil, Ban,
   CheckCircle2, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
-  LogIn, X, Filter,
+  X, Filter, Loader2, Check,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 
@@ -59,11 +59,13 @@ const STATUS_BADGES: Record<string, { label: string; className: string }> = {
   },
 };
 
-const PLAN_BADGES: Record<string, { label: string; className: string }> = {
-  basic: { label: 'Básico', className: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
-  professional: { label: 'Profesional', className: 'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20' },
-  enterprise: { label: 'Empresarial', className: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-};
+const DEFAULT_BADGE_COLORS = [
+  'bg-purple-500/10 text-purple-400 border-purple-500/20',
+  'bg-fuchsia-500/10 text-fuchsia-400 border-fuchsia-500/20',
+  'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'bg-blue-500/10 text-blue-400 border-blue-500/20',
+];
 
 function getTenantStatus(tenant: Tenant): string {
   if (!tenant.is_active) return 'inactive';
@@ -101,6 +103,8 @@ export default function TenantsPage() {
     owner_password: '',
     plan_name: 'basic',
   });
+  const [subdomainStatus, setSubdomainStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const subdomainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchTenants = useCallback(async () => {
     setLoading(true);
@@ -152,6 +156,27 @@ export default function TenantsPage() {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
+  // Debounced subdomain availability check
+  useEffect(() => {
+    if (subdomainTimerRef.current) clearTimeout(subdomainTimerRef.current);
+    if (!form.subdomain || form.subdomain.length < 3) {
+      setSubdomainStatus('idle');
+      return;
+    }
+    setSubdomainStatus('checking');
+    subdomainTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await apiClient.get(`/tenants/check-subdomain?subdomain=${encodeURIComponent(form.subdomain)}`);
+        setSubdomainStatus(res.data.available ? 'available' : 'taken');
+      } catch {
+        setSubdomainStatus('idle');
+      }
+    }, 500);
+    return () => {
+      if (subdomainTimerRef.current) clearTimeout(subdomainTimerRef.current);
+    };
+  }, [form.subdomain]);
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -169,6 +194,7 @@ export default function TenantsPage() {
       await apiClient.post('/tenants', form);
       setDialogOpen(false);
       setForm({ name: '', subdomain: '', owner_email: '', owner_password: '', plan_name: 'basic' });
+      setSubdomainStatus('idle');
       toast({ title: 'Zapatería creada', description: `${form.name} se registró correctamente.` });
       await fetchTenants();
     } catch (error: any) {
@@ -211,6 +237,14 @@ export default function TenantsPage() {
       setForm((prev) => ({ ...prev, name: value, subdomain }));
     }
   };
+
+  // Dynamic plan maps derived from fetched plans
+  const PLAN_LABELS: Record<string, string> = {};
+  const PLAN_BADGE_COLORS: Record<string, string> = {};
+  plans.forEach((p, i) => {
+    PLAN_LABELS[p.plan_name] = p.display_name;
+    PLAN_BADGE_COLORS[p.plan_name] = DEFAULT_BADGE_COLORS[i % DEFAULT_BADGE_COLORS.length];
+  });
 
   const hasFilters = statusFilter !== 'all' || planFilter !== 'all' || searchInput !== '';
 
@@ -270,6 +304,21 @@ export default function TenantsPage() {
                       required
                     />
                     <span className="text-sm text-muted-foreground whitespace-nowrap">.nivo.com</span>
+                    {subdomainStatus === 'checking' && (
+                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                    )}
+                    {subdomainStatus === 'available' && (
+                      <span className="flex items-center gap-1 text-emerald-400 shrink-0">
+                        <Check className="h-4 w-4" />
+                        <span className="text-xs font-medium">Disponible</span>
+                      </span>
+                    )}
+                    {subdomainStatus === 'taken' && (
+                      <span className="flex items-center gap-1 text-red-400 shrink-0">
+                        <X className="h-4 w-4" />
+                        <span className="text-xs font-medium">Ya está en uso</span>
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -321,7 +370,7 @@ export default function TenantsPage() {
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button type="submit" disabled={creating}
+                <Button type="submit" disabled={creating || subdomainStatus === 'taken' || subdomainStatus === 'checking'}
                   className="bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 border-0">
                   {creating ? 'Creando...' : 'Crear Zapatería'}
                 </Button>
@@ -446,8 +495,6 @@ export default function TenantsPage() {
                   const status = getTenantStatus(tenant);
                   const plan = getTenantPlan(tenant);
                   const statusConfig = STATUS_BADGES[status] || STATUS_BADGES.active;
-                  const planConfig = plan ? PLAN_BADGES[plan] : null;
-
                   return (
                     <TableRow key={tenant.id} className="group">
                       <TableCell>
@@ -467,9 +514,9 @@ export default function TenantsPage() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        {planConfig ? (
-                          <Badge variant="outline" className={planConfig.className}>
-                            {planConfig.label}
+                        {plan && PLAN_LABELS[plan] ? (
+                          <Badge variant="outline" className={PLAN_BADGE_COLORS[plan] || ''}>
+                            {PLAN_LABELS[plan]}
                           </Badge>
                         ) : (
                           <span className="text-sm text-muted-foreground">—</span>
@@ -506,17 +553,9 @@ export default function TenantsPage() {
                               <Eye className="h-4 w-4 mr-2" />
                               Ver detalle
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => router.push(`/admin/tenants/${tenant.id}`)}>
+                            <DropdownMenuItem onClick={() => router.push(`/admin/tenants/${tenant.id}/edit`)}>
                               <Pencil className="h-4 w-4 mr-2" />
                               Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                window.open(`http://${tenant.subdomain}.localhost:3001`, '_blank');
-                              }}
-                            >
-                              <LogIn className="h-4 w-4 mr-2" />
-                              Entrar como Admin
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem

@@ -36,6 +36,12 @@ export class TenantsController {
     return this.tenantsService.getDashboardMetrics();
   }
 
+  @Get('check-subdomain')
+  @Roles('super-admin')
+  checkSubdomain(@Query('subdomain') subdomain: string) {
+    return this.tenantsService.checkSubdomain(subdomain);
+  }
+
   @Get(':id')
   @Roles('super-admin', 'soporte')
   findOne(@Param('id') id: string) {
@@ -46,6 +52,47 @@ export class TenantsController {
   @Roles('super-admin', 'soporte')
   getUsageMetrics(@Param('id') id: string) {
     return this.tenantsService.getUsageMetrics(id);
+  }
+
+  @Get(':id/activity')
+  @Roles('super-admin', 'soporte')
+  getDailyActivity(@Param('id') id: string) {
+    return this.tenantsService.getDailyActivity(id);
+  }
+
+  @Patch(':id')
+  @Roles('super-admin')
+  update(
+    @Param('id') id: string,
+    @Body() body: Partial<{
+      name: string;
+      subdomain: string;
+      rfc: string;
+      razon_social: string;
+      regimen_fiscal: string;
+      codigo_postal_fiscal: string;
+      direccion_fiscal: string;
+      override_max_branches: number;
+      override_max_users: number;
+      override_storage_limit_gb: number;
+      override_notes: string;
+      override_mod_transfers: boolean | null;
+      override_mod_invoicing: boolean | null;
+      override_mod_loyalty: boolean | null;
+      override_mod_advanced_reports: boolean | null;
+      override_mod_ecommerce: boolean | null;
+    }>,
+  ) {
+    return this.tenantsService.update(id, body);
+  }
+
+  @Patch(':id/credentials')
+  @Roles('super-admin')
+  updateCredentials(
+    @Param('id') id: string,
+    @Body() body: { admin_email?: string; admin_password?: string },
+  ) {
+    return this.tenantsService.updateTenantCredentials(id, body);
   }
 
   @Patch(':id/toggle-status')
@@ -64,5 +111,11 @@ export class TenantsController {
   @Roles('super-admin')
   updateTheme(@Param('id') id: string, @Body() body: { logo_url?: string; theme_settings?: Record<string, unknown> }) {
     return this.tenantsService.updateTheme(id, body);
+  }
+
+  @Patch(':id/cancel-subscription')
+  @Roles('super-admin')
+  cancelSubscription(@Param('id') id: string) {
+    return this.tenantsService.cancelSubscription(id);
   }
 }
