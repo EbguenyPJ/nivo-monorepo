@@ -14,10 +14,38 @@ async function bootstrap() {
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
 
   app.enableCors({
-    origin: [
-      process.env.POS_ADMIN_URL || 'http://localhost:3001',
-      process.env.STOREFRONT_URL || 'http://localhost:3002',
-    ],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, etc.)
+      if (!origin) return callback(null, true);
+
+      const allowed = [
+        process.env.POS_ADMIN_URL || 'http://localhost:3001',
+        process.env.STOREFRONT_URL || 'http://localhost:3002',
+      ];
+
+      // Allow exact matches
+      if (allowed.includes(origin)) return callback(null, true);
+
+      // Allow any subdomain of localhost:3001 (tenant subdomains in dev)
+      if (/^https?:\/\/[a-z0-9-]+\.localhost(:\d+)?$/.test(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow any subdomain of the configured domains in production
+      // e.g. mizapateria.nivo.com when POS_ADMIN_URL=https://nivo.com
+      for (const url of allowed) {
+        try {
+          const { protocol, hostname, port } = new URL(url);
+          const portSuffix = port ? `:${port}` : '';
+          const subdomainPattern = new RegExp(
+            `^${protocol}//[a-z0-9-]+\\.${hostname.replace('.', '\\.')}${portSuffix.replace('.', '\\.')}$`
+          );
+          if (subdomainPattern.test(origin)) return callback(null, true);
+        } catch { /* skip invalid URLs */ }
+      }
+
+      callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
   });
 

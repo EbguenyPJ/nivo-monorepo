@@ -35,8 +35,10 @@ function detectTenantFromHostname(): string | null {
   if (typeof window === 'undefined') return null;
   const hostname = window.location.hostname;
 
-  // localhost / 127.0.0.1 / IP → check for subdomain.localhost
+  // localhost / 127.0.0.1 → super-admin
   if (hostname === 'localhost' || hostname === '127.0.0.1') return null;
+
+  // subdomain.localhost → tenant
   if (hostname.endsWith('.localhost')) {
     const sub = hostname.replace('.localhost', '');
     return sub || null;
@@ -45,7 +47,7 @@ function detectTenantFromHostname(): string | null {
   // Production: sub.nivo.com or sub.domain.com
   const parts = hostname.split('.');
   if (parts.length >= 3) {
-    return parts[0]; // first segment is the subdomain
+    return parts[0];
   }
 
   return null; // nivo.com / domain.com → super-admin
@@ -64,14 +66,12 @@ export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
 
-  // Detect tenant + shuffle images on mount
   useEffect(() => {
     setMounted(true);
     setShuffledImages(shuffleArray(ALL_IMAGES));
     setTenantSubdomain(detectTenantFromHostname());
   }, []);
 
-  // Carousel auto-advance
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % shuffledImages.length);
@@ -97,7 +97,11 @@ export default function LoginPage() {
         router.push('/dashboard');
       }
     } catch {
-      setError('Credenciales inválidas. Verifica tu correo y contraseña.');
+      setError(
+        isTenantLogin
+          ? 'Credenciales inválidas. Verifica tu correo y contraseña.'
+          : 'Credenciales inválidas. Verifica tu correo y contraseña de administrador.'
+      );
     } finally {
       setIsLoading(false);
     }
@@ -141,10 +145,11 @@ export default function LoginPage() {
           <div className="login-form-container">
             <h2>Iniciar Sesión</h2>
 
+            {/* Auto-detected tenant from URL */}
             {isTenantLogin && (
               <div className="login-tenant-badge">
                 <Store size={14} />
-                <span>Sucursal: <strong>{tenantSubdomain}</strong></span>
+                <span>Zapatería: <strong>{tenantSubdomain}</strong></span>
               </div>
             )}
 
