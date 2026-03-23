@@ -63,6 +63,12 @@ export {
   TableCaption,
 } from './components/ui/table';
 
+// Switch
+export { Switch } from './components/ui/switch';
+
+// Textarea
+export { Textarea, type TextareaProps } from './components/ui/textarea';
+
 // Dropdown Menu
 export {
   DropdownMenu,

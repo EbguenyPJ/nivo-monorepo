@@ -63,11 +63,21 @@ function reducer(state: State, action: Action): State {
     case actionTypes.DISMISS_TOAST: {
       const { toastId } = action;
       if (toastId) {
-        addToRemoveQueue(toastId);
-      } else {
-        state.toasts.forEach((t) => addToRemoveQueue(t.id));
+        // Clear any pending auto-remove timer
+        const existing = toastTimeouts.get(toastId);
+        if (existing) {
+          clearTimeout(existing);
+          toastTimeouts.delete(toastId);
+        }
+        return {
+          ...state,
+          toasts: state.toasts.filter((t) => t.id !== toastId),
+        };
       }
-      return state;
+      // Dismiss all
+      toastTimeouts.forEach((timeout) => clearTimeout(timeout));
+      toastTimeouts.clear();
+      return { ...state, toasts: [] };
     }
     case actionTypes.REMOVE_TOAST:
       if (action.toastId === undefined) return { ...state, toasts: [] };

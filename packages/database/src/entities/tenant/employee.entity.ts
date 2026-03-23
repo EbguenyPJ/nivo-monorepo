@@ -3,10 +3,12 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
+  UpdateDateColumn,
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
 import { Branch } from './branch.entity';
+import { Role } from './role.entity';
 
 @Entity('employees')
 export class Employee {
@@ -22,12 +24,26 @@ export class Employee {
   @Column({ type: 'varchar' })
   password_hash: string;
 
-  @Column({ type: 'varchar', length: 10, nullable: true })
-  pin_code: string | null;
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  phone: string | null;
 
+  /** Hashed PIN for fast POS unlock (4-6 digits) */
+  @Column({ type: 'varchar', nullable: true })
+  pin_hash: string | null;
+
+  // ─── Legacy role column (kept for backwards compat during migration) ───
   @Column({ type: 'enum', enum: ['admin', 'manager', 'cashier'], default: 'cashier' })
   role: string;
 
+  // ─── New RBAC role relation ───
+  @Column({ type: 'uuid', nullable: true })
+  role_id: string | null;
+
+  @ManyToOne(() => Role, { nullable: true, eager: true })
+  @JoinColumn({ name: 'role_id' })
+  roleEntity: Role | null;
+
+  // ─── Branch assignment ───
   @Column({ type: 'uuid', nullable: true })
   branch_id: string | null;
 
@@ -40,4 +56,7 @@ export class Employee {
 
   @CreateDateColumn()
   created_at: Date;
+
+  @UpdateDateColumn()
+  updated_at: Date;
 }

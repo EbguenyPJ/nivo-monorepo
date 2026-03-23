@@ -49,7 +49,7 @@ export class TenantsService {
     return map;
   }
 
-  async create(data: { name: string; subdomain: string; owner_email: string; owner_password: string; plan_name: string }) {
+  async create(data: { name: string; subdomain: string; owner_email: string; owner_password: string; plan_name?: string }) {
     const existing = await this.tenantRepo.findOne({ where: { subdomain: data.subdomain } });
     if (existing) throw new ConflictException('Subdomain already taken');
 
@@ -65,6 +65,16 @@ export class TenantsService {
 
     await this.tenantRepo.save(tenant);
 
+    // Create subscription record immediately if a plan was selected
+    if (data.plan_name) {
+      const subscription = this.subscriptionRepo.create({
+        tenant_id: tenant.id,
+        plan_name: data.plan_name,
+        status: 'active',
+      });
+      await this.subscriptionRepo.save(subscription);
+    }
+
     // Enqueue async DB provisioning
     await this.provisioningQueue.add('provision-tenant', {
       tenant_id: tenant.id,
@@ -78,7 +88,7 @@ export class TenantsService {
     await this.notificationsService.create({
       type: 'tenant_registered',
       title: 'Nueva zapatería registrada',
-      message: `${data.name} se ha registrado en la plataforma con plan ${data.plan_name}.`,
+      message: `${data.name} se ha registrado en la plataforma${data.plan_name ? ` con plan ${data.plan_name}` : ' como prueba gratuita'}.`,
       tenant_id: tenant.id,
       tenant_name: data.name,
     });

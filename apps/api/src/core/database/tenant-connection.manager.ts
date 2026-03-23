@@ -9,10 +9,18 @@ import {
   ProductVariant,
   Inventory,
   Employee,
+  Permission,
+  Role,
+  RolePermission,
+  EmployeePermission,
   PosSession,
   Customer,
   Sale,
   SaleItem,
+  PaymentMethod,
+  Tax,
+  CancellationReason,
+  UnitOfMeasure,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -23,10 +31,18 @@ const TENANT_ENTITIES = [
   ProductVariant,
   Inventory,
   Employee,
+  Permission,
+  Role,
+  RolePermission,
+  EmployeePermission,
   PosSession,
   Customer,
   Sale,
   SaleItem,
+  PaymentMethod,
+  Tax,
+  CancellationReason,
+  UnitOfMeasure,
 ];
 
 @Injectable()

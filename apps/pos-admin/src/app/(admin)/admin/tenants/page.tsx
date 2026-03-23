@@ -101,7 +101,7 @@ export default function TenantsPage() {
     subdomain: '',
     owner_email: '',
     owner_password: '',
-    plan_name: 'basic',
+    plan_name: '',
   });
   const [subdomainStatus, setSubdomainStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const subdomainTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -137,9 +137,6 @@ export default function TenantsPage() {
         const res = await apiClient.get('/settings/plans');
         const activePlans = (res.data.data || []).filter((p: PlanOption) => p.is_active);
         setPlans(activePlans);
-        if (activePlans.length > 0 && !activePlans.find((p: PlanOption) => p.plan_name === form.plan_name)) {
-          setForm((prev) => ({ ...prev, plan_name: activePlans[0].plan_name }));
-        }
       } catch (error) {
         console.error('Failed to fetch plans:', error);
       }
@@ -191,9 +188,14 @@ export default function TenantsPage() {
     }
     setCreating(true);
     try {
-      await apiClient.post('/tenants', form);
+      const payload: any = { ...form };
+      // Only send plan_name if a real plan was selected
+      if (!payload.plan_name || payload.plan_name === 'none') {
+        delete payload.plan_name;
+      }
+      await apiClient.post('/tenants', payload);
       setDialogOpen(false);
-      setForm({ name: '', subdomain: '', owner_email: '', owner_password: '', plan_name: 'basic' });
+      setForm({ name: '', subdomain: '', owner_email: '', owner_password: '', plan_name: '' });
       setSubdomainStatus('idle');
       toast({ title: 'Zapatería creada', description: `${form.name} se registró correctamente.` });
       await fetchTenants();
@@ -345,23 +347,18 @@ export default function TenantsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="plan">Plan</Label>
+                  <Label htmlFor="plan">Plan <span className="text-muted-foreground font-normal">(opcional)</span></Label>
                   <Select value={form.plan_name} onValueChange={(v) => setForm((prev) => ({ ...prev, plan_name: v }))}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar plan" />
+                      <SelectValue placeholder="Prueba Gratuita (sin plan)" />
                     </SelectTrigger>
                     <SelectContent>
-                      {plans.length > 0 ? plans.map((plan) => (
+                      <SelectItem value="none">🆓 Prueba Gratuita (sin plan)</SelectItem>
+                      {plans.map((plan) => (
                         <SelectItem key={plan.id} value={plan.plan_name}>
                           {plan.display_name} — ${Number(plan.monthly_price).toLocaleString()}/mes
                         </SelectItem>
-                      )) : (
-                        <>
-                          <SelectItem value="basic">Básico</SelectItem>
-                          <SelectItem value="professional">Profesional</SelectItem>
-                          <SelectItem value="enterprise">Empresarial</SelectItem>
-                        </>
-                      )}
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -519,7 +516,9 @@ export default function TenantsPage() {
                             {PLAN_LABELS[plan]}
                           </Badge>
                         ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
+                          <Badge variant="outline" className="text-muted-foreground border-dashed">
+                            Prueba Gratuita
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell>

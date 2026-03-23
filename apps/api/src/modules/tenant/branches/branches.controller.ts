@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Req, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { BranchesService } from './branches.service';
@@ -14,8 +14,8 @@ export class BranchesController {
   constructor(private readonly branchesService: BranchesService) {}
 
   @Get()
-  findAll(@Req() req: Request) {
-    return this.branchesService.findAll(req.tenantConnection!);
+  findAll(@Req() req: Request, @Query('includeInactive') includeInactive?: string) {
+    return this.branchesService.findAll(req.tenantConnection!, includeInactive === 'true');
   }
 
   @Get(':id')
@@ -33,6 +33,12 @@ export class BranchesController {
   @Roles('admin')
   update(@Req() req: Request, @Param('id') id: string, @Body() body: any) {
     return this.branchesService.update(req.tenantConnection!, id, body);
+  }
+
+  @Patch(':id/toggle-status')
+  @Roles('admin')
+  toggleStatus(@Req() req: Request, @Param('id') id: string) {
+    return this.branchesService.toggleStatus(req.tenantConnection!, id);
   }
 
   @Delete(':id')

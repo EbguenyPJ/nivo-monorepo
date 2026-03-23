@@ -41,6 +41,7 @@ import {
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@nivo/ui';
 import { useAuthStore } from '@/store/authStore';
+import { useBranchStore } from '@/store/branchStore';
 
 // ---------------------------------------------------------------------------
 // Sidebar Config
@@ -115,6 +116,7 @@ const sidebarGroups: SidebarGroup[] = [
     label: 'Sistema',
     items: [
       { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
+      { href: '/dashboard/settings/catalogs', icon: Sliders, label: 'Catálogos' },
       { href: '/dashboard/integrations', icon: Plug, label: 'Integraciones' },
       { href: '/dashboard/subscription', icon: CreditCard, label: 'Mi Suscripción' },
       { href: '/dashboard/support', icon: HelpCircle, label: 'Soporte Nivo' },
@@ -156,7 +158,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [branchSelectorOpen, setBranchSelectorOpen] = useState(false);
-  const [selectedBranch, setSelectedBranch] = useState<string>('Sucursal Principal');
+  const { branches: branchesList, selectedBranchId, selectedBranchName: selectedBranch, fetchBranches, selectBranch } = useBranchStore();
 
   // Refs for outside click
   const quickActionsRef = useRef<HTMLDivElement>(null);
@@ -183,6 +185,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.replace('/admin');
     }
   }, [isAuthenticated, userType, router, mounted, isImpersonating]);
+
+  // ---- Fetch branches for selector ----
+  useEffect(() => {
+    if (!mounted || !isAuthenticated) return;
+    fetchBranches();
+  }, [mounted, isAuthenticated]);
 
   // ---- Keyboard shortcut Cmd+K ----
   useEffect(() => {
@@ -244,7 +252,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isItemActive = (href: string) => {
     if (href === '/dashboard') return pathname === href;
-    return pathname === href || pathname.startsWith(href + '/');
+    // Exact match first, then prefix match — but only if no other sidebar item is a better (longer) match
+    if (pathname === href) return true;
+    if (pathname.startsWith(href + '/')) {
+      // Check if there's a more specific sidebar item that matches
+      const hasMoreSpecific = allNavItems.some(
+        (item) => item.href !== href && item.href.startsWith(href + '/') && (pathname === item.href || pathname.startsWith(item.href + '/'))
+      );
+      return !hasMoreSpecific;
+    }
+    return false;
   };
 
   const userInitials = user?.name
@@ -378,38 +395,54 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </kbd>
             </button>
 
-            {/* CENTER: Branch Selector */}
-            <div ref={branchRef} className="relative">
-              <button
-                onClick={() => setBranchSelectorOpen(!branchSelectorOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted/50 transition-colors text-sm"
-              >
+            {/* CENTER: Branch Selector (role-aware) */}
+            {user?.role === 'cashier' ? (
+              /* Cashier: read-only badge */
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted/50 border border-border text-sm">
                 <MapPin className="h-4 w-4 text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]" />
                 <span className="text-foreground font-medium truncate max-w-[160px]">{selectedBranch}</span>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-              </button>
+              </div>
+            ) : (
+              /* Admin/Manager: interactive dropdown */
+              <div ref={branchRef} className="relative">
+                <button
+                  onClick={() => setBranchSelectorOpen(!branchSelectorOpen)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted/50 transition-colors text-sm"
+                >
+                  <MapPin className="h-4 w-4 text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]" />
+                  <span className="text-foreground font-medium truncate max-w-[160px]">{selectedBranch}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
 
-              {branchSelectorOpen && (
-                <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-56 rounded-xl border border-border bg-popover/95 backdrop-blur-xl shadow-xl p-1.5 z-50">
-                  <p className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Sucursales</p>
-                  {['Sucursal Principal', 'Sucursal Centro', 'Sucursal Norte'].map((branch) => (
-                    <button
-                      key={branch}
-                      onClick={() => { setSelectedBranch(branch); setBranchSelectorOpen(false); }}
-                      className={cn(
-                        'w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors text-left',
-                        selectedBranch === branch
-                          ? 'bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/10 text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))] font-medium'
-                          : 'text-foreground hover:bg-muted'
-                      )}
-                    >
-                      <MapPin className="h-3.5 w-3.5 shrink-0" />
-                      {branch}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+                {branchSelectorOpen && (
+                  <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-60 rounded-xl border border-border bg-popover/95 backdrop-blur-xl shadow-xl p-1.5 z-50">
+                    <p className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Sucursales</p>
+                    {branchesList.length === 0 ? (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">Sin sucursales</p>
+                    ) : (
+                      branchesList.map((branch) => (
+                        <button
+                          key={branch.id}
+                          onClick={() => { selectBranch(branch.id); setBranchSelectorOpen(false); }}
+                          className={cn(
+                            'w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors text-left',
+                            selectedBranchId === branch.id
+                              ? 'bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/10 text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))] font-medium'
+                              : 'text-foreground hover:bg-muted'
+                          )}
+                        >
+                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{branch.name}</span>
+                          {!branch.is_active && (
+                            <span className="ml-auto text-[10px] text-muted-foreground bg-muted rounded px-1">Cerrada</span>
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex-1" />
 

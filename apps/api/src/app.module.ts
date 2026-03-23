@@ -22,6 +22,7 @@ import { ChatModule } from './modules/tenant/chat/chat.module';
 import { JobsModule } from './modules/tenant/jobs/jobs.module';
 import { ReportsModule } from './modules/tenant/reports/reports.module';
 import { BranchesModule } from './modules/tenant/branches/branches.module';
+import { CatalogsModule } from './modules/tenant/catalogs/catalogs.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -53,6 +54,7 @@ import { HealthController } from './health.controller';
     JobsModule,
     ReportsModule,
     BranchesModule,
+    CatalogsModule,
   ],
   controllers: [HealthController],
 })
