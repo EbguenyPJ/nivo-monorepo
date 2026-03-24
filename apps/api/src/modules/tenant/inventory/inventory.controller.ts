@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { Request } from 'express';
 import { InventoryService } from './inventory.service';
@@ -12,8 +12,13 @@ export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
   @Get()
-  findAll(@Req() req: Request, @Query('category') category?: string, @Query('brand') brand?: string) {
-    return this.inventoryService.findAllProducts(req.tenantConnection!, { category, brand });
+  findAll(
+    @Req() req: Request,
+    @Query('category') category?: string,
+    @Query('brand') brand?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.inventoryService.findAllProducts(req.tenantConnection!, { category, brand, search });
   }
 
   @Get(':id')
@@ -26,9 +31,20 @@ export class InventoryController {
     return this.inventoryService.createProduct(req.tenantConnection!, body);
   }
 
+  /** Wizard endpoint: creates product + variants + inventory in one transaction */
+  @Post('wizard')
+  createFromWizard(@Req() req: Request, @Body() body: any) {
+    return this.inventoryService.createProductWizard(req.tenantConnection!, body);
+  }
+
   @Put(':id')
   update(@Req() req: Request, @Param('id') id: string, @Body() body: any) {
     return this.inventoryService.updateProduct(req.tenantConnection!, id, body);
+  }
+
+  @Patch(':id/toggle-status')
+  toggleStatus(@Req() req: Request, @Param('id') id: string) {
+    return this.inventoryService.toggleProductStatus(req.tenantConnection!, id);
   }
 
   @Delete(':id')

@@ -1,5 +1,7 @@
 export { Brand } from './brand.entity';
 export { Category } from './category.entity';
+export { Collection } from './collection.entity';
+export { CollectionProduct } from './collection-product.entity';
 export { Branch } from './branch.entity';
 export { Product } from './product.entity';
 export { ProductVariant } from './product-variant.entity';

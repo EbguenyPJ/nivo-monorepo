@@ -69,6 +69,15 @@ export { Switch } from './components/ui/switch';
 // Textarea
 export { Textarea, type TextareaProps } from './components/ui/textarea';
 
+// Checkbox
+export { Checkbox } from './components/ui/checkbox';
+
+// ScrollArea
+export { ScrollArea, ScrollBar } from './components/ui/scroll-area';
+
+// Popover
+export { Popover, PopoverTrigger, PopoverContent } from './components/ui/popover';
+
 // Dropdown Menu
 export {
   DropdownMenu,

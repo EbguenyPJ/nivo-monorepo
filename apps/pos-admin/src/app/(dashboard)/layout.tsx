@@ -77,8 +77,8 @@ const sidebarGroups: SidebarGroup[] = [
     label: 'Catálogo',
     items: [
       { href: '/dashboard/products', icon: Package, label: 'Modelos de Zapatos' },
-      { href: '/dashboard/variants', icon: Palette, label: 'Tallas y Colores' },
-      { href: '/dashboard/brands', icon: Tag, label: 'Marcas y Categorías' },
+      { href: '/dashboard/brands', icon: Tag, label: 'Marcas' },
+      { href: '/dashboard/collections', icon: Palette, label: 'Colecciones' },
     ],
   },
   {

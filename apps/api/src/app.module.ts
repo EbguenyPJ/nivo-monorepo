@@ -23,6 +23,9 @@ import { JobsModule } from './modules/tenant/jobs/jobs.module';
 import { ReportsModule } from './modules/tenant/reports/reports.module';
 import { BranchesModule } from './modules/tenant/branches/branches.module';
 import { CatalogsModule } from './modules/tenant/catalogs/catalogs.module';
+import { BrandsModule } from './modules/tenant/brands/brands.module';
+import { CollectionsModule } from './modules/tenant/collections/collections.module';
+import { TenantUploadsModule } from './modules/tenant/uploads/uploads.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -55,6 +58,9 @@ import { HealthController } from './health.controller';
     ReportsModule,
     BranchesModule,
     CatalogsModule,
+    BrandsModule,
+    CollectionsModule,
+    TenantUploadsModule,
   ],
   controllers: [HealthController],
 })

@@ -23,21 +23,43 @@ export class ProductVariant {
   @Column({ type: 'varchar', length: 100, unique: true })
   sku: string;
 
-  @Column({ type: 'varchar', length: 50 })
-  color: string;
+  /**
+   * Dynamic attributes as JSONB — e.g. { "Color": "Negro", "Talla MX": "26", "Material": "Piel" }
+   * Replaces the old fixed `color` + `size_mex` columns.
+   */
+  @Column({ type: 'jsonb', default: {} })
+  attributes: Record<string, string>;
 
-  @Column({ type: 'decimal', precision: 4, scale: 1 })
-  size_mex: number;
+  /** If null, product.base_price is used */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  price_override: number | null;
 
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
-  price: number;
-
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
   cost: number;
 
   @Column({ type: 'varchar', nullable: true })
   barcode: string | null;
 
+  /** Variant images (array of URLs stored as JSONB) */
+  @Column({ type: 'jsonb', default: [] })
+  images: string[];
+
+  @Column({ type: 'boolean', default: true })
+  is_active: boolean;
+
   @CreateDateColumn()
   created_at: Date;
+
+  // ─── Legacy compatibility getters (read-only) ───────────────────
+  get color(): string {
+    return this.attributes?.['Color'] || '';
+  }
+
+  get size_mex(): number {
+    return parseFloat(this.attributes?.['Talla MX'] || '0');
+  }
+
+  get price(): number {
+    return this.price_override ?? 0;
+  }
 }

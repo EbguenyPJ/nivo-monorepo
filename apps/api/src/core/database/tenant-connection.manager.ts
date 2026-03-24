@@ -4,6 +4,8 @@ import { DataSource } from 'typeorm';
 import {
   Brand,
   Category,
+  Collection,
+  CollectionProduct,
   Branch,
   Product,
   ProductVariant,
@@ -26,6 +28,8 @@ import {
 const TENANT_ENTITIES = [
   Brand,
   Category,
+  Collection,
+  CollectionProduct,
   Branch,
   Product,
   ProductVariant,
