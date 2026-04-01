@@ -112,4 +112,13 @@ export class PricingController {
   ) {
     return this.pricingService.calculateProductListPrices(req.tenantConnection, branchId);
   }
+
+  /** Get calculated price per variant (variant_id → final price) */
+  @Get('variant-prices')
+  calculateVariantPrices(
+    @Req() req: any,
+    @Query('branch_id') branchId: string,
+  ) {
+    return this.pricingService.calculateVariantPrices(req.tenantConnection, branchId);
+  }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Button, Badge, Card, CardContent, Input,
   Skeleton, toast,
@@ -12,7 +12,7 @@ import {
 } from '@nivo/ui';
 import {
   Search, Package, Warehouse, MoreVertical, Trash2,
-  MapPin, ArrowRightLeft, LayoutGrid,
+  MapPin, ArrowRightLeft, LayoutGrid, AlertCircle, Check, Filter,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useBranchStore } from '@/store/branchStore';
@@ -63,6 +63,19 @@ interface InventoryLocationEntry {
   };
 }
 
+interface InventoryRow {
+  id: string;
+  variant_id: string;
+  branch_id: string;
+  stock_available: number;
+  variant: {
+    id: string;
+    sku: string;
+    attributes: Record<string, string>;
+    product?: { id: string; name: string };
+  };
+}
+
 interface StorageLocationFlat {
   id: string;
   code: string;
@@ -78,9 +91,28 @@ interface Branch {
 // ─── Stock General Tab (original) ────────────────────────────────
 
 function StockGeneralTab() {
+  const { selectedBranchId, isGeneralSelected } = useBranchStore();
   const [products, setProducts] = useState<Product[]>([]);
+  const [calculatedPrices, setCalculatedPrices] = useState<Record<string, { min: number; max: number }>>({});
+  const [variantPrices, setVariantPrices] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+
+  const getEffectiveBranchId = useBranchStore((s) => s.getEffectiveBranchId);
+
+  const fetchPrices = async () => {
+    const effectiveBranch = getEffectiveBranchId();
+    if (!effectiveBranch) return;
+    try {
+      const [listRes, varRes] = await Promise.all([
+        apiClient.get(`/pricing/product-list-prices?branch_id=${effectiveBranch}`),
+        apiClient.get(`/pricing/variant-prices?branch_id=${effectiveBranch}`),
+      ]);
+      setCalculatedPrices(listRes.data);
+      setVariantPrices(varRes.data);
+    } catch { /* prices will fall back to base_price */ }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -94,8 +126,13 @@ function StockGeneralTab() {
   };
 
   useEffect(() => {
-    fetchProducts();
+    fetchProducts().then(() => fetchPrices());
   }, []);
+
+  // Refetch prices when branch changes
+  useEffect(() => {
+    if (products.length > 0) fetchPrices();
+  }, [selectedBranchId, products]);
 
   const handleDelete = async (product: Product) => {
     try {
@@ -122,12 +159,23 @@ function StockGeneralTab() {
     );
   });
 
-  const getVariantPrice = (product: Product, variant: ProductVariant) =>
-    variant.price_override ?? product.base_price ?? 0;
+  const getVariantPrice = (variant: ProductVariant) => {
+    // Use pricing engine price first, fallback to raw entity
+    if (variantPrices[variant.id] != null) return variantPrices[variant.id];
+    const override = variant.price_override != null ? Number(variant.price_override) : null;
+    return override ?? 0;
+  };
 
   const getPriceRange = (product: Product) => {
+    const calc = calculatedPrices[product.id];
+    if (calc) {
+      if (calc.min === 0 && calc.max === 0) return '$0.00';
+      return calc.min === calc.max
+        ? `$${calc.min.toFixed(2)}`
+        : `$${calc.min.toFixed(2)} – $${calc.max.toFixed(2)}`;
+    }
     if (!product.variants.length) return `$${Number(product.base_price || 0).toFixed(2)}`;
-    const prices = product.variants.map((v) => getVariantPrice(product, v));
+    const prices = product.variants.map((v) => getVariantPrice(v));
     const min = Math.min(...prices);
     const max = Math.max(...prices);
     if (min === max) return `$${min.toFixed(2)}`;
@@ -136,6 +184,17 @@ function StockGeneralTab() {
 
   const formatAttributes = (attrs: Record<string, string>) =>
     Object.entries(attrs).map(([k, v]) => `${k}: ${v}`).join(' · ');
+
+  const toggleExpand = (productId: string) => {
+    setExpandedProducts((prev) => {
+      const next = new Set(prev);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
+  };
+
+  const INITIAL_VISIBLE = 6;
 
   return (
     <div className="space-y-4">
@@ -162,75 +221,181 @@ function StockGeneralTab() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filteredProducts.map((product) => (
-            <Card key={product.id} className="hover:bg-accent/30 transition-colors">
-              <CardContent className="py-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                      {product.images?.[0] || product.image_url ? (
-                        <img src={product.images?.[0] || product.image_url || ''} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <Package className="h-5 w-5 text-primary" />
+          {filteredProducts.map((product) => {
+            const isExpanded = expandedProducts.has(product.id);
+            const visibleVariants = isExpanded ? product.variants : product.variants.slice(0, INITIAL_VISIBLE);
+            const hiddenCount = product.variants.length - INITIAL_VISIBLE;
+
+            return (
+              <Card key={product.id} className="hover:bg-accent/30 transition-colors">
+                <CardContent className="py-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                        {product.images?.[0] || product.image_url ? (
+                          <img src={product.images?.[0] || product.image_url || ''} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <Package className="h-5 w-5 text-primary" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold">{product.name}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {product.brand && <Badge variant="outline" className="text-xs">{product.brand.name}</Badge>}
+                          <span className="text-xs text-muted-foreground">
+                            {product.variants.length} variante{product.variants.length !== 1 ? 's' : ''}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="text-right">
+                        <p className="font-semibold">{getPriceRange(product)}</p>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            onClick={() => handleDelete(product)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Eliminar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+
+                  {product.variants.length > 0 && (
+                    <div className="ml-13 pl-3 border-l-2 border-border space-y-1">
+                      {visibleVariants.map((v) => (
+                        <div key={v.id} className="flex items-center justify-between text-xs text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-foreground">{v.sku}</span>
+                            <span>{formatAttributes(v.attributes)}</span>
+                          </div>
+                          <span className="font-medium text-foreground">
+                            ${getVariantPrice(v).toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                      {hiddenCount > 0 && (
+                        <button
+                          onClick={() => toggleExpand(product.id)}
+                          className="text-xs text-primary hover:underline font-medium pt-1"
+                        >
+                          {isExpanded ? 'Ver menos' : `+${hiddenCount} variante${hiddenCount !== 1 ? 's' : ''} mas...`}
+                        </button>
                       )}
                     </div>
-                    <div>
-                      <p className="font-semibold">{product.name}</p>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        {product.brand && <Badge variant="outline" className="text-xs">{product.brand.name}</Badge>}
-                        <span className="text-xs text-muted-foreground">
-                          {product.variants.length} variante{product.variants.length !== 1 ? 's' : ''}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="font-semibold">{getPriceRange(product)}</p>
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-40">
-                        <DropdownMenuItem
-                          onClick={() => handleDelete(product)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Eliminar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-
-                {product.variants.length > 0 && (
-                  <div className="ml-13 pl-3 border-l-2 border-border space-y-1">
-                    {product.variants.slice(0, 6).map((v) => (
-                      <div key={v.id} className="flex items-center justify-between text-xs text-muted-foreground">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-foreground">{v.sku}</span>
-                          <span>{formatAttributes(v.attributes)}</span>
-                        </div>
-                        <span className="font-medium text-foreground">
-                          ${Number(getVariantPrice(product, v)).toFixed(2)}
-                        </span>
-                      </div>
-                    ))}
-                    {product.variants.length > 6 && (
-                      <p className="text-xs text-muted-foreground">+{product.variants.length - 6} mas...</p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Stock by Location Tab ───────────────────────────────────────
+
+// ─── Inline Assign Row ───────────────────────────────────────────
+
+function InlineAssignRow({
+  row,
+  unlocated,
+  locations,
+  branchId,
+  onAssigned,
+}: {
+  row: InventoryRow;
+  unlocated: number;
+  locations: StorageLocationFlat[];
+  branchId: string;
+  onAssigned: () => void;
+}) {
+  const [locationId, setLocationId] = useState('');
+  const [qty, setQty] = useState(unlocated);
+  const [saving, setSaving] = useState(false);
+
+  // Reset qty when unlocated changes
+  useEffect(() => { setQty(unlocated); }, [unlocated]);
+
+  const handleAssign = async () => {
+    if (!locationId || qty <= 0) return;
+    setSaving(true);
+    try {
+      await apiClient.post('/products/inventory/assign-location', {
+        variant_id: row.variant_id,
+        branch_id: branchId,
+        location_id: locationId,
+        quantity: qty,
+      });
+      toast({ title: 'Asignado', description: `${qty} unidad(es) de ${row.variant?.sku} ubicadas` });
+      setLocationId('');
+      onAssigned();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Error al asignar', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const formatAttrs = (attrs: Record<string, string>) =>
+    Object.entries(attrs).map(([k, v]) => `${k}: ${v}`).join(' · ');
+
+  return (
+    <TableRow className="hover:bg-muted/50">
+      <TableCell>
+        <Badge variant="outline" className="text-xs font-medium border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400 bg-orange-50/50 dark:bg-orange-950/20">
+          Sin ubicar
+        </Badge>
+      </TableCell>
+      <TableCell className="font-medium text-foreground">{row.variant?.product?.name || '—'}</TableCell>
+      <TableCell className="font-mono text-sm text-muted-foreground">{row.variant?.sku}</TableCell>
+      <TableCell className="text-xs text-muted-foreground">
+        {formatAttrs(row.variant?.attributes || {})}
+      </TableCell>
+      <TableCell>
+        <Select value={locationId} onValueChange={setLocationId}>
+          <SelectTrigger className="h-8 w-40 text-xs">
+            <SelectValue placeholder="Seleccionar..." />
+          </SelectTrigger>
+          <SelectContent>
+            {locations.map((l) => (
+              <SelectItem key={l.id} value={l.id}>{l.code} — {l.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Input
+          type="number"
+          min={1}
+          max={unlocated}
+          value={qty}
+          onChange={(e) => setQty(Math.min(unlocated, Math.max(1, Number(e.target.value))))}
+          className="h-8 w-20 text-xs"
+        />
+      </TableCell>
+      <TableCell>
+        <Button
+          size="sm"
+          onClick={handleAssign}
+          disabled={saving || !locationId || qty <= 0}
+          className="h-8 px-3 text-xs"
+        >
+          {saving ? '...' : <><Check className="h-3.5 w-3.5 mr-1" /> Asignar</>}
+        </Button>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -241,16 +406,12 @@ function StockByLocationTab() {
   const [entries, setEntries] = useState<InventoryLocationEntry[]>([]);
   const [locations, setLocations] = useState<StorageLocationFlat[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [inventoryRows, setInventoryRows] = useState<InventoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeBranchId, setActiveBranchId] = useState<string>('');
   const [filterLocationId, setFilterLocationId] = useState<string>('');
+  const [showOnlyUnlocated, setShowOnlyUnlocated] = useState(false);
   const [search, setSearch] = useState('');
-
-  // Assign dialog
-  const [showAssignDialog, setShowAssignDialog] = useState(false);
-  const [assignVariantId, setAssignVariantId] = useState('');
-  const [assignLocationId, setAssignLocationId] = useState('');
-  const [assignQuantity, setAssignQuantity] = useState(1);
   const [saving, setSaving] = useState(false);
 
   // Move dialog
@@ -280,7 +441,6 @@ function StockByLocationTab() {
     fetchBranches();
   }, []);
 
-  // Fetch locations for filter dropdown
   useEffect(() => {
     if (!activeBranchId) return;
     const fetchLocs = async () => {
@@ -309,10 +469,52 @@ function StockByLocationTab() {
     }
   }, [activeBranchId, filterLocationId]);
 
-  useEffect(() => {
-    fetchEntries();
-  }, [fetchEntries]);
+  useEffect(() => { fetchEntries(); }, [fetchEntries]);
 
+  const fetchInventoryRows = useCallback(async () => {
+    if (!activeBranchId) return;
+    try {
+      const res = await apiClient.get('/products/inventory/stock', { params: { branch_id: activeBranchId } });
+      setInventoryRows(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  }, [activeBranchId]);
+
+  useEffect(() => { fetchInventoryRows(); }, [fetchInventoryRows]);
+
+  // Compute unlocated per variant
+  const unlocatedMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const row of inventoryRows) {
+      const allocated = entries
+        .filter((e) => e.variant_id === row.variant_id)
+        .reduce((sum, e) => sum + e.quantity, 0);
+      const unlocated = row.stock_available - allocated;
+      if (unlocated > 0) map[row.variant_id] = unlocated;
+    }
+    return map;
+  }, [inventoryRows, entries]);
+
+  // Variants with unlocated stock, sorted by unlocated desc
+  const unlocatedRows = useMemo(() => {
+    return inventoryRows
+      .filter((r) => (unlocatedMap[r.variant_id] || 0) > 0)
+      .sort((a, b) => (unlocatedMap[b.variant_id] || 0) - (unlocatedMap[a.variant_id] || 0));
+  }, [inventoryRows, unlocatedMap]);
+
+  // Search filter for unlocated rows
+  const filteredUnlocatedRows = unlocatedRows.filter((row) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    return (
+      row.variant?.sku?.toLowerCase().includes(q) ||
+      row.variant?.product?.name?.toLowerCase().includes(q) ||
+      Object.values(row.variant?.attributes || {}).some((a: string) => a.toLowerCase().includes(q))
+    );
+  });
+
+  // Search filter for located entries
   const filteredEntries = entries.filter((e) => {
     if (!search) return true;
     const q = search.toLowerCase();
@@ -324,24 +526,9 @@ function StockByLocationTab() {
     );
   });
 
-  const handleAssign = async () => {
-    if (!assignVariantId || !assignLocationId || assignQuantity <= 0) return;
-    setSaving(true);
-    try {
-      await apiClient.post('/products/inventory/assign-location', {
-        variant_id: assignVariantId,
-        branch_id: activeBranchId,
-        location_id: assignLocationId,
-        quantity: assignQuantity,
-      });
-      toast({ title: 'Stock asignado a ubicacion' });
-      setShowAssignDialog(false);
-      fetchEntries();
-    } catch (err: any) {
-      toast({ title: 'Error', description: err.response?.data?.message || 'Error al asignar', variant: 'destructive' });
-    } finally {
-      setSaving(false);
-    }
+  const handleRefresh = () => {
+    fetchEntries();
+    fetchInventoryRows();
   };
 
   const handleMove = async () => {
@@ -358,7 +545,7 @@ function StockByLocationTab() {
       toast({ title: 'Stock movido exitosamente' });
       setShowMoveDialog(false);
       setMoveEntry(null);
-      fetchEntries();
+      handleRefresh();
     } catch (err: any) {
       toast({ title: 'Error', description: err.response?.data?.message || 'Error al mover', variant: 'destructive' });
     } finally {
@@ -375,6 +562,8 @@ function StockByLocationTab() {
 
   const formatAttributes = (attrs: Record<string, string>) =>
     Object.entries(attrs).map(([k, v]) => `${k}: ${v}`).join(' · ');
+
+  const totalUnlocated = Object.values(unlocatedMap).reduce<number>((a, b) => a + b, 0);
 
   return (
     <div className="space-y-4">
@@ -396,25 +585,53 @@ function StockByLocationTab() {
       )}
 
       {/* Filters */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="relative max-w-sm flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar por SKU, producto o ubicacion..." className="pl-10" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        {locations.length > 0 && (
-          <Select value={filterLocationId} onValueChange={setFilterLocationId}>
+        {!showOnlyUnlocated && locations.length > 0 && (
+          <Select value={filterLocationId || '__all__'} onValueChange={(v) => setFilterLocationId(v === '__all__' ? '' : v)}>
             <SelectTrigger className="w-48">
               <SelectValue placeholder="Todas las ubicaciones" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Todas</SelectItem>
+              <SelectItem value="__all__">Todas</SelectItem>
               {locations.map((l) => (
                 <SelectItem key={l.id} value={l.id}>{l.code} — {l.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
         )}
+        <Button
+          variant={showOnlyUnlocated ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setShowOnlyUnlocated(!showOnlyUnlocated)}
+          className="shrink-0"
+        >
+          <Filter className="h-4 w-4 mr-2" />
+          Sin ubicar
+          {totalUnlocated > 0 && (
+            <Badge variant={showOnlyUnlocated ? 'secondary' : 'destructive'} className="ml-2 text-xs px-1.5">
+              {unlocatedRows.length}
+            </Badge>
+          )}
+        </Button>
       </div>
+
+      {/* Summary banner */}
+      {!loading && activeBranchId && totalUnlocated > 0 && !showOnlyUnlocated && (
+        <div className="flex items-center gap-2 text-sm bg-muted/50 border border-border rounded-md px-4 py-2.5 text-muted-foreground">
+          <AlertCircle className="h-4 w-4 text-orange-500 dark:text-orange-400 shrink-0" />
+          <span>
+            <strong className="text-foreground">{unlocatedRows.length}</strong> variante{unlocatedRows.length !== 1 ? 's' : ''} con{' '}
+            <strong className="text-foreground">{totalUnlocated}</strong> unidad{totalUnlocated !== 1 ? 'es' : ''} sin ubicar
+          </span>
+          <button onClick={() => setShowOnlyUnlocated(true)} className="text-primary hover:underline font-medium ml-1">
+            Ver todas →
+          </button>
+        </div>
+      )}
 
       {!activeBranchId ? (
         <Card>
@@ -429,56 +646,115 @@ function StockByLocationTab() {
             <Skeleton key={i} className="h-12 w-full rounded-md" />
           ))}
         </div>
-      ) : filteredEntries.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">
-              {search || filterLocationId ? 'No se encontraron resultados.' : 'No hay stock asignado a ubicaciones aun.'}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              Asigna stock a ubicaciones desde los ajustes de inventario.
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ubicacion</TableHead>
-                <TableHead>Producto</TableHead>
-                <TableHead>SKU</TableHead>
-                <TableHead>Atributos</TableHead>
-                <TableHead className="text-right">Cantidad</TableHead>
-                <TableHead className="w-[80px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredEntries.map((entry) => (
-                <TableRow key={entry.id}>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="font-mono">{entry.location?.code}</Badge>
-                      <span className="text-xs text-muted-foreground">{entry.location?.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{entry.variant?.product?.name || '—'}</TableCell>
-                  <TableCell className="font-mono text-sm">{entry.variant?.sku}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {formatAttributes(entry.variant?.attributes || {})}
-                  </TableCell>
-                  <TableCell className="text-right font-semibold">{entry.quantity}</TableCell>
-                  <TableCell>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openMoveDialog(entry)} title="Mover">
-                      <ArrowRightLeft className="h-3.5 w-3.5" />
-                    </Button>
-                  </TableCell>
+      ) : showOnlyUnlocated ? (
+        /* ─── Unlocated-only view with inline assign ─── */
+        filteredUnlocatedRows.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <Check className="h-12 w-12 mx-auto text-green-500 mb-4" />
+              <p className="text-muted-foreground">
+                {search ? 'No se encontraron variantes sin ubicar con ese criterio.' : 'Todo el stock esta ubicado.'}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Producto</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Atributos</TableHead>
+                  <TableHead>Ubicacion</TableHead>
+                  <TableHead>Cantidad</TableHead>
+                  <TableHead className="w-[100px]"></TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+              </TableHeader>
+              <TableBody>
+                {filteredUnlocatedRows.map((row) => (
+                  <InlineAssignRow
+                    key={row.variant_id}
+                    row={row}
+                    unlocated={unlocatedMap[row.variant_id] || 0}
+                    locations={locations}
+                    branchId={activeBranchId}
+                    onAssigned={handleRefresh}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )
+      ) : (
+        /* ─── Full view: unlocated rows at top + located entries ─── */
+        filteredUnlocatedRows.length === 0 && filteredEntries.length === 0 ? (
+          <Card>
+            <CardContent className="py-12 text-center">
+              <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                {search || filterLocationId ? 'No se encontraron resultados.' : 'No hay stock en esta sucursal aun.'}
+              </p>
+              {locations.length === 0 && !search && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Primero crea ubicaciones desde la seccion "Ubicaciones".
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Ubicacion</TableHead>
+                  <TableHead>Producto</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead>Atributos</TableHead>
+                  <TableHead>Ubicacion destino</TableHead>
+                  <TableHead>Cantidad</TableHead>
+                  <TableHead className="w-[100px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {/* Unlocated rows first */}
+                {filteredUnlocatedRows.map((row) => (
+                  <InlineAssignRow
+                    key={`unl-${row.variant_id}`}
+                    row={row}
+                    unlocated={unlocatedMap[row.variant_id] || 0}
+                    locations={locations}
+                    branchId={activeBranchId}
+                    onAssigned={handleRefresh}
+                  />
+                ))}
+                {/* Located entries */}
+                {filteredEntries.map((entry) => (
+                  <TableRow key={entry.id} className="hover:bg-muted/50">
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono text-xs border-primary/30 text-foreground">{entry.location?.code}</Badge>
+                        <span className="text-xs text-muted-foreground">{entry.location?.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium text-foreground">{entry.variant?.product?.name || '—'}</TableCell>
+                    <TableCell className="font-mono text-sm text-foreground/80">{entry.variant?.sku}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatAttributes(entry.variant?.attributes || {})}
+                    </TableCell>
+                    <TableCell></TableCell>
+                    <TableCell className="font-semibold text-foreground">{entry.quantity}</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground" onClick={() => openMoveDialog(entry)} title="Mover">
+                        <ArrowRightLeft className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        )
       )}
 
       {/* Move Dialog */}

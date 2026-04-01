@@ -348,6 +348,43 @@ export class PricingService {
     return result;
   }
 
+  /**
+   * Returns a map of variant_id → final price for every active variant,
+   * using the same pricing cascade as calculateProductListPrices.
+   */
+  async calculateVariantPrices(
+    connection: DataSource,
+    branchId: string,
+  ): Promise<Record<string, number>> {
+    const defaultPl = await this.findDefaultPriceList(connection);
+    if (!defaultPl) return {};
+
+    const landedCostPercentage = await this.getEffectiveLandedCost(connection, branchId);
+
+    const variantRepo = connection.getRepository(ProductVariant);
+    const variants = await variantRepo.find({ where: { is_active: true } });
+
+    const overrideRepo = connection.getRepository(BranchVariantOverride);
+    const allOverrides = await overrideRepo.find({ where: { branch_id: branchId } });
+    const overrideMap = new Map(allOverrides.map((o) => [o.variant_id, Number(o.purchase_price_override)]));
+
+    const marginRepo = connection.getRepository(VariantPriceMargin);
+    const allMargins = await marginRepo.find({ where: { price_list_id: defaultPl.id } });
+    const marginMap = new Map(allMargins.map((m) => [m.variant_id, Number(m.custom_margin_percentage)]));
+
+    const defaultMargin = Number(defaultPl.default_margin_percentage);
+    const result: Record<string, number> = {};
+
+    for (const variant of variants) {
+      const purchaseCost = overrideMap.get(variant.id) ?? Number(variant.cost);
+      const basePrice = purchaseCost * (1 + landedCostPercentage / 100);
+      const margin = marginMap.get(variant.id) ?? defaultMargin;
+      result[variant.id] = Math.round(basePrice * (1 + margin / 100) * 100) / 100;
+    }
+
+    return result;
+  }
+
   // ─── Private Helpers ──────────────────────────────────────────
 
   /**

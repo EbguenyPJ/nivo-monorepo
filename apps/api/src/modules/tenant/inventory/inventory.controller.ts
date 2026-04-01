@@ -64,6 +64,12 @@ export class InventoryController {
 
   // ─── Inventory Location endpoints ───────────────────────────────
 
+  /** GET /products/inventory/stock?branch_id=X — aggregate stock with variant details */
+  @Get('inventory/stock')
+  getStockByBranch(@Req() req: Request, @Query('branch_id') branchId: string) {
+    return this.inventoryService.getStockByBranch(req.tenantConnection!, branchId);
+  }
+
   /** GET /products/inventory/by-location?branch_id=X&location_id=Y */
   @Get('inventory/by-location')
   getStockByLocation(

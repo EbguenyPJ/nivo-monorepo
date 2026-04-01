@@ -263,6 +263,20 @@ export class InventoryService {
     });
   }
 
+  // ─── Inventory: List stock by branch (for assignment UI) ────────
+  async getStockByBranch(connection: DataSource, branchId: string) {
+    const repo = connection.getRepository(Inventory);
+    return repo.createQueryBuilder('inv')
+      .leftJoinAndSelect('inv.variant', 'variant')
+      .leftJoin('variant.product', 'product')
+      .addSelect(['product.id', 'product.name'])
+      .where('inv.branch_id = :branchId', { branchId })
+      .andWhere('inv.stock_available > 0')
+      .orderBy('product.name', 'ASC')
+      .addOrderBy('variant.sku', 'ASC')
+      .getMany();
+  }
+
   // ─── Inventory: Transfer ────────────────────────────────────────
   async transferInventory(
     connection: DataSource,

@@ -12,6 +12,7 @@ const BRANCH_EXCLUDED_PATHS = [
   '/tenant-settings',
   '/pricing/price-lists',
   '/pricing/product-list-prices',
+  '/pricing/variant-prices',
   '/pricing/calculate',
   '/branches',
   '/reports/branch-comparison',
