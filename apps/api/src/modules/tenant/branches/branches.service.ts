@@ -27,6 +27,7 @@ export class BranchesService {
       zip_code?: string;
       phone?: string;
       ticket_footer?: string;
+      custom_landed_cost_percentage?: number | null;
     },
   ) {
     const repo = connection.getRepository(Branch);
@@ -48,6 +49,7 @@ export class BranchesService {
       zip_code: data.zip_code?.trim() || null,
       phone: data.phone?.trim() || null,
       ticket_footer: data.ticket_footer?.trim() || null,
+      custom_landed_cost_percentage: data.custom_landed_cost_percentage ?? null,
       is_active: true,
     });
 
@@ -65,6 +67,7 @@ export class BranchesService {
       zip_code?: string;
       phone?: string;
       ticket_footer?: string;
+      custom_landed_cost_percentage?: number | null;
     },
   ) {
     const repo = connection.getRepository(Branch);

@@ -16,11 +16,13 @@ export class ReportsController {
     @Req() req: Request,
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
+    @Query('branch_id') branchId?: string,
   ) {
     return this.reportsService.getSummary(
       (req as any).tenantConnection,
       startDate,
       endDate,
+      branchId,
     );
   }
 
@@ -31,12 +33,14 @@ export class ReportsController {
     @Query('end_date') endDate?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('branch_id') branchId?: string,
   ) {
     return this.reportsService.getSales((req as any).tenantConnection, {
       startDate,
       endDate,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
+      branchId,
     });
   }
 
@@ -45,8 +49,23 @@ export class ReportsController {
     @Req() req: Request,
     @Query('start_date') startDate?: string,
     @Query('end_date') endDate?: string,
+    @Query('branch_id') branchId?: string,
   ) {
     return this.reportsService.getDailySales(
+      (req as any).tenantConnection,
+      startDate,
+      endDate,
+      branchId,
+    );
+  }
+
+  @Get('branch-comparison')
+  getBranchComparison(
+    @Req() req: Request,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getBranchComparison(
       (req as any).tenantConnection,
       startDate,
       endDate,

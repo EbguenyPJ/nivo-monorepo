@@ -46,3 +46,10 @@ export enum TransferStatus {
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
 }
+
+export enum StorageLocationType {
+  ZONE = 'zone',
+  AISLE = 'aisle',
+  SHELF = 'shelf',
+  BIN = 'bin',
+}

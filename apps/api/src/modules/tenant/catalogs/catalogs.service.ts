@@ -1,12 +1,15 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { DataSource } from 'typeorm';
-import { PaymentMethod, Tax, CancellationReason, UnitOfMeasure } from '@nivo/database';
-
-type CatalogEntity = typeof PaymentMethod | typeof Tax | typeof CancellationReason | typeof UnitOfMeasure;
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { DataSource, Not, IsNull } from 'typeorm';
+import {
+  PaymentMethod, Tax, CancellationReason, UnitOfMeasure,
+  Color, SizeGroup, SizeSystem, Size, SizeEquivalency,
+} from '@nivo/database';
 
 @Injectable()
 export class CatalogsService {
-  // ─── Payment Methods ──────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // PAYMENT METHODS
+  // ═══════════════════════════════════════════════════════════════
   async findAllPaymentMethods(connection: DataSource) {
     const repo = connection.getRepository(PaymentMethod);
     return repo.find({ order: { created_at: 'ASC' } });
@@ -34,7 +37,9 @@ export class CatalogsService {
     return repo.save(entity);
   }
 
-  // ─── Taxes ────────────────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // TAXES
+  // ═══════════════════════════════════════════════════════════════
   async findAllTaxes(connection: DataSource) {
     const repo = connection.getRepository(Tax);
     return repo.find({ order: { created_at: 'ASC' } });
@@ -62,7 +67,9 @@ export class CatalogsService {
     return repo.save(entity);
   }
 
-  // ─── Cancellation Reasons ────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // CANCELLATION REASONS
+  // ═══════════════════════════════════════════════════════════════
   async findAllCancellationReasons(connection: DataSource) {
     const repo = connection.getRepository(CancellationReason);
     return repo.find({ order: { created_at: 'ASC' } });
@@ -86,7 +93,9 @@ export class CatalogsService {
     return repo.save(entity);
   }
 
-  // ─── Units of Measure ────────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════
+  // UNITS OF MEASURE
+  // ═══════════════════════════════════════════════════════════════
   async findAllUnitsOfMeasure(connection: DataSource) {
     const repo = connection.getRepository(UnitOfMeasure);
     return repo.find({ order: { created_at: 'ASC' } });
@@ -112,6 +121,202 @@ export class CatalogsService {
     }
     Object.assign(entity, data);
     return repo.save(entity);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // COLORS
+  // ═══════════════════════════════════════════════════════════════
+  async findAllColors(connection: DataSource) {
+    const repo = connection.getRepository(Color);
+    return repo.find({
+      relations: ['branch'],
+      order: { branch_id: { direction: 'ASC', nulls: 'FIRST' }, name: 'ASC' },
+    });
+  }
+
+  async createColor(connection: DataSource, data: { name: string; hex_code: string; branch_id?: string | null }) {
+    const repo = connection.getRepository(Color);
+    const entity = repo.create({
+      name: data.name,
+      hex_code: data.hex_code,
+      branch_id: data.branch_id || null,
+      is_active: true,
+    });
+    return repo.save(entity);
+  }
+
+  async updateColor(connection: DataSource, id: string, data: Partial<{ name: string; hex_code: string; branch_id: string | null; is_active: boolean }>) {
+    const repo = connection.getRepository(Color);
+    const entity = await repo.findOne({ where: { id }, relations: ['branch'] });
+    if (!entity) throw new NotFoundException('Color no encontrado');
+    Object.assign(entity, data);
+    return repo.save(entity);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // SIZE GROUPS
+  // ═══════════════════════════════════════════════════════════════
+  async findAllSizeGroups(connection: DataSource) {
+    const repo = connection.getRepository(SizeGroup);
+    return repo.find({ order: { created_at: 'ASC' } });
+  }
+
+  async createSizeGroup(connection: DataSource, data: { name: string }) {
+    const repo = connection.getRepository(SizeGroup);
+    await this.checkDuplicateName(repo, data.name);
+    return repo.save(repo.create({ name: data.name, is_active: true }));
+  }
+
+  async updateSizeGroup(connection: DataSource, id: string, data: Partial<{ name: string; is_active: boolean }>) {
+    const repo = connection.getRepository(SizeGroup);
+    const entity = await repo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException('Grupo de tallas no encontrado');
+    if (data.name && data.name !== entity.name) {
+      await this.checkDuplicateName(repo, data.name, id);
+    }
+    Object.assign(entity, data);
+    return repo.save(entity);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // SIZE SYSTEMS
+  // ═══════════════════════════════════════════════════════════════
+  async findAllSizeSystems(connection: DataSource) {
+    const repo = connection.getRepository(SizeSystem);
+    return repo.find({ order: { created_at: 'ASC' } });
+  }
+
+  async createSizeSystem(connection: DataSource, data: { name: string }) {
+    const repo = connection.getRepository(SizeSystem);
+    await this.checkDuplicateName(repo, data.name);
+    return repo.save(repo.create({ name: data.name, is_active: true }));
+  }
+
+  async updateSizeSystem(connection: DataSource, id: string, data: Partial<{ name: string; is_active: boolean }>) {
+    const repo = connection.getRepository(SizeSystem);
+    const entity = await repo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException('Sistema de tallas no encontrado');
+    if (data.name && data.name !== entity.name) {
+      await this.checkDuplicateName(repo, data.name, id);
+    }
+    Object.assign(entity, data);
+    return repo.save(entity);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // SIZES (the rows — with equivalencies as cells)
+  // ═══════════════════════════════════════════════════════════════
+
+  /** Get all sizes for a group, joined with their equivalencies */
+  async findSizesByGroup(connection: DataSource, groupId: string) {
+    const repo = connection.getRepository(Size);
+    return repo.find({
+      where: { size_group_id: groupId },
+      relations: ['equivalencies', 'equivalencies.sizeSystem'],
+      order: { order_index: 'ASC' },
+    });
+  }
+
+  /** Create a new size row with equivalencies for each system */
+  async createSize(
+    connection: DataSource,
+    data: { size_group_id: string; equivalencies: { size_system_id: string; value: string }[] },
+  ) {
+    return connection.transaction(async (manager) => {
+      // Auto-increment order_index
+      const sizeRepo = manager.getRepository(Size);
+      const maxRow = await sizeRepo
+        .createQueryBuilder('s')
+        .select('MAX(s.order_index)', 'max')
+        .where('s.size_group_id = :gid', { gid: data.size_group_id })
+        .getRawOne();
+      const nextOrder = (maxRow?.max ?? -1) + 1;
+
+      const size = sizeRepo.create({
+        size_group_id: data.size_group_id,
+        order_index: nextOrder,
+      });
+      const savedSize = await sizeRepo.save(size);
+
+      // Create equivalencies
+      if (data.equivalencies?.length) {
+        const eqRepo = manager.getRepository(SizeEquivalency);
+        const eqs = data.equivalencies
+          .filter((e) => e.value?.trim())
+          .map((e) =>
+            eqRepo.create({
+              size_id: savedSize.id,
+              size_system_id: e.size_system_id,
+              value: e.value.trim(),
+            }),
+          );
+        if (eqs.length) await eqRepo.save(eqs);
+      }
+
+      return sizeRepo.findOne({
+        where: { id: savedSize.id },
+        relations: ['equivalencies', 'equivalencies.sizeSystem'],
+      });
+    });
+  }
+
+  /** Update a size row's equivalencies (upsert cells) */
+  async updateSizeEquivalencies(
+    connection: DataSource,
+    sizeId: string,
+    equivalencies: { size_system_id: string; value: string }[],
+  ) {
+    const sizeRepo = connection.getRepository(Size);
+    const size = await sizeRepo.findOne({ where: { id: sizeId } });
+    if (!size) throw new NotFoundException('Talla no encontrada');
+
+    const eqRepo = connection.getRepository(SizeEquivalency);
+
+    for (const eq of equivalencies) {
+      const existing = await eqRepo.findOne({
+        where: { size_id: sizeId, size_system_id: eq.size_system_id },
+      });
+
+      if (existing) {
+        if (eq.value?.trim()) {
+          existing.value = eq.value.trim();
+          await eqRepo.save(existing);
+        } else {
+          await eqRepo.remove(existing);
+        }
+      } else if (eq.value?.trim()) {
+        await eqRepo.save(
+          eqRepo.create({
+            size_id: sizeId,
+            size_system_id: eq.size_system_id,
+            value: eq.value.trim(),
+          }),
+        );
+      }
+    }
+
+    return sizeRepo.findOne({
+      where: { id: sizeId },
+      relations: ['equivalencies', 'equivalencies.sizeSystem'],
+    });
+  }
+
+  /** Reorder sizes (drag & drop) */
+  async reorderSizes(connection: DataSource, items: { id: string; order_index: number }[]) {
+    const repo = connection.getRepository(Size);
+    for (const item of items) {
+      await repo.update(item.id, { order_index: item.order_index });
+    }
+    return { reordered: true };
+  }
+
+  /** Delete a size row (and cascade equivalencies) */
+  async deleteSize(connection: DataSource, id: string) {
+    const repo = connection.getRepository(Size);
+    const size = await repo.findOne({ where: { id } });
+    if (!size) throw new NotFoundException('Talla no encontrada');
+    await repo.remove(size);
+    return { deleted: true };
   }
 
   // ─── Helpers ──────────────────────────────────────────────────

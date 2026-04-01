@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { DataSource } from 'typeorm';
-import { Sale } from '@nivo/database';
+import { Sale, Branch, Employee } from '@nivo/database';
 
 @Injectable()
 export class ReportsService {
@@ -15,6 +15,7 @@ export class ReportsService {
     connection: DataSource,
     startDate?: string,
     endDate?: string,
+    branchId?: string,
   ) {
     const saleRepo = connection.getRepository(Sale);
 
@@ -25,6 +26,10 @@ export class ReportsService {
       .addSelect('AVG(sale.total_amount)', 'avg_ticket')
       .where('sale.status = :status', { status: 'completed' });
 
+    if (branchId) {
+      countQb.andWhere('sale.branch_id = :branchId', { branchId });
+      aggQb.andWhere('sale.branch_id = :branchId', { branchId });
+    }
     if (startDate) {
       countQb.andWhere('sale.created_at >= :startDate', { startDate });
       aggQb.andWhere('sale.created_at >= :startDate', { startDate });
@@ -46,7 +51,7 @@ export class ReportsService {
 
   async getSales(
     connection: DataSource,
-    options: { startDate?: string; endDate?: string; limit?: number; offset?: number },
+    options: { startDate?: string; endDate?: string; limit?: number; offset?: number; branchId?: string },
   ) {
     const saleRepo = connection.getRepository(Sale);
     const qb = saleRepo
@@ -57,6 +62,9 @@ export class ReportsService {
       .leftJoinAndSelect('sale.items', 'items')
       .orderBy('sale.created_at', 'DESC');
 
+    if (options.branchId) {
+      qb.andWhere('sale.branch_id = :branchId', { branchId: options.branchId });
+    }
     if (options.startDate) {
       qb.andWhere('sale.created_at >= :startDate', { startDate: options.startDate });
     }
@@ -76,6 +84,7 @@ export class ReportsService {
     connection: DataSource,
     startDate?: string,
     endDate?: string,
+    branchId?: string,
   ) {
     const saleRepo = connection.getRepository(Sale);
     const qb = saleRepo
@@ -87,6 +96,9 @@ export class ReportsService {
       .groupBy("DATE(sale.created_at)")
       .orderBy("DATE(sale.created_at)", 'ASC');
 
+    if (branchId) {
+      qb.andWhere('sale.branch_id = :branchId', { branchId });
+    }
     if (startDate) {
       qb.andWhere('sale.created_at >= :startDate', { startDate });
     }
@@ -100,6 +112,63 @@ export class ReportsService {
       count: parseInt(r.count, 10),
       revenue: parseFloat(r.revenue || '0'),
     }));
+  }
+
+  /**
+   * Cross-branch comparison for the General dashboard.
+   * Returns per-branch KPIs: revenue, sales count, avg ticket, employee count.
+   */
+  async getBranchComparison(
+    connection: DataSource,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    const saleRepo = connection.getRepository(Sale);
+    const branchRepo = connection.getRepository(Branch);
+    const employeeRepo = connection.getRepository(Employee);
+
+    // Get all active branches
+    const branches = await branchRepo.find({ where: { is_active: true }, order: { name: 'ASC' } });
+
+    // Sales aggregation per branch
+    const salesQb = saleRepo
+      .createQueryBuilder('sale')
+      .select('sale.branch_id', 'branch_id')
+      .addSelect('COUNT(sale.id)', 'total_sales')
+      .addSelect('SUM(sale.total_amount)', 'total_revenue')
+      .addSelect('AVG(sale.total_amount)', 'avg_ticket')
+      .where('sale.status = :status', { status: 'completed' })
+      .groupBy('sale.branch_id');
+
+    if (startDate) salesQb.andWhere('sale.created_at >= :startDate', { startDate });
+    if (endDate) salesQb.andWhere('sale.created_at <= :endDate', { endDate });
+
+    const salesRows = await salesQb.getRawMany();
+    const salesMap = new Map(salesRows.map((r) => [r.branch_id, r]));
+
+    // Employee count per branch
+    const empCounts = await employeeRepo
+      .createQueryBuilder('emp')
+      .select('emp.branch_id', 'branch_id')
+      .addSelect('COUNT(emp.id)', 'count')
+      .where('emp.is_active = :active', { active: true })
+      .groupBy('emp.branch_id')
+      .getRawMany();
+    const empMap = new Map(empCounts.map((r) => [r.branch_id, parseInt(r.count, 10)]));
+
+    return {
+      branches: branches.map((b) => {
+        const sales = salesMap.get(b.id);
+        return {
+          branch_id: b.id,
+          branch_name: b.name,
+          total_revenue: parseFloat(sales?.total_revenue || '0'),
+          total_sales: parseInt(sales?.total_sales || '0', 10),
+          avg_ticket: parseFloat(sales?.avg_ticket || '0'),
+          employee_count: empMap.get(b.id) || 0,
+        };
+      }),
+    };
   }
 
   async enqueueExport(tenant: any) {

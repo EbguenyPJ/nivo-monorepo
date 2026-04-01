@@ -1,4 +1,4 @@
-import { PaymentMethod, SaleType, EmployeeRole } from '../enums';
+import { PaymentMethod, SaleType, EmployeeRole, StorageLocationType } from '../enums';
 
 // Auth
 export interface LoginDto {
@@ -134,4 +134,37 @@ export interface CheckoutDto {
     country: string;
   };
   payment_method_id?: string;
+}
+
+// Storage Locations
+export interface CreateStorageLocationDto {
+  branch_id: string;
+  parent_id?: string;
+  name: string;
+  code: string;
+  type: StorageLocationType;
+  description?: string;
+}
+
+export interface UpdateStorageLocationDto {
+  name?: string;
+  code?: string;
+  description?: string;
+  is_active?: boolean;
+}
+
+// Inventory Location
+export interface AssignInventoryLocationDto {
+  variant_id: string;
+  branch_id: string;
+  location_id: string;
+  quantity: number;
+}
+
+export interface MoveInventoryLocationDto {
+  variant_id: string;
+  branch_id: string;
+  from_location_id: string;
+  to_location_id: string;
+  quantity: number;
 }

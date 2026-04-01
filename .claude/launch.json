@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["dev", "--filter=pos-admin"],
       "port": 3001
+    },
+    {
+      "name": "pos-admin-existing",
+      "runtimeExecutable": "echo",
+      "runtimeArgs": ["Server already running on port 3001"],
+      "port": 3001
     }
   ]
 }

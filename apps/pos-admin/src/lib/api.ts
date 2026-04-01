@@ -1,6 +1,27 @@
 import axios from 'axios';
+import { useBranchStore, GENERAL_BRANCH_ID } from '@/store/branchStore';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+
+// Endpoints that are global (not branch-scoped) — never inject branch_id
+const BRANCH_EXCLUDED_PATHS = [
+  '/products',
+  '/brands',
+  '/collections',
+  '/catalogs/',
+  '/tenant-settings',
+  '/pricing/price-lists',
+  '/pricing/product-list-prices',
+  '/pricing/calculate',
+  '/branches',
+  '/reports/branch-comparison',
+  '/storage-locations',
+];
+
+function shouldExcludeBranchParam(url: string | undefined): boolean {
+  if (!url) return true;
+  return BRANCH_EXCLUDED_PATHS.some((path) => url.startsWith(path) || url === path);
+}
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -32,6 +53,21 @@ apiClient.interceptors.request.use((config) => {
           }
         }
       } catch {}
+    }
+
+    // Auto-inject branch_id for branch-scoped endpoints
+    const branchState = useBranchStore.getState();
+    if (
+      !branchState.isGeneralSelected &&
+      branchState.selectedBranchId &&
+      branchState.selectedBranchId !== GENERAL_BRANCH_ID &&
+      config.method === 'get' &&
+      !shouldExcludeBranchParam(config.url)
+    ) {
+      config.params = {
+        ...config.params,
+        branch_id: branchState.selectedBranchId,
+      };
     }
   }
   return config;

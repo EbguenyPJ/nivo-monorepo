@@ -37,11 +37,12 @@ import {
   User,
   Sliders,
   DollarSign,
+  Globe,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@nivo/ui';
 import { useAuthStore } from '@/store/authStore';
-import { useBranchStore } from '@/store/branchStore';
+import { useBranchStore, GENERAL_BRANCH_ID } from '@/store/branchStore';
 
 // ---------------------------------------------------------------------------
 // Sidebar Config
@@ -51,6 +52,8 @@ interface SidebarItem {
   href: string;
   icon: LucideIcon;
   label: string;
+  /** 'general' = only in General mode, 'branch' = only in Branch mode, undefined = always */
+  visibleIn?: 'general' | 'branch';
 }
 
 interface SidebarGroup {
@@ -70,7 +73,7 @@ const sidebarGroups: SidebarGroup[] = [
     items: [
       { href: '/dashboard/sales', icon: Receipt, label: 'Historial de Ventas' },
       { href: '/dashboard/cash-register', icon: Calculator, label: 'Arqueos y Cortes' },
-      { href: '/dashboard/layaways', icon: ClipboardList, label: 'Apartados' },
+      { href: '/dashboard/layaways', icon: ClipboardList, label: 'Apartados', visibleIn: 'branch' },
     ],
   },
   {
@@ -84,6 +87,7 @@ const sidebarGroups: SidebarGroup[] = [
   {
     label: 'Inventario',
     items: [
+      { href: '/dashboard/storage-locations', icon: MapPin, label: 'Ubicaciones' },
       { href: '/dashboard/inventory', icon: Warehouse, label: 'Stock por Sucursal' },
       { href: '/dashboard/transfers', icon: ArrowLeftRight, label: 'Traspasos' },
       { href: '/dashboard/stock-movements', icon: PackagePlus, label: 'Entradas y Salidas' },
@@ -124,7 +128,18 @@ const sidebarGroups: SidebarGroup[] = [
   },
 ];
 
-// Flatten for omnisearch
+/** Filter sidebar items based on branch context */
+function getFilteredSidebarGroups(isGeneral: boolean): SidebarGroup[] {
+  const mode = isGeneral ? 'general' : 'branch';
+  return sidebarGroups
+    .map((g) => ({
+      ...g,
+      items: g.items.filter((item) => !item.visibleIn || item.visibleIn === mode),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
+// Flatten for omnisearch (show all regardless of context)
 const allNavItems = sidebarGroups.flatMap((g) =>
   g.items.map((item) => ({ ...item, group: g.label }))
 );
@@ -158,7 +173,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [branchSelectorOpen, setBranchSelectorOpen] = useState(false);
-  const { branches: branchesList, selectedBranchId, selectedBranchName: selectedBranch, fetchBranches, selectBranch } = useBranchStore();
+  const { branches: branchesList, selectedBranchId, selectedBranchName: selectedBranch, isGeneralSelected, fetchBranches, selectBranch, selectGeneral } = useBranchStore();
 
   // Refs for outside click
   const quickActionsRef = useRef<HTMLDivElement>(null);
@@ -316,7 +331,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Navigation — scrollable */}
           <nav className="flex-1 overflow-y-auto px-3 pb-3 scrollbar-thin">
-            {sidebarGroups.map((group) => {
+            {getFilteredSidebarGroups(isGeneralSelected).map((group) => {
               const isCollapsed = collapsedGroups[group.label] ?? false;
               return (
                 <div key={group.label} className="mb-0.5">
@@ -366,12 +381,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* POS Button — Bottom, the star of the sidebar */}
           <div className="p-3 shrink-0">
-            <Link href="/pos">
-              <span className="flex items-center justify-center gap-2.5 rounded-xl bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))] px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/20 hover:shadow-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/40 hover:brightness-110 transition-all duration-200">
+            {isGeneralSelected ? (
+              <div
+                title="Selecciona una sucursal para abrir caja"
+                className="flex items-center justify-center gap-2.5 rounded-xl bg-muted px-4 py-3.5 text-sm font-bold text-muted-foreground cursor-not-allowed opacity-60"
+              >
                 <ShoppingCart className="h-5 w-5" />
                 Abrir Caja POS
-              </span>
-            </Link>
+              </div>
+            ) : (
+              <Link href="/pos">
+                <span className="flex items-center justify-center gap-2.5 rounded-xl bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))] px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/20 hover:shadow-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/40 hover:brightness-110 transition-all duration-200">
+                  <ShoppingCart className="h-5 w-5" />
+                  Abrir Caja POS
+                </span>
+              </Link>
+            )}
           </div>
         </aside>
 
@@ -409,13 +434,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   onClick={() => setBranchSelectorOpen(!branchSelectorOpen)}
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border hover:bg-muted/50 transition-colors text-sm"
                 >
-                  <MapPin className="h-4 w-4 text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]" />
+                  {isGeneralSelected ? (
+                    <Globe className="h-4 w-4 text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]" />
+                  ) : (
+                    <MapPin className="h-4 w-4 text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]" />
+                  )}
                   <span className="text-foreground font-medium truncate max-w-[160px]">{selectedBranch}</span>
                   <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
 
                 {branchSelectorOpen && (
                   <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 w-60 rounded-xl border border-border bg-popover/95 backdrop-blur-xl shadow-xl p-1.5 z-50">
+                    {/* General option */}
+                    <button
+                      onClick={() => { selectGeneral(); setBranchSelectorOpen(false); }}
+                      className={cn(
+                        'w-full flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors text-left',
+                        isGeneralSelected
+                          ? 'bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/10 text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))] font-medium'
+                          : 'text-foreground hover:bg-muted'
+                      )}
+                    >
+                      <Globe className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">General (Todas)</span>
+                    </button>
+                    <div className="mx-2 my-1 border-t border-border" />
                     <p className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Sucursales</p>
                     {branchesList.length === 0 ? (
                       <p className="px-3 py-2 text-sm text-muted-foreground">Sin sucursales</p>
@@ -458,16 +501,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {quickActionsOpen && (
                 <div className="absolute top-full right-0 mt-2 w-52 rounded-xl border border-border bg-popover/95 backdrop-blur-xl shadow-xl p-1.5 z-50">
                   <p className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Acciones rápidas</p>
-                  {quickActions.map((action) => (
-                    <button
-                      key={action.label}
-                      onClick={() => { router.push(action.href); setQuickActionsOpen(false); }}
-                      className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors text-left"
-                    >
-                      <action.icon className="h-4 w-4 text-muted-foreground" />
-                      {action.label}
-                    </button>
-                  ))}
+                  {quickActions.map((action) => {
+                    const disabled = isGeneralSelected && action.href === '/pos';
+                    return (
+                      <button
+                        key={action.label}
+                        onClick={() => { if (!disabled) { router.push(action.href); setQuickActionsOpen(false); } }}
+                        className={cn(
+                          'w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors text-left',
+                          disabled ? 'text-muted-foreground opacity-50 cursor-not-allowed' : 'text-foreground hover:bg-muted'
+                        )}
+                        title={disabled ? 'Selecciona una sucursal para abrir caja' : undefined}
+                      >
+                        <action.icon className="h-4 w-4 text-muted-foreground" />
+                        {action.label}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>

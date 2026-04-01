@@ -3,6 +3,7 @@ import { Logger } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { TenantConnectionManager } from '../../../core/database/tenant-connection.manager';
 import { SYSTEM_PERMISSIONS, DEFAULT_ROLES } from './rbac-seed';
+import { DEFAULT_TENANT_SETTINGS } from '../tenant-settings/tenant-settings.service';
 
 @Processor('tenant-provisioning')
 export class TenantProvisioningWorker extends WorkerHost {
@@ -71,7 +72,23 @@ export class TenantProvisioningWorker extends WorkerHost {
 
       // ─── 3. Seed default branch ────────────────────────────
       const branchRepo = connection.getRepository('Branch');
-      await branchRepo.save({ name: 'Sucursal Principal', code: 'PRINCIPAL', is_active: true });
+      const mainBranch = await branchRepo.save({ name: 'Sucursal Principal', code: 'PRINCIPAL', is_active: true }) as any;
+
+      // ─── 3b. Seed default storage locations ────────────────
+      const locationRepo = connection.getRepository('StorageLocation');
+      const aisle1 = await locationRepo.save({
+        branch_id: mainBranch.id,
+        parent_id: null,
+        name: 'Pasillo A',
+        code: 'A',
+        type: 'aisle',
+        is_active: true,
+      }) as any;
+      await locationRepo.save([
+        { branch_id: mainBranch.id, parent_id: aisle1.id, name: 'Estante A-1', code: 'A-1', type: 'shelf', is_active: true },
+        { branch_id: mainBranch.id, parent_id: aisle1.id, name: 'Estante A-2', code: 'A-2', type: 'shelf', is_active: true },
+        { branch_id: mainBranch.id, parent_id: aisle1.id, name: 'Estante A-3', code: 'A-3', type: 'shelf', is_active: true },
+      ]);
 
       // ─── 4. Seed admin employee (linked to admin role) ─────
       const adminRoleId = roleIdMap.get('admin');
@@ -116,6 +133,111 @@ export class TenantProvisioningWorker extends WorkerHost {
         { name: 'Par', abbreviation: 'par', is_active: true },
         { name: 'Caja', abbreviation: 'cja', is_active: true },
         { name: 'Kilogramo', abbreviation: 'kg', is_active: true },
+      ]);
+
+      // ─── 6. Seed default colors (global) ────────────────────
+      const colorRepo = connection.getRepository('Color');
+      await colorRepo.save([
+        { name: 'Blanco', hex_code: '#FFFFFF', branch_id: null, is_active: true },
+        { name: 'Negro', hex_code: '#000000', branch_id: null, is_active: true },
+        { name: 'Rojo', hex_code: '#EF4444', branch_id: null, is_active: true },
+        { name: 'Azul', hex_code: '#3B82F6', branch_id: null, is_active: true },
+        { name: 'Azul Marino', hex_code: '#1E3A5F', branch_id: null, is_active: true },
+        { name: 'Verde', hex_code: '#22C55E', branch_id: null, is_active: true },
+        { name: 'Amarillo', hex_code: '#EAB308', branch_id: null, is_active: true },
+        { name: 'Rosa', hex_code: '#EC4899', branch_id: null, is_active: true },
+        { name: 'Fiusha', hex_code: '#FF00FF', branch_id: null, is_active: true },
+        { name: 'Café', hex_code: '#92400E', branch_id: null, is_active: true },
+        { name: 'Beige', hex_code: '#D2B48C', branch_id: null, is_active: true },
+        { name: 'Gris', hex_code: '#6B7280', branch_id: null, is_active: true },
+        { name: 'Naranja', hex_code: '#F97316', branch_id: null, is_active: true },
+        { name: 'Morado', hex_code: '#8B5CF6', branch_id: null, is_active: true },
+        { name: 'Vino', hex_code: '#7F1D1D', branch_id: null, is_active: true },
+      ]);
+
+      // ─── 7. Seed size groups, systems & equivalencies ────────
+      const sizeGroupRepo = connection.getRepository('SizeGroup');
+      const sizeSystemRepo = connection.getRepository('SizeSystem');
+      const sizeRepo = connection.getRepository('Size');
+      const sizeEqRepo = connection.getRepository('SizeEquivalency');
+
+      const hombreGroup = await sizeGroupRepo.save({ name: 'Hombre', is_active: true });
+      const mujerGroup = await sizeGroupRepo.save({ name: 'Mujer', is_active: true });
+
+      const mexSystem = await sizeSystemRepo.save({ name: 'MEX', is_active: true });
+      const usSystem = await sizeSystemRepo.save({ name: 'US', is_active: true });
+      const eurSystem = await sizeSystemRepo.save({ name: 'EUR', is_active: true });
+
+      // Hombre: 25–30 MEX
+      const hombreMatrix = [
+        { mex: '25', us: '7', eur: '39' },
+        { mex: '25.5', us: '7.5', eur: '39.5' },
+        { mex: '26', us: '8', eur: '40' },
+        { mex: '26.5', us: '8.5', eur: '41' },
+        { mex: '27', us: '9', eur: '42' },
+        { mex: '27.5', us: '9.5', eur: '42.5' },
+        { mex: '28', us: '10', eur: '43' },
+        { mex: '28.5', us: '10.5', eur: '44' },
+        { mex: '29', us: '11', eur: '44.5' },
+        { mex: '29.5', us: '11.5', eur: '45' },
+        { mex: '30', us: '12', eur: '46' },
+      ];
+
+      for (let i = 0; i < hombreMatrix.length; i++) {
+        const row = hombreMatrix[i];
+        const size = await sizeRepo.save({ size_group_id: (hombreGroup as any).id, order_index: i });
+        await sizeEqRepo.save([
+          { size_id: (size as any).id, size_system_id: (mexSystem as any).id, value: row.mex },
+          { size_id: (size as any).id, size_system_id: (usSystem as any).id, value: row.us },
+          { size_id: (size as any).id, size_system_id: (eurSystem as any).id, value: row.eur },
+        ]);
+      }
+
+      // Mujer: 22–27 MEX
+      const mujerMatrix = [
+        { mex: '22', us: '5', eur: '35' },
+        { mex: '22.5', us: '5.5', eur: '35.5' },
+        { mex: '23', us: '6', eur: '36' },
+        { mex: '23.5', us: '6.5', eur: '36.5' },
+        { mex: '24', us: '7', eur: '37' },
+        { mex: '24.5', us: '7.5', eur: '38' },
+        { mex: '25', us: '8', eur: '38.5' },
+        { mex: '25.5', us: '8.5', eur: '39' },
+        { mex: '26', us: '9', eur: '40' },
+        { mex: '26.5', us: '9.5', eur: '40.5' },
+        { mex: '27', us: '10', eur: '41' },
+      ];
+
+      for (let i = 0; i < mujerMatrix.length; i++) {
+        const row = mujerMatrix[i];
+        const size = await sizeRepo.save({ size_group_id: (mujerGroup as any).id, order_index: i });
+        await sizeEqRepo.save([
+          { size_id: (size as any).id, size_system_id: (mexSystem as any).id, value: row.mex },
+          { size_id: (size as any).id, size_system_id: (usSystem as any).id, value: row.us },
+          { size_id: (size as any).id, size_system_id: (eurSystem as any).id, value: row.eur },
+        ]);
+      }
+
+      // ─── 8. Seed default tenant settings ─────────────────────
+      // Uses the centralized DEFAULT_TENANT_SETTINGS constant from tenant-settings.service.
+      // BranchSettingOverride entries are NOT seeded here — they are created on-demand
+      // from the Settings UI when a user customizes a value for a specific branch.
+      // New tenants start with all branches inheriting global defaults (no overrides).
+      const settingsRepo = connection.getRepository('TenantSetting');
+      await settingsRepo.save(
+        DEFAULT_TENANT_SETTINGS.map((s) => ({
+          key: s.key,
+          value: s.value,
+          label: s.label || null,
+          group: s.group || null,
+        })),
+      );
+
+      // ─── 9. Seed default price list ─────────────────────────
+      const priceListRepo = connection.getRepository('PriceList');
+      await priceListRepo.save([
+        { name: 'Público General', default_margin_percentage: 30, is_default: true, is_active: true },
+        { name: 'Mayoreo', default_margin_percentage: 15, is_default: false, is_active: true },
       ]);
 
       this.logger.log(`Default data seeded for ${database_name}`);

@@ -61,4 +61,31 @@ export class InventoryController {
   transferInventory(@Req() req: Request, @Body() body: any) {
     return this.inventoryService.transferInventory(req.tenantConnection!, body);
   }
+
+  // ─── Inventory Location endpoints ───────────────────────────────
+
+  /** GET /products/inventory/by-location?branch_id=X&location_id=Y */
+  @Get('inventory/by-location')
+  getStockByLocation(
+    @Req() req: Request,
+    @Query('branch_id') branchId: string,
+    @Query('location_id') locationId?: string,
+  ) {
+    return this.inventoryService.getStockByLocation(req.tenantConnection!, {
+      branch_id: branchId,
+      location_id: locationId,
+    });
+  }
+
+  /** POST /products/inventory/assign-location */
+  @Post('inventory/assign-location')
+  assignToLocation(@Req() req: Request, @Body() body: any) {
+    return this.inventoryService.assignToLocation(req.tenantConnection!, body);
+  }
+
+  /** POST /products/inventory/move-location */
+  @Post('inventory/move-location')
+  moveWithinBranch(@Req() req: Request, @Body() body: any) {
+    return this.inventoryService.moveWithinBranch(req.tenantConnection!, body);
+  }
 }

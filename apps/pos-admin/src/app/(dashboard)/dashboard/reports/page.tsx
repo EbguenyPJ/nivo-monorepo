@@ -7,6 +7,7 @@ import {
 } from '@nivo/ui';
 import { Download, DollarSign, Receipt, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { useBranchStore } from '@/store/branchStore';
 import { getTodayRange, getThisWeekRange, getThisMonthRange, formatCurrency, formatDate } from '@/lib/date-utils';
 
 interface Summary {
@@ -58,6 +59,7 @@ function getDateRange(period: string) {
 }
 
 export default function ReportsPage() {
+  const { selectedBranchId } = useBranchStore();
   const [period, setPeriod] = useState('month');
   const [summary, setSummary] = useState<Summary | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -96,7 +98,7 @@ export default function ReportsPage() {
   useEffect(() => {
     setPage(0);
     fetchData(0);
-  }, [period]);
+  }, [period, selectedBranchId]);
 
   useEffect(() => {
     fetchData(page);

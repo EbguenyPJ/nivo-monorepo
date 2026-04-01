@@ -6,6 +6,7 @@ import {
   Category,
   Collection,
   CollectionProduct,
+  Color,
   Branch,
   Product,
   ProductVariant,
@@ -23,6 +24,17 @@ import {
   Tax,
   CancellationReason,
   UnitOfMeasure,
+  SizeGroup,
+  SizeSystem,
+  Size,
+  SizeEquivalency,
+  TenantSetting,
+  PriceList,
+  BranchVariantOverride,
+  VariantPriceMargin,
+  BranchSettingOverride,
+  StorageLocation,
+  InventoryLocation,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -30,6 +42,7 @@ const TENANT_ENTITIES = [
   Category,
   Collection,
   CollectionProduct,
+  Color,
   Branch,
   Product,
   ProductVariant,
@@ -47,6 +60,17 @@ const TENANT_ENTITIES = [
   Tax,
   CancellationReason,
   UnitOfMeasure,
+  SizeGroup,
+  SizeSystem,
+  Size,
+  SizeEquivalency,
+  TenantSetting,
+  PriceList,
+  BranchVariantOverride,
+  VariantPriceMargin,
+  BranchSettingOverride,
+  StorageLocation,
+  InventoryLocation,
 ];
 
 @Injectable()

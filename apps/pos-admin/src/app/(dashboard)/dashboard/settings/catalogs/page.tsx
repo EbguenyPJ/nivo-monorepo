@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@nivo/ui';
 import { DataGridEditable, type ColumnDef } from './components/DataGridEditable';
+import { ColorsGrid } from './components/ColorsGrid';
+import { SizesMatrix } from './components/SizesMatrix';
 
 // ─── Catalog Definitions ──────────────────────────────────────
 interface CatalogConfig {
@@ -10,17 +12,34 @@ interface CatalogConfig {
   label: string;
   description: string;
   icon: string;
-  endpoint: string;
-  columns: ColumnDef[];
-  addLabel: string;
+  /** 'datagrid' = DataGridEditable, 'colors' = ColorsGrid, 'sizes' = SizesMatrix */
+  renderer: 'datagrid' | 'colors' | 'sizes';
+  endpoint?: string;
+  columns?: ColumnDef[];
+  addLabel?: string;
 }
 
 const CATALOGS: CatalogConfig[] = [
+  {
+    id: 'colors',
+    label: 'Colores',
+    description: 'Catálogo visual de colores para tus zapatos',
+    icon: '🎨',
+    renderer: 'colors',
+  },
+  {
+    id: 'sizes',
+    label: 'Tallas y Equivalencias',
+    description: 'Matriz de tallas con equivalencias MEX, US, EUR y más',
+    icon: '📐',
+    renderer: 'sizes',
+  },
   {
     id: 'payment-methods',
     label: 'Métodos de Pago',
     description: 'Formas de pago aceptadas en tu punto de venta',
     icon: '💳',
+    renderer: 'datagrid',
     endpoint: '/catalogs/payment-methods',
     columns: [
       {
@@ -45,6 +64,7 @@ const CATALOGS: CatalogConfig[] = [
     label: 'Impuestos',
     description: 'Tasas de impuesto aplicables a tus productos',
     icon: '📊',
+    renderer: 'datagrid',
     endpoint: '/catalogs/taxes',
     columns: [
       {
@@ -73,6 +93,7 @@ const CATALOGS: CatalogConfig[] = [
     label: 'Motivos de Cancelación',
     description: 'Razones predefinidas para cancelar ventas o devoluciones',
     icon: '❌',
+    renderer: 'datagrid',
     endpoint: '/catalogs/cancellation-reasons',
     columns: [
       {
@@ -90,6 +111,7 @@ const CATALOGS: CatalogConfig[] = [
     label: 'Unidades de Medida',
     description: 'Unidades para medir y vender tus productos',
     icon: '📏',
+    renderer: 'datagrid',
     endpoint: '/catalogs/units-of-measure',
     columns: [
       {
@@ -116,6 +138,24 @@ const CATALOGS: CatalogConfig[] = [
 export default function CatalogsPage() {
   const [activeCatalog, setActiveCatalog] = useState<string>(CATALOGS[0].id);
   const selectedCatalog = CATALOGS.find((c) => c.id === activeCatalog)!;
+
+  const renderContent = () => {
+    switch (selectedCatalog.renderer) {
+      case 'colors':
+        return <ColorsGrid />;
+      case 'sizes':
+        return <SizesMatrix />;
+      case 'datagrid':
+        return (
+          <DataGridEditable
+            key={selectedCatalog.id}
+            endpoint={selectedCatalog.endpoint!}
+            columns={selectedCatalog.columns!}
+            addLabel={selectedCatalog.addLabel!}
+          />
+        );
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -158,7 +198,7 @@ export default function CatalogsPage() {
           </Card>
         </div>
 
-        {/* Right: Data Grid (Detail) */}
+        {/* Right: Content (Detail) */}
         <div className="col-span-12 lg:col-span-9">
           <Card>
             <CardHeader>
@@ -171,12 +211,7 @@ export default function CatalogsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <DataGridEditable
-                key={selectedCatalog.id}
-                endpoint={selectedCatalog.endpoint}
-                columns={selectedCatalog.columns}
-                addLabel={selectedCatalog.addLabel}
-              />
+              {renderContent()}
             </CardContent>
           </Card>
         </div>

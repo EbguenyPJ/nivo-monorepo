@@ -26,6 +26,9 @@ import { CatalogsModule } from './modules/tenant/catalogs/catalogs.module';
 import { BrandsModule } from './modules/tenant/brands/brands.module';
 import { CollectionsModule } from './modules/tenant/collections/collections.module';
 import { TenantUploadsModule } from './modules/tenant/uploads/uploads.module';
+import { TenantSettingsModule } from './modules/tenant/tenant-settings/tenant-settings.module';
+import { PricingModule } from './modules/tenant/pricing/pricing.module';
+import { StorageLocationsModule } from './modules/tenant/storage-locations/storage-locations.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -61,6 +64,9 @@ import { HealthController } from './health.controller';
     BrandsModule,
     CollectionsModule,
     TenantUploadsModule,
+    TenantSettingsModule,
+    PricingModule,
+    StorageLocationsModule,
   ],
   controllers: [HealthController],
 })

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { Product, ProductVariant, Inventory, CollectionProduct } from '@nivo/database';
+import { Product, ProductVariant, Inventory, CollectionProduct, InventoryLocation, StorageLocation } from '@nivo/database';
 
 @Injectable()
 export class InventoryService {
@@ -68,8 +68,11 @@ export class InventoryService {
       description?: string;
       brand_id?: string;
       category_id?: string;
-      base_price: number;
+      base_price?: number;
+      cost: number;
       images: string[];
+      /** Images grouped by color name → URLs */
+      color_images?: Record<string, string[]>;
       collection_ids: string[];
       variants: Array<{
         sku: string;
@@ -77,9 +80,9 @@ export class InventoryService {
         price_override?: number | null;
         cost: number;
         barcode?: string;
-        stock: number;
+        /** Multi-branch stock: { branch_id: quantity } */
+        stock_by_branch: Record<string, number>;
       }>;
-      branch_id: string;
     },
   ) {
     if (!data.variants?.length) {
@@ -101,7 +104,7 @@ export class InventoryService {
         description: data.description || null,
         brand_id: data.brand_id || null,
         category_id: data.category_id || null,
-        base_price: data.base_price,
+        base_price: data.base_price || 0,
         images: data.images || [],
         image_url: data.images?.[0] || null,
       });
@@ -116,7 +119,7 @@ export class InventoryService {
         await cpRepo.save(collectionLinks);
       }
 
-      // 3. Create variants
+      // 3. Create variants (with color images)
       const variantRepo = manager.getRepository(ProductVariant);
       const savedVariants: ProductVariant[] = [];
 
@@ -127,6 +130,10 @@ export class InventoryService {
           throw new BadRequestException(`El SKU "${v.sku}" ya existe en otro producto`);
         }
 
+        // Assign color-specific images to the variant
+        const colorName = v.attributes?.['Color'] || '';
+        const variantImages = data.color_images?.[colorName] || [];
+
         const variant = variantRepo.create({
           product_id: savedProduct.id,
           sku: v.sku,
@@ -134,23 +141,26 @@ export class InventoryService {
           price_override: v.price_override ?? null,
           cost: v.cost || 0,
           barcode: v.barcode || null,
+          images: variantImages,
         });
         savedVariants.push(await variantRepo.save(variant));
       }
 
-      // 4. Create inventory entries for each variant at the selected branch
-      if (data.branch_id) {
-        const invRepo = manager.getRepository(Inventory);
-        for (let i = 0; i < savedVariants.length; i++) {
-          const variant = savedVariants[i];
-          const stock = data.variants[i].stock || 0;
-          if (stock > 0) {
-            const inv = invRepo.create({
-              variant_id: variant.id,
-              branch_id: data.branch_id,
-              stock_available: stock,
-            });
-            await invRepo.save(inv);
+      // 4. Create inventory entries per variant per branch
+      const invRepo = manager.getRepository(Inventory);
+      for (let i = 0; i < savedVariants.length; i++) {
+        const variant = savedVariants[i];
+        const stockByBranch = data.variants[i].stock_by_branch || {};
+
+        for (const [branchId, qty] of Object.entries(stockByBranch)) {
+          if (qty > 0) {
+            await invRepo.save(
+              invRepo.create({
+                variant_id: variant.id,
+                branch_id: branchId,
+                stock_available: qty,
+              }),
+            );
           }
         }
       }
@@ -200,27 +210,71 @@ export class InventoryService {
   }
 
   // ─── Inventory: Adjust ──────────────────────────────────────────
-  async adjustInventory(connection: DataSource, data: { variant_id: string; branch_id: string; quantity_change: number; reason: string }) {
-    const repo = connection.getRepository(Inventory);
-    let inventory = await repo.findOne({
-      where: { variant_id: data.variant_id, branch_id: data.branch_id },
-    });
-
-    if (!inventory) {
-      inventory = repo.create({
-        variant_id: data.variant_id,
-        branch_id: data.branch_id,
-        stock_available: Math.max(0, data.quantity_change),
+  async adjustInventory(
+    connection: DataSource,
+    data: { variant_id: string; branch_id: string; quantity_change: number; reason: string; location_id?: string },
+  ) {
+    return connection.transaction(async (manager) => {
+      const repo = manager.getRepository(Inventory);
+      let inventory = await repo.findOne({
+        where: { variant_id: data.variant_id, branch_id: data.branch_id },
       });
-    } else {
-      inventory.stock_available = Math.max(0, inventory.stock_available + data.quantity_change);
-    }
 
-    return repo.save(inventory);
+      if (!inventory) {
+        inventory = repo.create({
+          variant_id: data.variant_id,
+          branch_id: data.branch_id,
+          stock_available: Math.max(0, data.quantity_change),
+        });
+      } else {
+        inventory.stock_available = Math.max(0, inventory.stock_available + data.quantity_change);
+      }
+
+      await repo.save(inventory);
+
+      // If location_id provided, also adjust InventoryLocation
+      if (data.location_id) {
+        const ilRepo = manager.getRepository(InventoryLocation);
+        let invLoc = await ilRepo.findOne({
+          where: { variant_id: data.variant_id, branch_id: data.branch_id, location_id: data.location_id },
+        });
+
+        if (!invLoc) {
+          if (data.quantity_change > 0) {
+            invLoc = ilRepo.create({
+              variant_id: data.variant_id,
+              branch_id: data.branch_id,
+              location_id: data.location_id,
+              quantity: data.quantity_change,
+            });
+            await ilRepo.save(invLoc);
+          }
+        } else {
+          invLoc.quantity = Math.max(0, invLoc.quantity + data.quantity_change);
+          if (invLoc.quantity === 0) {
+            await ilRepo.remove(invLoc);
+          } else {
+            await ilRepo.save(invLoc);
+          }
+        }
+      }
+
+      return inventory;
+    });
   }
 
   // ─── Inventory: Transfer ────────────────────────────────────────
-  async transferInventory(connection: DataSource, data: { variant_id: string; from_branch_id: string; to_branch_id: string; quantity: number }) {
+  async transferInventory(
+    connection: DataSource,
+    data: {
+      variant_id: string;
+      from_branch_id: string;
+      to_branch_id: string;
+      quantity: number;
+      from_location_id?: string;
+      to_location_id?: string;
+    },
+  ) {
     const repo = connection.getRepository(Inventory);
 
     return connection.transaction(async (manager) => {
@@ -250,7 +304,200 @@ export class InventoryService {
       }
 
       await manager.save(toInventory);
+
+      // Handle InventoryLocation if location IDs provided
+      const ilRepo = manager.getRepository(InventoryLocation);
+
+      if (data.from_location_id) {
+        const fromIL = await ilRepo.findOne({
+          where: { variant_id: data.variant_id, branch_id: data.from_branch_id, location_id: data.from_location_id },
+        });
+        if (fromIL) {
+          fromIL.quantity -= data.quantity;
+          if (fromIL.quantity <= 0) {
+            await ilRepo.remove(fromIL);
+          } else {
+            await ilRepo.save(fromIL);
+          }
+        }
+      }
+
+      if (data.to_location_id) {
+        let toIL = await ilRepo.findOne({
+          where: { variant_id: data.variant_id, branch_id: data.to_branch_id, location_id: data.to_location_id },
+        });
+        if (!toIL) {
+          toIL = ilRepo.create({
+            variant_id: data.variant_id,
+            branch_id: data.to_branch_id,
+            location_id: data.to_location_id,
+            quantity: data.quantity,
+          });
+        } else {
+          toIL.quantity += data.quantity;
+        }
+        await ilRepo.save(toIL);
+      }
+
       return { message: 'Traspaso completado', from: fromInventory, to: toInventory };
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // INVENTORY LOCATIONS — Stock by physical location
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * Get stock breakdown by location for a branch.
+   * Optionally filter to a specific location (and its descendants).
+   */
+  async getStockByLocation(
+    connection: DataSource,
+    data: { branch_id: string; location_id?: string },
+  ) {
+    const ilRepo = connection.getRepository(InventoryLocation);
+    const query = ilRepo.createQueryBuilder('il')
+      .leftJoinAndSelect('il.variant', 'variant')
+      .leftJoinAndSelect('il.location', 'location')
+      .leftJoin('variant.product', 'product')
+      .addSelect(['product.id', 'product.name', 'product.images'])
+      .where('il.branch_id = :branchId', { branchId: data.branch_id })
+      .andWhere('il.quantity > 0')
+      .orderBy('location.code', 'ASC')
+      .addOrderBy('product.name', 'ASC');
+
+    if (data.location_id) {
+      // Get this location + descendants
+      const locRepo = connection.getRepository(StorageLocation);
+      const locationIds = await this.collectDescendantLocationIds(locRepo, data.location_id);
+      query.andWhere('il.location_id IN (:...locationIds)', { locationIds });
+    }
+
+    return query.getMany();
+  }
+
+  /**
+   * Assign stock from "unlocated" pool to a specific location.
+   * Validates that total allocated does not exceed aggregate stock.
+   */
+  async assignToLocation(
+    connection: DataSource,
+    data: { variant_id: string; branch_id: string; location_id: string; quantity: number },
+  ) {
+    if (data.quantity <= 0) throw new BadRequestException('La cantidad debe ser mayor a 0');
+
+    return connection.transaction(async (manager) => {
+      // 1. Get aggregate inventory
+      const invRepo = manager.getRepository(Inventory);
+      const inventory = await invRepo.findOne({
+        where: { variant_id: data.variant_id, branch_id: data.branch_id },
+      });
+      if (!inventory) throw new NotFoundException('No hay stock de esta variante en esta sucursal');
+
+      // 2. Calculate current total allocated
+      const ilRepo = manager.getRepository(InventoryLocation);
+      const { sum } = await ilRepo.createQueryBuilder('il')
+        .select('COALESCE(SUM(il.quantity), 0)', 'sum')
+        .where('il.variant_id = :variantId AND il.branch_id = :branchId', {
+          variantId: data.variant_id,
+          branchId: data.branch_id,
+        })
+        .getRawOne();
+
+      const currentAllocated = Number(sum);
+      const unlocated = inventory.stock_available - currentAllocated;
+
+      if (data.quantity > unlocated) {
+        throw new BadRequestException(
+          `Stock sin ubicar insuficiente. Disponible: ${unlocated}, solicitado: ${data.quantity}`,
+        );
+      }
+
+      // 3. Upsert InventoryLocation
+      let invLoc = await ilRepo.findOne({
+        where: { variant_id: data.variant_id, branch_id: data.branch_id, location_id: data.location_id },
+      });
+
+      if (invLoc) {
+        invLoc.quantity += data.quantity;
+      } else {
+        invLoc = ilRepo.create({
+          variant_id: data.variant_id,
+          branch_id: data.branch_id,
+          location_id: data.location_id,
+          quantity: data.quantity,
+        });
+      }
+
+      return ilRepo.save(invLoc);
+    });
+  }
+
+  /**
+   * Move stock between locations within the same branch.
+   * The aggregate Inventory does NOT change.
+   */
+  async moveWithinBranch(
+    connection: DataSource,
+    data: { variant_id: string; branch_id: string; from_location_id: string; to_location_id: string; quantity: number },
+  ) {
+    if (data.quantity <= 0) throw new BadRequestException('La cantidad debe ser mayor a 0');
+    if (data.from_location_id === data.to_location_id) {
+      throw new BadRequestException('La ubicación origen y destino no pueden ser la misma');
+    }
+
+    return connection.transaction(async (manager) => {
+      const ilRepo = manager.getRepository(InventoryLocation);
+
+      // 1. Deduct from source
+      const fromIL = await ilRepo.findOne({
+        where: { variant_id: data.variant_id, branch_id: data.branch_id, location_id: data.from_location_id },
+      });
+      if (!fromIL || fromIL.quantity < data.quantity) {
+        throw new BadRequestException('Stock insuficiente en la ubicación origen');
+      }
+
+      fromIL.quantity -= data.quantity;
+      if (fromIL.quantity === 0) {
+        await ilRepo.remove(fromIL);
+      } else {
+        await ilRepo.save(fromIL);
+      }
+
+      // 2. Add to destination
+      let toIL = await ilRepo.findOne({
+        where: { variant_id: data.variant_id, branch_id: data.branch_id, location_id: data.to_location_id },
+      });
+
+      if (toIL) {
+        toIL.quantity += data.quantity;
+      } else {
+        toIL = ilRepo.create({
+          variant_id: data.variant_id,
+          branch_id: data.branch_id,
+          location_id: data.to_location_id,
+          quantity: data.quantity,
+        });
+      }
+
+      await ilRepo.save(toIL);
+
+      return { message: 'Stock movido exitosamente', from: fromIL, to: toIL };
+    });
+  }
+
+  // ─── Private Helper ─────────────────────────────────────────────
+
+  private async collectDescendantLocationIds(
+    repo: ReturnType<DataSource['getRepository']>,
+    locationId: string,
+  ): Promise<string[]> {
+    const ids = [locationId];
+    const children = await (repo as any).find({ where: { parent_id: locationId } });
+    for (const child of children) {
+      const childIds = await this.collectDescendantLocationIds(repo, child.id);
+      ids.push(...childIds);
+    }
+    return ids;
   }
 }

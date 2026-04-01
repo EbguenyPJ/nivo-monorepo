@@ -6,6 +6,7 @@ import {
   SaleType,
   SaleStatus,
   PosSessionStatus,
+  StorageLocationType,
 } from '../enums';
 
 // ==========================================
@@ -156,4 +157,31 @@ export interface ICustomer {
   phone: string | null;
   loyalty_points: number;
   created_at: Date;
+}
+
+// ==========================================
+// Storage Locations & Inventory Location
+// ==========================================
+
+export interface IStorageLocation {
+  id: string;
+  branch_id: string;
+  parent_id: string | null;
+  name: string;
+  code: string;
+  type: StorageLocationType;
+  description: string | null;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+  children?: IStorageLocation[];
+}
+
+export interface IInventoryLocation {
+  id: string;
+  variant_id: string;
+  branch_id: string;
+  location_id: string;
+  quantity: number;
+  updated_at: Date;
 }

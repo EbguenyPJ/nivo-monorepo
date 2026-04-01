@@ -26,6 +26,10 @@ export class Branch {
   @Column({ type: 'text', nullable: true })
   ticket_footer: string | null;
 
+  /** Custom landed cost % for this branch. If null, inherits from tenant global setting */
+  @Column({ type: 'decimal', precision: 8, scale: 2, nullable: true })
+  custom_landed_cost_percentage: number | null;
+
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 

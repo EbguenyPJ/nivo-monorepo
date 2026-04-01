@@ -14,7 +14,7 @@ export class EmployeesController {
   constructor(private readonly employeesService: EmployeesService) {}
 
   @Get()
-  findAll(@Req() req: Request, @Query('branch') branchId?: string) {
+  findAll(@Req() req: Request, @Query('branch_id') branchId?: string) {
     return this.employeesService.findAll(req.tenantConnection!, branchId);
   }
 
