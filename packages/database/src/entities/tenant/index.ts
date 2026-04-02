@@ -14,6 +14,7 @@ export { RolePermission } from './role-permission.entity';
 export { EmployeePermission } from './employee-permission.entity';
 export { PosSession } from './pos-session.entity';
 export { Customer } from './customer.entity';
+export { CustomerAddress } from './customer-address.entity';
 export { Sale } from './sale.entity';
 export { SaleItem } from './sale-item.entity';
 export { PaymentMethod } from './payment-method.entity';

@@ -53,3 +53,11 @@ export enum StorageLocationType {
   SHELF = 'shelf',
   BIN = 'bin',
 }
+
+export enum MembershipTier {
+  NONE = 'none',
+  BRONZE = 'bronze',
+  SILVER = 'silver',
+  GOLD = 'gold',
+  WHOLESALE = 'wholesale',
+}

@@ -153,10 +153,38 @@ export interface ISaleItem {
 export interface ICustomer {
   id: string;
   name: string;
+  first_name: string | null;
+  last_name: string | null;
   email: string | null;
   phone: string | null;
+  rfc: string | null;
+  date_of_birth: Date | null;
+  notes: string | null;
   loyalty_points: number;
+  membership_tier: string | null;
+  credit_balance: number;
+  is_active: boolean;
+  tags: string[];
+  addresses?: ICustomerAddress[];
   created_at: Date;
+  updated_at: Date;
+  deleted_at: Date | null;
+}
+
+export interface ICustomerAddress {
+  id: string;
+  customer_id: string;
+  label: string | null;
+  street: string;
+  neighborhood: string | null;
+  city: string;
+  state: string;
+  zip_code: string;
+  country: string;
+  reference: string | null;
+  is_default: boolean;
+  created_at: Date;
+  updated_at: Date;
 }
 
 // ==========================================

@@ -100,8 +100,53 @@ export interface RefundSaleDto {
 // Customers
 export interface CreateCustomerDto {
   name: string;
+  first_name?: string;
+  last_name?: string;
   email?: string;
   phone?: string;
+  rfc?: string;
+  date_of_birth?: string;
+  notes?: string;
+  tags?: string[];
+  address?: CreateCustomerAddressDto;
+}
+
+export interface UpdateCustomerDto {
+  name?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  rfc?: string | null;
+  date_of_birth?: string | null;
+  notes?: string | null;
+  membership_tier?: string | null;
+  tags?: string[];
+  is_active?: boolean;
+}
+
+export interface CreateCustomerAddressDto {
+  label?: string;
+  street: string;
+  neighborhood?: string;
+  city: string;
+  state: string;
+  zip_code: string;
+  country?: string;
+  reference?: string;
+  is_default?: boolean;
+}
+
+export interface UpdateCustomerAddressDto {
+  label?: string | null;
+  street?: string;
+  neighborhood?: string | null;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  country?: string;
+  reference?: string | null;
+  is_default?: boolean;
 }
 
 export interface RedeemPointsDto {

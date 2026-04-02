@@ -17,6 +17,7 @@ const BRANCH_EXCLUDED_PATHS = [
   '/branches',
   '/reports/branch-comparison',
   '/storage-locations',
+  '/customers',
 ];
 
 function shouldExcludeBranchParam(url: string | undefined): boolean {

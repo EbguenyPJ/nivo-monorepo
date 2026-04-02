@@ -35,6 +35,7 @@ import {
   BranchSettingOverride,
   StorageLocation,
   InventoryLocation,
+  CustomerAddress,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -71,6 +72,7 @@ const TENANT_ENTITIES = [
   BranchSettingOverride,
   StorageLocation,
   InventoryLocation,
+  CustomerAddress,
 ];
 
 @Injectable()
