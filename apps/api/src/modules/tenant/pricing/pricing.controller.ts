@@ -20,28 +20,28 @@ export class PricingController {
 
   @Post('price-lists')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'manager')
   createPriceList(@Req() req: any, @Body() body: { name: string; default_margin_percentage: number }) {
     return this.pricingService.createPriceList(req.tenantConnection, body);
   }
 
   @Patch('price-lists/:id')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'manager')
   updatePriceList(@Req() req: any, @Param('id') id: string, @Body() body: any) {
     return this.pricingService.updatePriceList(req.tenantConnection, id, body);
   }
 
   @Delete('price-lists/:id')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'manager')
   deletePriceList(@Req() req: any, @Param('id') id: string) {
     return this.pricingService.deletePriceList(req.tenantConnection, id);
   }
 
   @Patch('price-lists/:id/set-default')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'manager')
   setDefaultPriceList(@Req() req: any, @Param('id') id: string) {
     return this.pricingService.setDefaultPriceList(req.tenantConnection, id);
   }
@@ -59,7 +59,7 @@ export class PricingController {
 
   @Patch('overrides')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'manager')
   batchUpsertOverrides(
     @Req() req: any,
     @Body() body: { overrides: Array<{ variant_id: string; branch_id: string; purchase_price_override: number | null }> },
@@ -75,7 +75,7 @@ export class PricingController {
 
   @Patch('margins')
   @UseGuards(RolesGuard)
-  @Roles('admin')
+  @Roles('admin', 'manager')
   batchUpsertMargins(
     @Req() req: any,
     @Body() body: { margins: Array<{ variant_id: string; price_list_id: string; custom_margin_percentage: number | null }> },

@@ -24,19 +24,19 @@ export class BrandsController {
   }
 
   @Post()
-  @Roles('admin')
+  @Roles('admin', 'manager')
   create(@Req() req: Request, @Body() body: any) {
     return this.brandsService.create(req.tenantConnection!, body);
   }
 
   @Put(':id')
-  @Roles('admin')
+  @Roles('admin', 'manager')
   update(@Req() req: Request, @Param('id') id: string, @Body() body: any) {
     return this.brandsService.update(req.tenantConnection!, id, body);
   }
 
   @Patch(':id/toggle-status')
-  @Roles('admin')
+  @Roles('admin', 'manager')
   toggleStatus(@Req() req: Request, @Param('id') id: string) {
     return this.brandsService.toggleStatus(req.tenantConnection!, id);
   }

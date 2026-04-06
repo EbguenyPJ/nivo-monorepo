@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { Employee } from './employee.entity';
 import { Branch } from './branch.entity';
+import { CashRegister } from './cash-register.entity';
 
 @Entity('pos_sessions')
 export class PosSession {
@@ -27,6 +28,13 @@ export class PosSession {
   @ManyToOne(() => Branch)
   @JoinColumn({ name: 'branch_id' })
   branch: Branch;
+
+  @Column({ type: 'uuid', nullable: true })
+  cash_register_id: string | null;
+
+  @ManyToOne(() => CashRegister)
+  @JoinColumn({ name: 'cash_register_id' })
+  cash_register: CashRegister;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   opening_amount: number;

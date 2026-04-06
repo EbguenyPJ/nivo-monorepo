@@ -29,37 +29,37 @@ export class CollectionsController {
   }
 
   @Post()
-  @Roles('admin')
+  @Roles('admin', 'manager')
   create(@Req() req: Request, @Body() body: any) {
     return this.collectionsService.create(req.tenantConnection!, body);
   }
 
   @Put(':id')
-  @Roles('admin')
+  @Roles('admin', 'manager')
   update(@Req() req: Request, @Param('id') id: string, @Body() body: any) {
     return this.collectionsService.update(req.tenantConnection!, id, body);
   }
 
   @Patch(':id/move')
-  @Roles('admin')
+  @Roles('admin', 'manager')
   move(@Req() req: Request, @Param('id') id: string, @Body() body: any) {
     return this.collectionsService.move(req.tenantConnection!, id, body);
   }
 
   @Patch('reorder')
-  @Roles('admin')
+  @Roles('admin', 'manager')
   reorder(@Req() req: Request, @Body() body: { items: { id: string; sort_order: number }[] }) {
     return this.collectionsService.reorder(req.tenantConnection!, body.items);
   }
 
   @Patch(':id/toggle-status')
-  @Roles('admin')
+  @Roles('admin', 'manager')
   toggleStatus(@Req() req: Request, @Param('id') id: string) {
     return this.collectionsService.toggleStatus(req.tenantConnection!, id);
   }
 
   @Delete(':id')
-  @Roles('admin')
+  @Roles('admin', 'manager')
   remove(@Req() req: Request, @Param('id') id: string) {
     return this.collectionsService.remove(req.tenantConnection!, id);
   }

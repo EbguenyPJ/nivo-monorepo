@@ -18,6 +18,8 @@ const BRANCH_EXCLUDED_PATHS = [
   '/reports/branch-comparison',
   '/storage-locations',
   '/customers',
+  '/employees',
+  '/pos',
 ];
 
 function shouldExcludeBranchParam(url: string | undefined): boolean {
@@ -75,12 +77,19 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Endpoints where a 401 is expected (e.g. wrong PIN) and should NOT kill the session
+const AUTH_SAFE_PATHS = ['/pos/verify-pin'];
+
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('nivo-auth');
-      window.location.href = '/login';
+      const requestUrl = error.config?.url || '';
+      const isSafePath = AUTH_SAFE_PATHS.some((path) => requestUrl.includes(path));
+      if (!isSafePath) {
+        localStorage.removeItem('nivo-auth');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   },

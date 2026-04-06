@@ -36,6 +36,7 @@ import {
   StorageLocation,
   InventoryLocation,
   CustomerAddress,
+  CashRegister,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -73,6 +74,7 @@ const TENANT_ENTITIES = [
   StorageLocation,
   InventoryLocation,
   CustomerAddress,
+  CashRegister,
 ];
 
 @Injectable()

@@ -13,6 +13,7 @@ export { Role } from './role.entity';
 export { RolePermission } from './role-permission.entity';
 export { EmployeePermission } from './employee-permission.entity';
 export { PosSession } from './pos-session.entity';
+export { CashRegister } from './cash-register.entity';
 export { Customer } from './customer.entity';
 export { CustomerAddress } from './customer-address.entity';
 export { Sale } from './sale.entity';

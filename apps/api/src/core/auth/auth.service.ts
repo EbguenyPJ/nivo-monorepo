@@ -74,6 +74,7 @@ export class AuthService {
         email: (employee as any).email,
         name: (employee as any).name,
         role: (employee as any).role,
+        branch_id: (employee as any).branch_id,
       },
       tenant: { id: tenant.id, name: tenant.name, subdomain: tenant.subdomain },
     };
@@ -87,15 +88,30 @@ export class AuthService {
 
     const connection = await this.tenantConnectionManager.getConnection(tenant.database_name);
     const employeeRepo = connection.getRepository('Employee');
-    const employee = await employeeRepo.findOne({
-      where: { pin_code: pinCode, branch_id: branchId, is_active: true },
-    });
-    if (!employee) throw new UnauthorizedException('Invalid PIN');
+
+    // Load all active employees in this branch that have a PIN configured
+    const employees = await employeeRepo
+      .createQueryBuilder('e')
+      .where('e.branch_id = :branchId', { branchId })
+      .andWhere('e.is_active = true')
+      .andWhere('e.pin_hash IS NOT NULL')
+      .getMany();
+
+    // Compare PIN against each employee's hash (bcrypt)
+    let matched: any = null;
+    for (const emp of employees) {
+      const isMatch = await bcrypt.compare(pinCode, (emp as any).pin_hash);
+      if (isMatch) {
+        matched = emp;
+        break;
+      }
+    }
+    if (!matched) throw new UnauthorizedException('PIN invalido');
 
     const payload: JwtPayload = {
-      sub: (employee as any).id,
-      email: (employee as any).email,
-      role: (employee as any).role,
+      sub: matched.id,
+      email: matched.email,
+      role: matched.role,
       type: 'employee',
       tenant_id: tenant.id,
     };
@@ -103,9 +119,10 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign(payload),
       user: {
-        id: (employee as any).id,
-        name: (employee as any).name,
-        role: (employee as any).role,
+        id: matched.id,
+        name: matched.name,
+        role: matched.role,
+        branch_id: matched.branch_id,
       },
       tenant: { id: tenant.id, name: tenant.name },
     };
