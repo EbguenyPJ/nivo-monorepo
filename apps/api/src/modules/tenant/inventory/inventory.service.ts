@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { Product, ProductVariant, Inventory, CollectionProduct, InventoryLocation, StorageLocation } from '@nivo/database';
+import { Product, ProductVariant, Inventory, CollectionProduct, InventoryLocation, StorageLocation, InventoryTransfer, InventoryTransferItem, Branch } from '@nivo/database';
 
 @Injectable()
 export class InventoryService {
@@ -497,6 +497,404 @@ export class InventoryService {
       await ilRepo.save(toIL);
 
       return { message: 'Stock movido exitosamente', from: fromIL, to: toIL };
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // INVENTORY TRANSFERS — Multi-step branch-to-branch transfers
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * List transfers filtered by role: sent from, incoming to, or all for a branch.
+   */
+  async listTransfers(
+    connection: DataSource,
+    filters: {
+      branch_id?: string;
+      tab?: 'sent' | 'incoming' | 'history' | 'all';
+      status?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ) {
+    const qb = connection.getRepository(InventoryTransfer)
+      .createQueryBuilder('t')
+      .leftJoinAndSelect('t.origin_branch', 'origin')
+      .leftJoinAndSelect('t.destination_branch', 'destination')
+      .leftJoinAndSelect('t.created_by', 'creator')
+      .leftJoinAndSelect('t.received_by', 'receiver');
+
+    if (filters.branch_id) {
+      if (filters.tab === 'sent') {
+        qb.andWhere('t.origin_branch_id = :bid', { bid: filters.branch_id });
+        qb.andWhere('t.status IN (:...statuses)', { statuses: ['draft', 'in_transit'] });
+      } else if (filters.tab === 'incoming') {
+        qb.andWhere('t.destination_branch_id = :bid', { bid: filters.branch_id });
+        qb.andWhere('t.status = :status', { status: 'in_transit' });
+      } else if (filters.tab === 'history') {
+        qb.andWhere('(t.origin_branch_id = :bid OR t.destination_branch_id = :bid)', { bid: filters.branch_id });
+        qb.andWhere('t.status IN (:...statuses)', { statuses: ['completed', 'discrepancy', 'cancelled'] });
+      } else {
+        qb.andWhere('(t.origin_branch_id = :bid OR t.destination_branch_id = :bid)', { bid: filters.branch_id });
+      }
+    }
+
+    if (filters.status && filters.status !== 'all') {
+      qb.andWhere('t.status = :filterStatus', { filterStatus: filters.status });
+    }
+
+    qb.orderBy('t.created_at', 'DESC');
+
+    const total = await qb.getCount();
+    const limit = filters.limit || 20;
+    const offset = filters.offset || 0;
+    const data = await qb.skip(offset).take(limit).getMany();
+
+    return {
+      data: data.map((t) => ({
+        id: t.id,
+        folio: `TR-${String(t.folio_number).padStart(4, '0')}`,
+        status: t.status,
+        origin_branch_name: t.origin_branch?.name || '',
+        origin_branch_id: t.origin_branch_id,
+        destination_branch_name: t.destination_branch?.name || '',
+        destination_branch_id: t.destination_branch_id,
+        created_by_name: t.created_by?.name || '',
+        received_by_name: t.received_by?.name || null,
+        shipped_at: t.shipped_at,
+        received_at: t.received_at,
+        notes: t.notes,
+        discrepancy_notes: t.discrepancy_notes,
+        created_at: t.created_at,
+        item_count: 0, // filled below
+        total_sent: 0,
+      })),
+      total,
+    };
+  }
+
+  /**
+   * Count pending incoming transfers for a branch (for sidebar badge).
+   */
+  async countIncoming(connection: DataSource, branchId: string): Promise<number> {
+    return connection.getRepository(InventoryTransfer).count({
+      where: { destination_branch_id: branchId, status: 'in_transit' },
+    });
+  }
+
+  /**
+   * Get full transfer detail with items + variant info.
+   */
+  async getTransferDetail(connection: DataSource, transferId: string) {
+    const transfer = await connection.getRepository(InventoryTransfer).findOne({
+      where: { id: transferId },
+      relations: ['origin_branch', 'destination_branch', 'created_by', 'received_by', 'items'],
+    });
+    if (!transfer) throw new NotFoundException('Traspaso no encontrado');
+
+    // Load variant details for each item
+    const itemsWithDetails = await Promise.all(
+      (transfer.items || []).map(async (item) => {
+        const variant = await connection.getRepository(ProductVariant)
+          .createQueryBuilder('v')
+          .leftJoinAndSelect('v.product', 'product')
+          .where('v.id = :id', { id: item.variant_id })
+          .getOne();
+
+        const variantImages: string[] = variant?.images || [];
+        const productImages: string[] = (variant?.product as any)?.images || [];
+        const legacyImage: string | null = (variant?.product as any)?.image_url || null;
+        const image_url = variantImages[0] || productImages[0] || legacyImage || null;
+
+        return {
+          id: item.id,
+          variant_id: item.variant_id,
+          sent_quantity: item.sent_quantity,
+          received_quantity: item.received_quantity,
+          difference: item.received_quantity !== null ? item.received_quantity - item.sent_quantity : null,
+          product_name: variant?.product?.name || '',
+          sku: variant?.sku || '',
+          barcode: variant?.barcode || null,
+          attributes: variant?.attributes || {},
+          image_url,
+        };
+      }),
+    );
+
+    return {
+      id: transfer.id,
+      folio: `TR-${String(transfer.folio_number).padStart(4, '0')}`,
+      status: transfer.status,
+      origin_branch_id: transfer.origin_branch_id,
+      origin_branch_name: transfer.origin_branch?.name || '',
+      destination_branch_id: transfer.destination_branch_id,
+      destination_branch_name: transfer.destination_branch?.name || '',
+      created_by_name: transfer.created_by?.name || '',
+      received_by_name: transfer.received_by?.name || null,
+      shipped_at: transfer.shipped_at,
+      received_at: transfer.received_at,
+      notes: transfer.notes,
+      discrepancy_notes: transfer.discrepancy_notes,
+      created_at: transfer.created_at,
+      items: itemsWithDetails,
+    };
+  }
+
+  /**
+   * Create a new transfer in draft state.
+   */
+  async createTransfer(
+    connection: DataSource,
+    data: {
+      origin_branch_id: string;
+      destination_branch_id: string;
+      created_by_id: string;
+      notes?: string;
+      items: { variant_id: string; sent_quantity: number }[];
+    },
+  ) {
+    if (data.origin_branch_id === data.destination_branch_id) {
+      throw new BadRequestException('La sucursal origen y destino no pueden ser la misma');
+    }
+    if (!data.items?.length) {
+      throw new BadRequestException('Debe incluir al menos un artículo');
+    }
+
+    const savedId = await connection.transaction(async (manager) => {
+      // Validate stock for each item
+      for (const item of data.items) {
+        const inventory = await manager.findOne(Inventory, {
+          where: { variant_id: item.variant_id, branch_id: data.origin_branch_id },
+        });
+        const available = inventory?.stock_available ?? 0;
+        if (item.sent_quantity > available) {
+          const variant = await manager.findOne(ProductVariant, { where: { id: item.variant_id }, relations: ['product'] });
+          throw new BadRequestException(
+            `Stock insuficiente para ${variant?.product?.name || ''} (${variant?.sku || item.variant_id}). Disponible: ${available}, solicitado: ${item.sent_quantity}`,
+          );
+        }
+        if (item.sent_quantity <= 0) {
+          throw new BadRequestException('La cantidad debe ser mayor a 0');
+        }
+      }
+
+      const transfer = manager.create(InventoryTransfer, {
+        origin_branch_id: data.origin_branch_id,
+        destination_branch_id: data.destination_branch_id,
+        created_by_id: data.created_by_id,
+        status: 'draft',
+        notes: data.notes || null,
+      });
+      const saved = await manager.save(transfer);
+
+      for (const item of data.items) {
+        const transferItem = manager.create(InventoryTransferItem, {
+          transfer_id: saved.id,
+          variant_id: item.variant_id,
+          sent_quantity: item.sent_quantity,
+        });
+        await manager.save(transferItem);
+      }
+
+      return saved.id;
+    });
+
+    // Fetch detail AFTER transaction commits so the data is visible
+    return this.getTransferDetail(connection, savedId);
+  }
+
+  /**
+   * Dispatch a draft transfer: deduct from origin, set in_transit.
+   */
+  async dispatchTransfer(connection: DataSource, transferId: string) {
+    return connection.transaction(async (manager) => {
+      const transfer = await manager.findOne(InventoryTransfer, {
+        where: { id: transferId },
+        relations: ['items'],
+      });
+      if (!transfer) throw new NotFoundException('Traspaso no encontrado');
+      if (transfer.status !== 'draft') {
+        throw new BadRequestException('Solo se pueden despachar traspasos en borrador');
+      }
+
+      // Re-validate and deduct stock from origin
+      for (const item of transfer.items) {
+        const inventory = await manager.findOne(Inventory, {
+          where: { variant_id: item.variant_id, branch_id: transfer.origin_branch_id },
+        });
+        if (!inventory || inventory.stock_available < item.sent_quantity) {
+          throw new BadRequestException(
+            `Stock insuficiente para variante ${item.variant_id}. Disponible: ${inventory?.stock_available ?? 0}`,
+          );
+        }
+        inventory.stock_available -= item.sent_quantity;
+        await manager.save(inventory);
+
+        // Also deduct from InventoryLocation if allocated
+        const ilRepo = manager.getRepository(InventoryLocation);
+        const locations = await ilRepo.find({
+          where: { variant_id: item.variant_id, branch_id: transfer.origin_branch_id },
+          order: { quantity: 'DESC' },
+        });
+        let remaining = item.sent_quantity;
+        for (const loc of locations) {
+          if (remaining <= 0) break;
+          const deduct = Math.min(loc.quantity, remaining);
+          loc.quantity -= deduct;
+          remaining -= deduct;
+          if (loc.quantity <= 0) {
+            await ilRepo.remove(loc);
+          } else {
+            await ilRepo.save(loc);
+          }
+        }
+      }
+
+      transfer.status = 'in_transit';
+      transfer.shipped_at = new Date();
+      await manager.save(transfer);
+
+      return { id: transfer.id, status: 'in_transit' };
+    });
+  }
+
+  /**
+   * Receive a transfer at destination: apply received quantities,
+   * add to destination inventory, mark completed or discrepancy.
+   * Items arrive as "unlocated" (no InventoryLocation row = orange badge).
+   */
+  async receiveTransfer(
+    connection: DataSource,
+    data: {
+      transfer_id: string;
+      received_by_id: string;
+      items: { item_id: string; received_quantity: number }[];
+    },
+  ) {
+    return connection.transaction(async (manager) => {
+      const transfer = await manager.findOne(InventoryTransfer, {
+        where: { id: data.transfer_id },
+        relations: ['items'],
+      });
+      if (!transfer) throw new NotFoundException('Traspaso no encontrado');
+      if (transfer.status !== 'in_transit') {
+        throw new BadRequestException('Solo se pueden recibir traspasos en tránsito');
+      }
+
+      let hasDiscrepancy = false;
+      const discrepancies: string[] = [];
+
+      for (const received of data.items) {
+        const item = transfer.items.find((i) => i.id === received.item_id);
+        if (!item) throw new BadRequestException(`Artículo ${received.item_id} no encontrado en el traspaso`);
+
+        item.received_quantity = received.received_quantity;
+        await manager.save(item);
+
+        // Add received quantity to destination branch inventory
+        if (received.received_quantity > 0) {
+          let destInv = await manager.findOne(Inventory, {
+            where: { variant_id: item.variant_id, branch_id: transfer.destination_branch_id },
+          });
+          if (!destInv) {
+            destInv = manager.create(Inventory, {
+              variant_id: item.variant_id,
+              branch_id: transfer.destination_branch_id,
+              stock_available: received.received_quantity,
+            });
+          } else {
+            destInv.stock_available += received.received_quantity;
+          }
+          await manager.save(destInv);
+        }
+
+        // Track discrepancies
+        const diff = received.received_quantity - item.sent_quantity;
+        if (diff !== 0) {
+          hasDiscrepancy = true;
+          const variant = await manager.findOne(ProductVariant, {
+            where: { id: item.variant_id },
+            relations: ['product'],
+          });
+          const name = variant?.product?.name || variant?.sku || item.variant_id;
+          discrepancies.push(
+            `${name} (${variant?.sku}): enviado ${item.sent_quantity}, recibido ${received.received_quantity} (${diff > 0 ? '+' : ''}${diff})`,
+          );
+        }
+      }
+
+      transfer.status = hasDiscrepancy ? 'discrepancy' : 'completed';
+      transfer.received_by_id = data.received_by_id;
+      transfer.received_at = new Date();
+      if (discrepancies.length > 0) {
+        transfer.discrepancy_notes = discrepancies.join('\n');
+      }
+      await manager.save(transfer);
+
+      return {
+        id: transfer.id,
+        status: transfer.status,
+        discrepancy_notes: transfer.discrepancy_notes,
+      };
+    });
+  }
+
+  /**
+   * Cancel a draft transfer (cannot cancel in_transit).
+   */
+  async cancelTransfer(connection: DataSource, transferId: string) {
+    const repo = connection.getRepository(InventoryTransfer);
+    const transfer = await repo.findOne({ where: { id: transferId } });
+    if (!transfer) throw new NotFoundException('Traspaso no encontrado');
+    if (transfer.status !== 'draft') {
+      throw new BadRequestException('Solo se pueden cancelar traspasos en borrador');
+    }
+    transfer.status = 'cancelled';
+    return repo.save(transfer);
+  }
+
+  /**
+   * Search variants with stock in a branch — for the transfer item picker.
+   */
+  async searchVariantsForTransfer(
+    connection: DataSource,
+    branchId: string,
+    search: string,
+  ) {
+    const qb = connection.getRepository(Inventory)
+      .createQueryBuilder('inv')
+      .leftJoinAndSelect('inv.variant', 'variant')
+      .leftJoin('variant.product', 'product')
+      .addSelect(['product.id', 'product.name', 'product.images', 'product.image_url'])
+      .where('inv.branch_id = :branchId', { branchId })
+      .andWhere('inv.stock_available > 0');
+
+    if (search) {
+      qb.andWhere(
+        '(product.name ILIKE :q OR variant.sku ILIKE :q OR variant.barcode ILIKE :q)',
+        { q: `%${search}%` },
+      );
+    }
+
+    qb.orderBy('product.name', 'ASC').addOrderBy('variant.sku', 'ASC').take(30);
+
+    const rows = await qb.getMany();
+    return rows.map((inv) => {
+      const v = inv.variant;
+      const p = (v as any)?.product;
+      const variantImages: string[] = v?.images || [];
+      const productImages: string[] = p?.images || [];
+      const image_url = variantImages[0] || productImages[0] || p?.image_url || null;
+
+      return {
+        variant_id: v.id,
+        sku: v.sku,
+        barcode: v.barcode,
+        attributes: v.attributes,
+        product_name: p?.name || '',
+        image_url,
+        stock_available: inv.stock_available,
+      };
     });
   }
 

@@ -38,11 +38,13 @@ import {
   Sliders,
   DollarSign,
   Globe,
+  Truck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@nivo/ui';
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore, GENERAL_BRANCH_ID } from '@/store/branchStore';
+import { apiClient } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
 // Sidebar Config
@@ -54,6 +56,8 @@ interface SidebarItem {
   label: string;
   /** 'general' = only in General mode, 'branch' = only in Branch mode, undefined = always */
   visibleIn?: 'general' | 'branch';
+  /** Dynamic badge key — will be filled at runtime */
+  badgeKey?: string;
 }
 
 interface SidebarGroup {
@@ -89,8 +93,14 @@ const sidebarGroups: SidebarGroup[] = [
     items: [
       { href: '/dashboard/storage-locations', icon: MapPin, label: 'Ubicaciones' },
       { href: '/dashboard/inventory', icon: Warehouse, label: 'Stock por Sucursal' },
-      { href: '/dashboard/transfers', icon: ArrowLeftRight, label: 'Traspasos' },
+      { href: '/dashboard/transfers', icon: ArrowLeftRight, label: 'Traspasos', badgeKey: 'transfers_incoming' },
       { href: '/dashboard/stock-movements', icon: PackagePlus, label: 'Entradas y Salidas' },
+    ],
+  },
+  {
+    label: 'Compras',
+    items: [
+      { href: '/dashboard/purchases', icon: Truck, label: 'Órdenes de Compra' },
     ],
   },
   {
@@ -206,6 +216,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     if (!mounted || !isAuthenticated) return;
     fetchBranches();
   }, [mounted, isAuthenticated]);
+
+  // ---- Sidebar badges (e.g. pending incoming transfers) ----
+  const [sidebarBadges, setSidebarBadges] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (!mounted || !isAuthenticated || !selectedBranchId || isGeneralSelected) return;
+    apiClient.get('/products/inventory/transfers/count-incoming', { params: { branch_id: selectedBranchId } })
+      .then((res) => {
+        const count = typeof res.data === 'number' ? res.data : 0;
+        setSidebarBadges((prev) => ({ ...prev, transfers_incoming: count }));
+      })
+      .catch(() => {});
+  }, [mounted, isAuthenticated, selectedBranchId, isGeneralSelected]);
 
   // ---- Keyboard shortcut Cmd+K ----
   useEffect(() => {
@@ -367,7 +390,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                   active && 'text-[hsl(var(--sidebar-accent))]'
                                 )}
                               />
-                              {item.label}
+                              <span className="flex-1">{item.label}</span>
+                              {item.badgeKey && sidebarBadges[item.badgeKey] > 0 && (
+                                <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                                  {sidebarBadges[item.badgeKey]}
+                                </span>
+                              )}
                             </span>
                           </Link>
                         );

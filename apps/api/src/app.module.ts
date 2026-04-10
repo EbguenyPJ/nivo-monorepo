@@ -29,6 +29,7 @@ import { TenantUploadsModule } from './modules/tenant/uploads/uploads.module';
 import { TenantSettingsModule } from './modules/tenant/tenant-settings/tenant-settings.module';
 import { PricingModule } from './modules/tenant/pricing/pricing.module';
 import { StorageLocationsModule } from './modules/tenant/storage-locations/storage-locations.module';
+import { PurchasingModule } from './modules/tenant/purchasing/purchasing.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -67,6 +68,7 @@ import { HealthController } from './health.controller';
     TenantSettingsModule,
     PricingModule,
     StorageLocationsModule,
+    PurchasingModule,
   ],
   controllers: [HealthController],
 })

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { PosSession, Sale, SaleItem, SalePayment, Inventory, Product, Employee, CashRegister, CashTransaction, CollectionProduct, PaymentMethod, Branch, TenantSetting } from '@nivo/database';
+import { PosSession, Sale, SaleItem, SalePayment, SaleReturn, SaleReturnItem, Inventory, Product, Employee, CashRegister, CashTransaction, CollectionProduct, PaymentMethod, Branch, TenantSetting } from '@nivo/database';
 import * as bcrypt from 'bcrypt';
 import { CollectionsService } from '../collections/collections.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -536,6 +536,242 @@ export class PosService {
     });
   }
 
+  // ─── Audit Dashboard ──────────────────────────────────────────
+
+  /**
+   * Returns a paginated, filterable list of POS sessions with aggregated
+   * financial data for the audit dashboard.
+   */
+  async getSessionsAudit(
+    connection: DataSource,
+    filters: {
+      branch_id?: string;
+      employee_id?: string;
+      status?: string; // 'open' | 'closed' | 'all'
+      only_differences?: boolean;
+      start_date?: string;
+      end_date?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ) {
+    const repo = connection.getRepository(PosSession);
+
+    const qb = repo
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.employee', 'employee')
+      .leftJoinAndSelect('s.branch', 'branch')
+      .leftJoinAndSelect('s.cash_register', 'cash_register')
+      .leftJoinAndSelect('s.closer', 'closer');
+
+    // Filters
+    if (filters.branch_id) {
+      qb.andWhere('s.branch_id = :branchId', { branchId: filters.branch_id });
+    }
+    if (filters.employee_id) {
+      qb.andWhere('s.employee_id = :employeeId', { employeeId: filters.employee_id });
+    }
+    if (filters.status && filters.status !== 'all') {
+      qb.andWhere('s.status = :status', { status: filters.status });
+    }
+    if (filters.only_differences) {
+      qb.andWhere('s.difference IS NOT NULL AND s.difference != 0');
+    }
+    if (filters.start_date) {
+      qb.andWhere('s.opened_at >= :startDate', { startDate: filters.start_date });
+    }
+    if (filters.end_date) {
+      qb.andWhere('s.opened_at <= :endDate', { endDate: filters.end_date });
+    }
+
+    qb.orderBy('s.opened_at', 'DESC');
+
+    const total = await qb.getCount();
+    const limit = filters.limit || 20;
+    const offset = filters.offset || 0;
+
+    const sessions = await qb.skip(offset).take(limit).getMany();
+
+    // For each session, compute aggregated data from CashTransactions + SalePayments
+    const enriched = await Promise.all(
+      sessions.map(async (session) => {
+        const transactions = await connection.getRepository(CashTransaction).find({
+          where: { session_id: session.id },
+        });
+
+        let totalCashSales = 0;
+        let totalCashIn = 0;
+        let totalCashOut = 0;
+        let totalRefunds = 0;
+
+        for (const tx of transactions) {
+          const amt = parseFloat(String(tx.amount)) || 0;
+          switch (tx.type) {
+            case 'sale_cash': totalCashSales += amt; break;
+            case 'cash_in': totalCashIn += amt; break;
+            case 'cash_out': totalCashOut += amt; break;
+            case 'refund': totalRefunds += amt; break;
+          }
+        }
+
+        // Count sales and total revenue (all payment methods)
+        const sales = await connection.getRepository(Sale).find({
+          where: { pos_session_id: session.id, status: 'completed' },
+        });
+        const totalSalesAmount = sales.reduce((sum, s) => sum + (parseFloat(String(s.total_amount)) || 0), 0);
+
+        // Card/other payments total
+        const salePayments = sales.length > 0
+          ? await connection.getRepository(SalePayment)
+              .createQueryBuilder('sp')
+              .where('sp.sale_id IN (:...saleIds)', { saleIds: sales.map((s) => s.id) })
+              .getMany()
+          : [];
+
+        let cardTotal = 0;
+        for (const sp of salePayments) {
+          if (!sp.payment_method_name?.toLowerCase().includes('efectivo')) {
+            cardTotal += parseFloat(String(sp.amount)) || 0;
+          }
+        }
+
+        const openingAmount = parseFloat(String(session.opening_amount)) || 0;
+
+        return {
+          id: session.id,
+          status: session.status,
+          opened_at: session.opened_at,
+          closed_at: session.closed_at,
+          // Relations
+          employee_name: session.employee?.name || '',
+          employee_id: session.employee_id,
+          branch_name: session.branch?.name || '',
+          branch_id: session.branch_id,
+          cash_register_name: session.cash_register?.name || '',
+          cash_register_id: session.cash_register_id,
+          closed_by_name: session.closer?.name || null,
+          // Financial
+          opening_amount: openingAmount,
+          closing_amount: session.closing_amount != null ? parseFloat(String(session.closing_amount)) : null,
+          expected_amount: session.expected_amount != null ? parseFloat(String(session.expected_amount)) : null,
+          difference: session.difference != null ? parseFloat(String(session.difference)) : null,
+          // Aggregates
+          total_cash_sales: parseFloat(totalCashSales.toFixed(2)),
+          total_cash_in: parseFloat(totalCashIn.toFixed(2)),
+          total_cash_out: parseFloat(totalCashOut.toFixed(2)),
+          total_refunds: parseFloat(totalRefunds.toFixed(2)),
+          total_sales_count: sales.length,
+          total_sales_amount: parseFloat(totalSalesAmount.toFixed(2)),
+          total_card_payments: parseFloat(cardTotal.toFixed(2)),
+        };
+      }),
+    );
+
+    // Compute KPIs across the full filtered set (not just the page)
+    // Re-query all matching session IDs for KPIs
+    const allSessionIds = await qb.select('s.id').skip(0).take(undefined).getRawMany();
+    const allIds = allSessionIds.map((r: any) => r.s_id);
+
+    let kpis = {
+      total_revenue: 0,
+      total_cash_expected: 0,
+      total_card_payments: 0,
+      sessions_with_difference: 0,
+      total_sessions: total,
+      total_difference_abs: 0,
+    };
+
+    if (allIds.length > 0) {
+      // Total revenue from all sessions in filter
+      const revenueResult = await connection.getRepository(Sale)
+        .createQueryBuilder('sale')
+        .select('COALESCE(SUM(sale.total_amount), 0)', 'total')
+        .where('sale.pos_session_id IN (:...ids)', { ids: allIds })
+        .andWhere('sale.status = :status', { status: 'completed' })
+        .getRawOne();
+      kpis.total_revenue = parseFloat(revenueResult?.total) || 0;
+
+      // Expected cash & differences from closed sessions
+      const closedSessions = await repo
+        .createQueryBuilder('s2')
+        .select([
+          'COALESCE(SUM(s2.expected_amount), 0) as total_expected',
+          'SUM(CASE WHEN s2.difference != 0 THEN 1 ELSE 0 END) as diff_count',
+          'COALESCE(SUM(ABS(s2.difference)), 0) as diff_abs_sum',
+        ])
+        .where('s2.id IN (:...ids)', { ids: allIds })
+        .andWhere('s2.status = :status', { status: 'closed' })
+        .getRawOne();
+
+      kpis.total_cash_expected = parseFloat(closedSessions?.total_expected) || 0;
+      kpis.sessions_with_difference = parseInt(closedSessions?.diff_count) || 0;
+      kpis.total_difference_abs = parseFloat(closedSessions?.diff_abs_sum) || 0;
+
+      // Card payments
+      const cardResult = await connection.getRepository(SalePayment)
+        .createQueryBuilder('sp')
+        .innerJoin('sp.sale', 'sale')
+        .select('COALESCE(SUM(sp.amount), 0)', 'total')
+        .where('sale.pos_session_id IN (:...ids)', { ids: allIds })
+        .andWhere('sale.status = :status', { status: 'completed' })
+        .andWhere("LOWER(sp.payment_method_name) NOT LIKE '%efectivo%'")
+        .getRawOne();
+      kpis.total_card_payments = parseFloat(cardResult?.total) || 0;
+    }
+
+    return {
+      data: enriched,
+      total,
+      kpis,
+    };
+  }
+
+  /**
+   * Get all cash_out transactions that haven't been marked as deposited.
+   * Used by the vault management feature.
+   */
+  async getVaultWithdrawals(
+    connection: DataSource,
+    filters: {
+      branch_id?: string;
+      start_date?: string;
+      end_date?: string;
+    },
+  ) {
+    const qb = connection.getRepository(CashTransaction)
+      .createQueryBuilder('tx')
+      .innerJoinAndSelect('tx.session', 'session')
+      .innerJoinAndSelect('tx.employee', 'employee')
+      .leftJoinAndSelect('session.branch', 'branch')
+      .leftJoinAndSelect('session.cash_register', 'cash_register')
+      .where('tx.type = :type', { type: 'cash_out' });
+
+    if (filters.branch_id) {
+      qb.andWhere('session.branch_id = :branchId', { branchId: filters.branch_id });
+    }
+    if (filters.start_date) {
+      qb.andWhere('tx.created_at >= :startDate', { startDate: filters.start_date });
+    }
+    if (filters.end_date) {
+      qb.andWhere('tx.created_at <= :endDate', { endDate: filters.end_date });
+    }
+
+    qb.orderBy('tx.created_at', 'DESC');
+
+    const withdrawals = await qb.getMany();
+
+    return withdrawals.map((tx) => ({
+      id: tx.id,
+      session_id: tx.session_id,
+      employee_name: tx.employee?.name || '',
+      branch_name: tx.session?.branch?.name || '',
+      cash_register_name: tx.session?.cash_register?.name || '',
+      amount: parseFloat(String(tx.amount)) || 0,
+      description: tx.description,
+      created_at: tx.created_at,
+    }));
+  }
+
   // ─── PIN verification ──────────────────────────────────────────
 
   async verifyPin(connection: DataSource, pinCode: string, branchId: string) {
@@ -790,6 +1026,325 @@ export class PosService {
       }
 
       return savedSale;
+    });
+  }
+
+  // ─── Sales History ─────────────────────────────────────────────
+
+  /**
+   * Paginated, filterable list of sales for the dashboard history view.
+   * Supports search by folio (first 8 chars of UUID).
+   */
+  async getSalesHistory(
+    connection: DataSource,
+    filters: {
+      search?: string;
+      branch_id?: string;
+      customer_id?: string;
+      status?: string;
+      start_date?: string;
+      end_date?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ) {
+    const qb = connection.getRepository(Sale)
+      .createQueryBuilder('s')
+      .leftJoinAndSelect('s.employee', 'employee')
+      .leftJoinAndSelect('s.branch', 'branch')
+      .leftJoinAndSelect('s.customer', 'customer')
+      .where('s.status != :pending', { pending: 'pending' });
+
+    if (filters.search) {
+      // Search by folio (UUID starts-with, case-insensitive)
+      qb.andWhere('CAST(s.id AS text) ILIKE :search', { search: `${filters.search}%` });
+    }
+    if (filters.branch_id) {
+      qb.andWhere('s.branch_id = :branchId', { branchId: filters.branch_id });
+    }
+    if (filters.customer_id) {
+      qb.andWhere('s.customer_id = :customerId', { customerId: filters.customer_id });
+    }
+    if (filters.status && filters.status !== 'all') {
+      qb.andWhere('s.status = :status', { status: filters.status });
+    }
+    if (filters.start_date) {
+      qb.andWhere('s.created_at >= :startDate', { startDate: filters.start_date });
+    }
+    if (filters.end_date) {
+      qb.andWhere('s.created_at <= :endDate', { endDate: filters.end_date });
+    }
+
+    qb.orderBy('s.created_at', 'DESC');
+
+    const total = await qb.getCount();
+    const limit = filters.limit || 20;
+    const offset = filters.offset || 0;
+    const data = await qb.skip(offset).take(limit).getMany();
+
+    return {
+      data: data.map((s) => ({
+        id: s.id,
+        folio: s.id.slice(0, 8).toUpperCase(),
+        status: s.status,
+        total_amount: parseFloat(String(s.total_amount)),
+        discount_amount: parseFloat(String(s.discount_amount)),
+        payment_method: s.payment_method,
+        created_at: s.created_at,
+        employee_name: s.employee?.name || '',
+        branch_name: s.branch?.name || '',
+        customer_name: s.customer?.name || null,
+      })),
+      total,
+    };
+  }
+
+  /**
+   * Full sale detail with items (including variant info), payments, and returns.
+   */
+  async getSaleDetail(connection: DataSource, saleId: string) {
+    const sale = await connection.getRepository(Sale).findOne({
+      where: { id: saleId },
+      relations: ['employee', 'branch', 'customer', 'items', 'payments'],
+    });
+    if (!sale) throw new NotFoundException('Venta no encontrada');
+
+    // Load variant details for each item
+    const itemsWithVariants = await Promise.all(
+      (sale.items || []).map(async (item) => {
+        const variant = await connection.getRepository('ProductVariant')
+          .createQueryBuilder('v')
+          .leftJoinAndSelect('v.product', 'product')
+          .where('v.id = :id', { id: item.variant_id })
+          .getOne();
+
+        // Image fallback: variant images → product images → product legacy image_url
+        const variantImages: string[] = (variant as any)?.images || [];
+        const productImages: string[] = (variant as any)?.product?.images || [];
+        const legacyImage: string | null = (variant as any)?.product?.image_url || null;
+        const image_url = variantImages[0] || productImages[0] || legacyImage || null;
+
+        return {
+          id: item.id,
+          variant_id: item.variant_id,
+          quantity: item.quantity,
+          unit_price: parseFloat(String(item.unit_price)),
+          discount: parseFloat(String(item.discount)),
+          subtotal: parseFloat(String(item.subtotal)),
+          product_name: (variant as any)?.product?.name || '',
+          sku: (variant as any)?.sku || '',
+          attributes: (variant as any)?.attributes || {},
+          image_url,
+        };
+      }),
+    );
+
+    // Load returns for this sale
+    const returns = await connection.getRepository(SaleReturn).find({
+      where: { sale_id: saleId },
+      relations: ['employee', 'items'],
+      order: { created_at: 'DESC' },
+    });
+
+    // Already-returned quantities per sale_item_id
+    const returnedQtyMap: Record<string, number> = {};
+    for (const ret of returns) {
+      for (const ri of ret.items || []) {
+        returnedQtyMap[ri.sale_item_id] = (returnedQtyMap[ri.sale_item_id] || 0) + ri.quantity;
+      }
+    }
+
+    return {
+      id: sale.id,
+      folio: sale.id.slice(0, 8).toUpperCase(),
+      status: sale.status,
+      total_amount: parseFloat(String(sale.total_amount)),
+      discount_amount: parseFloat(String(sale.discount_amount)),
+      tax_amount: parseFloat(String(sale.tax_amount)),
+      payment_method: sale.payment_method,
+      sale_type: sale.sale_type,
+      notes: sale.notes,
+      created_at: sale.created_at,
+      employee_name: sale.employee?.name || '',
+      branch_name: sale.branch?.name || '',
+      branch_id: sale.branch_id,
+      customer_name: sale.customer?.name || null,
+      items: itemsWithVariants.map((item) => ({
+        ...item,
+        returned_quantity: returnedQtyMap[item.id] || 0,
+        returnable_quantity: item.quantity - (returnedQtyMap[item.id] || 0),
+      })),
+      payments: (sale.payments || []).map((p) => ({
+        id: p.id,
+        payment_method_name: p.payment_method_name,
+        amount: parseFloat(String(p.amount)),
+        reference: p.reference,
+      })),
+      returns: returns.map((r) => ({
+        id: r.id,
+        refund_amount: parseFloat(String(r.refund_amount)),
+        refund_method: r.refund_method,
+        reason: r.reason,
+        employee_name: r.employee?.name || '',
+        created_at: r.created_at,
+        items: (r.items || []).map((ri) => ({
+          id: ri.id,
+          variant_id: ri.variant_id,
+          quantity: ri.quantity,
+          unit_price: parseFloat(String(ri.unit_price)),
+          subtotal: parseFloat(String(ri.subtotal)),
+          disposition: ri.disposition,
+        })),
+      })),
+    };
+  }
+
+  // ─── Returns ───────────────────────────────────────────────────
+
+  /**
+   * Process a return — creates SaleReturn + SaleReturnItems,
+   * restores inventory (if disposition = 'floor'), creates CashTransaction
+   * for cash refunds, and updates the original sale's status.
+   */
+  async processReturn(
+    connection: DataSource,
+    user: any,
+    data: {
+      sale_id: string;
+      employee_id: string;
+      branch_id: string;
+      pos_session_id?: string;
+      refund_method: 'cash' | 'card_reversal' | 'store_credit';
+      reason?: string;
+      items: {
+        sale_item_id: string;
+        variant_id: string;
+        quantity: number;
+        unit_price: number;
+        disposition: 'floor' | 'shrinkage';
+      }[];
+    },
+  ) {
+    return connection.transaction(async (manager) => {
+      // Use JWT user if no employee_id provided
+      const employeeId = data.employee_id || user.sub;
+
+      // Validate original sale
+      const sale = await manager.findOne(Sale, {
+        where: { id: data.sale_id },
+        relations: ['items'],
+      });
+      if (!sale) throw new NotFoundException('Venta no encontrada');
+      if (sale.status === 'refunded') {
+        throw new BadRequestException('Esta venta ya fue devuelta completamente');
+      }
+
+      // Load existing returns to check for double-return fraud
+      const existingReturns = await manager.find(SaleReturnItem, {
+        where: { sale_return: { sale_id: data.sale_id } } as any,
+      });
+      // Build map of already-returned quantities
+      const alreadyReturned: Record<string, number> = {};
+      // Query return items more reliably
+      const existingReturnRecords = await manager
+        .getRepository(SaleReturn)
+        .find({ where: { sale_id: data.sale_id }, relations: ['items'] });
+      for (const ret of existingReturnRecords) {
+        for (const ri of ret.items || []) {
+          alreadyReturned[ri.sale_item_id] = (alreadyReturned[ri.sale_item_id] || 0) + ri.quantity;
+        }
+      }
+
+      // Validate each item
+      let refundTotal = 0;
+      for (const item of data.items) {
+        const originalItem = sale.items.find((si) => si.id === item.sale_item_id);
+        if (!originalItem) {
+          throw new BadRequestException(`Artículo ${item.sale_item_id} no encontrado en la venta`);
+        }
+        const alreadyQty = alreadyReturned[item.sale_item_id] || 0;
+        const maxReturnable = originalItem.quantity - alreadyQty;
+        if (item.quantity > maxReturnable) {
+          throw new BadRequestException(
+            `No se puede devolver ${item.quantity} unidades del artículo. Máximo devolvible: ${maxReturnable}`,
+          );
+        }
+        if (item.quantity <= 0) {
+          throw new BadRequestException('La cantidad a devolver debe ser mayor a 0');
+        }
+        refundTotal += item.quantity * item.unit_price;
+      }
+
+      refundTotal = parseFloat(refundTotal.toFixed(2));
+
+      // Create the return record
+      const saleReturn = manager.create(SaleReturn, {
+        sale_id: data.sale_id,
+        employee_id: employeeId,
+        branch_id: data.branch_id,
+        pos_session_id: data.pos_session_id || null,
+        refund_amount: refundTotal,
+        refund_method: data.refund_method,
+        reason: data.reason || null,
+      });
+      const savedReturn = await manager.save(saleReturn);
+
+      // Create return items + handle inventory
+      for (const item of data.items) {
+        const returnItem = manager.create(SaleReturnItem, {
+          sale_return_id: savedReturn.id,
+          sale_item_id: item.sale_item_id,
+          variant_id: item.variant_id,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          subtotal: parseFloat((item.quantity * item.unit_price).toFixed(2)),
+          disposition: item.disposition,
+        });
+        await manager.save(returnItem);
+
+        // Restore inventory only if going back to sales floor
+        if (item.disposition === 'floor') {
+          const inventory = await manager.findOne(Inventory, {
+            where: { variant_id: item.variant_id, branch_id: data.branch_id },
+          });
+          if (inventory) {
+            inventory.stock_available += item.quantity;
+            await manager.save(inventory);
+          }
+        }
+      }
+
+      // Create CashTransaction for cash refunds (affects current session)
+      if (data.refund_method === 'cash' && data.pos_session_id) {
+        const cashTx = manager.create(CashTransaction, {
+          session_id: data.pos_session_id,
+          employee_id: employeeId,
+          type: 'refund',
+          amount: refundTotal,
+          description: `Devolución de venta ${data.sale_id.slice(0, 8).toUpperCase()}`,
+        });
+        await manager.save(cashTx);
+      }
+
+      // Update original sale status
+      // Check if ALL items have now been fully returned
+      const updatedReturned: Record<string, number> = { ...alreadyReturned };
+      for (const item of data.items) {
+        updatedReturned[item.sale_item_id] = (updatedReturned[item.sale_item_id] || 0) + item.quantity;
+      }
+      const allFullyReturned = sale.items.every(
+        (si) => (updatedReturned[si.id] || 0) >= si.quantity,
+      );
+
+      sale.status = allFullyReturned ? 'refunded' : 'partial_return';
+      await manager.save(sale);
+
+      return {
+        return_id: savedReturn.id,
+        refund_amount: refundTotal,
+        refund_method: data.refund_method,
+        sale_status: sale.status,
+      };
     });
   }
 }

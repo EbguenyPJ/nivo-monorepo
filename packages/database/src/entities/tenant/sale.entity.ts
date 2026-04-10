@@ -13,6 +13,7 @@ import { Employee } from './employee.entity';
 import { Branch } from './branch.entity';
 import { SaleItem } from './sale-item.entity';
 import { SalePayment } from './sale-payment.entity';
+import { SaleReturn } from './sale-return.entity';
 
 @Entity('sales')
 export class Sale {
@@ -62,7 +63,7 @@ export class Sale {
   @Column({ type: 'enum', enum: ['in_store', 'click_and_collect', 'delivery'], default: 'in_store' })
   sale_type: string;
 
-  @Column({ type: 'enum', enum: ['completed', 'pending', 'refunded'], default: 'completed' })
+  @Column({ type: 'enum', enum: ['completed', 'pending', 'partial_return', 'refunded'], default: 'completed' })
   status: string;
 
   @Column({ type: 'text', nullable: true })
@@ -73,6 +74,9 @@ export class Sale {
 
   @OneToMany(() => SalePayment, (payment) => payment.sale, { cascade: true })
   payments: SalePayment[];
+
+  @OneToMany(() => SaleReturn, (ret) => ret.sale)
+  returns: SaleReturn[];
 
   @CreateDateColumn()
   created_at: Date;

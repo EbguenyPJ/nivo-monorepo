@@ -20,6 +20,7 @@ const BRANCH_EXCLUDED_PATHS = [
   '/customers',
   '/employees',
   '/pos',
+  '/purchasing',
 ];
 
 function shouldExcludeBranchParam(url: string | undefined): boolean {

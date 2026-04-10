@@ -94,4 +94,69 @@ export class InventoryController {
   moveWithinBranch(@Req() req: Request, @Body() body: any) {
     return this.inventoryService.moveWithinBranch(req.tenantConnection!, body);
   }
+
+  // ─── Inventory Transfers (multi-step) ─────────────────────────
+
+  @Get('inventory/transfers/list')
+  listTransfers(
+    @Req() req: Request,
+    @Query('branch_id') branchId?: string,
+    @Query('tab') tab?: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.inventoryService.listTransfers(req.tenantConnection!, {
+      branch_id: branchId,
+      tab: tab as any,
+      status,
+      limit: limit ? parseInt(limit) : undefined,
+      offset: offset ? parseInt(offset) : undefined,
+    });
+  }
+
+  @Get('inventory/transfers/count-incoming')
+  countIncoming(@Req() req: Request, @Query('branch_id') branchId: string) {
+    return this.inventoryService.countIncoming(req.tenantConnection!, branchId);
+  }
+
+  @Get('inventory/transfers/detail')
+  getTransferDetail(@Req() req: Request, @Query('transfer_id') transferId: string) {
+    return this.inventoryService.getTransferDetail(req.tenantConnection!, transferId);
+  }
+
+  @Get('inventory/transfers/search-variants')
+  searchVariantsForTransfer(
+    @Req() req: Request,
+    @Query('branch_id') branchId: string,
+    @Query('search') search?: string,
+  ) {
+    return this.inventoryService.searchVariantsForTransfer(req.tenantConnection!, branchId, search || '');
+  }
+
+  @Post('inventory/transfers/create')
+  createTransfer(@Req() req: Request, @Body() body: any) {
+    return this.inventoryService.createTransfer(req.tenantConnection!, {
+      ...body,
+      created_by_id: body.created_by_id || (req.user as any)?.sub,
+    });
+  }
+
+  @Post('inventory/transfers/dispatch')
+  dispatchTransfer(@Req() req: Request, @Body() body: { transfer_id: string }) {
+    return this.inventoryService.dispatchTransfer(req.tenantConnection!, body.transfer_id);
+  }
+
+  @Post('inventory/transfers/receive')
+  receiveTransfer(@Req() req: Request, @Body() body: any) {
+    return this.inventoryService.receiveTransfer(req.tenantConnection!, {
+      ...body,
+      received_by_id: body.received_by_id || (req.user as any)?.sub,
+    });
+  }
+
+  @Post('inventory/transfers/cancel')
+  cancelTransfer(@Req() req: Request, @Body() body: { transfer_id: string }) {
+    return this.inventoryService.cancelTransfer(req.tenantConnection!, body.transfer_id);
+  }
 }
