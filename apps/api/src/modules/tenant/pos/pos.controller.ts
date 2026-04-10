@@ -54,8 +54,60 @@ export class PosController {
   }
 
   @Post('sessions/close')
-  closeSession(@Req() req: Request, @Body() body: { session_id: string; closing_amount: number }) {
+  closeSession(
+    @Req() req: Request,
+    @Body() body: { session_id: string; declared_amount: number; closed_by?: string },
+  ) {
     return this.posService.closeSession(req.tenantConnection!, body);
+  }
+
+  @Post('sessions/force-close')
+  forceCloseSession(
+    @Req() req: Request,
+    @Body() body: { session_id: string; manager_employee_id: string },
+  ) {
+    return this.posService.forceCloseSession(req.tenantConnection!, body);
+  }
+
+  @Get('sessions/summary')
+  getSessionSummary(@Req() req: Request, @Query('session_id') sessionId: string) {
+    return this.posService.getSessionSummary(req.tenantConnection!, sessionId);
+  }
+
+  @Get('sessions/transactions')
+  getSessionTransactions(@Req() req: Request, @Query('session_id') sessionId: string) {
+    return this.posService.getSessionTransactions(req.tenantConnection!, sessionId);
+  }
+
+  @Get('sessions/expected-cash')
+  getExpectedCash(@Req() req: Request, @Query('session_id') sessionId: string) {
+    return this.posService.calculateExpectedCash(req.tenantConnection!, sessionId);
+  }
+
+  // ─── Cash Operations ──────────────────────────────────────────
+
+  @Post('cash/in')
+  addCashIn(
+    @Req() req: Request,
+    @Body() body: { session_id: string; employee_id: string; amount: number; description?: string },
+  ) {
+    return this.posService.addCashIn(req.tenantConnection!, body);
+  }
+
+  @Post('cash/out')
+  addCashOut(
+    @Req() req: Request,
+    @Body() body: { session_id: string; employee_id: string; amount: number; description?: string },
+  ) {
+    return this.posService.addCashOut(req.tenantConnection!, body);
+  }
+
+  @Post('cash/audit')
+  performAudit(
+    @Req() req: Request,
+    @Body() body: { session_id: string; employee_id: string; declared_amount: number },
+  ) {
+    return this.posService.performAudit(req.tenantConnection!, body);
   }
 
   // ─── PIN & Auth ────────────────────────────────────────────────
@@ -79,6 +131,20 @@ export class PosController {
     @Query('branch_id') branchId: string,
   ) {
     return this.posService.getVariantPricesByAllLists(req.tenantConnection!, variantId, branchId);
+  }
+
+  // ─── Ticket Config ──────────────────────────────────────────────
+
+  @Get('ticket-config')
+  getTicketConfig(@Req() req: Request, @Query('branch_id') branchId: string) {
+    return this.posService.getTicketConfig(req.tenantConnection!, branchId);
+  }
+
+  // ─── Payment Methods ─────────────────────────────────────────
+
+  @Get('payment-methods')
+  getPaymentMethods(@Req() req: Request) {
+    return this.posService.getPaymentMethods(req.tenantConnection!);
   }
 
   // ─── Products & Sales ─────────────────────────────────────────

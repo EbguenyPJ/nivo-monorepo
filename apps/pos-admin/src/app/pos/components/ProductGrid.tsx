@@ -9,7 +9,7 @@ export interface VariantCard {
   color: string;
   image_url?: string | null;
   price: number;
-  total_stock: number; // Sum of all sizes for this color
+  total_stock: number;
 }
 
 interface ProductGridProps {
@@ -20,10 +20,10 @@ interface ProductGridProps {
 export function ProductGrid({ variants, onSelect }: ProductGridProps) {
   if (variants.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground">
+      <div className="flex items-center justify-center h-full text-slate-500">
         <div className="text-center">
           <ShoppingBag className="h-12 w-12 mx-auto mb-3 opacity-40" />
-          <p className="text-lg">Sin productos en esta coleccion</p>
+          <p className="text-lg text-slate-400">Sin productos en esta coleccion</p>
           <p className="text-sm">Asigna productos a la coleccion desde inventario</p>
         </div>
       </div>
@@ -31,7 +31,7 @@ export function ProductGrid({ variants, onSelect }: ProductGridProps) {
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
       {variants.map((v) => {
         const outOfStock = v.total_stock === 0;
         return (
@@ -39,42 +39,42 @@ export function ProductGrid({ variants, onSelect }: ProductGridProps) {
             key={`${v.product_id}-${v.color}`}
             type="button"
             onClick={() => onSelect(v)}
-            className={`text-left rounded-xl border bg-card overflow-hidden transition-all focus:outline-none focus:ring-2 focus:ring-ring ${
+            className={`group text-left rounded-2xl bg-slate-900/80 overflow-hidden transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${
               outOfStock
-                ? 'opacity-60 border-orange-500/40'
-                : 'hover:border-primary hover:shadow-md active:scale-[0.97]'
+                ? 'opacity-50 ring-1 ring-orange-500/30'
+                : 'hover:shadow-xl hover:shadow-slate-900/50 hover:scale-[1.02] active:scale-[0.97]'
             }`}
           >
             {/* Image */}
-            <div className="aspect-[4/3] bg-muted relative overflow-hidden">
+            <div className="aspect-[4/3] bg-slate-800/50 relative overflow-hidden">
               {v.image_url ? (
                 <img
                   src={v.image_url}
                   alt={`${v.product_name} ${v.color}`}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
-                  <ShoppingBag className="h-8 w-8 text-muted-foreground/30" />
+                  <ShoppingBag className="h-8 w-8 text-slate-700" />
                 </div>
               )}
               {outOfStock && (
-                <div className="absolute top-1.5 right-1.5 bg-orange-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
+                <div className="absolute top-2 right-2 bg-orange-500/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full backdrop-blur-sm">
                   Sin stock
                 </div>
               )}
             </div>
 
             {/* Info */}
-            <div className="p-2.5">
-              <p className="font-medium text-sm truncate">{v.product_name}</p>
-              <p className="text-xs text-muted-foreground truncate">{v.color}</p>
-              <div className="flex items-center justify-between mt-1.5">
-                <p className="text-base font-bold">
+            <div className="p-3">
+              <p className="font-medium text-sm text-slate-200 truncate">{v.product_name}</p>
+              <p className="text-xs text-slate-500 truncate mt-0.5">{v.color}</p>
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-base font-bold text-white">
                   ${v.price.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                 </p>
                 {!outOfStock && (
-                  <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full font-medium">
                     {v.total_stock} disp.
                   </span>
                 )}

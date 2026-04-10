@@ -31,7 +31,31 @@ export const DEFAULT_TENANT_SETTINGS: Partial<TenantSetting>[] = [
   {
     key: 'ticket.show_branch_address',
     value: 'true',
-    label: 'Mostrar dirección de sucursal en tickets',
+    label: 'Mostrar direccion de sucursal en tickets',
+    group: 'ticket',
+  },
+  {
+    key: 'ticket.auto_print_receipt',
+    value: 'false',
+    label: 'Imprimir ticket automaticamente al cobrar',
+    group: 'ticket',
+  },
+  {
+    key: 'ticket.business_name',
+    value: '',
+    label: 'Nombre del negocio para tickets',
+    group: 'ticket',
+  },
+  {
+    key: 'ticket.rfc',
+    value: '',
+    label: 'RFC del negocio',
+    group: 'ticket',
+  },
+  {
+    key: 'ticket.footer_message',
+    value: 'Gracias por tu compra!',
+    label: 'Mensaje de pie de ticket',
     group: 'ticket',
   },
   {

@@ -1,10 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { Button, Input, Badge, Skeleton, toast } from '@nivo/ui';
-import {
-  Search, ArrowLeft, ShoppingBag,
-} from 'lucide-react';
+import { Button, Skeleton, toast } from '@nivo/ui';
+import { Search, ArrowLeft, ShoppingBag } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { apiClient } from '@/lib/api';
@@ -16,14 +14,15 @@ import { offlineDB, type OfflineSale } from '@/lib/offline/indexedDB';
 import { startSyncListener } from '@/lib/offline/sync-queue';
 import { CashRegisterSetup } from './components/CashRegisterSetup';
 import { SwitchCashierDialog } from './components/SwitchCashierDialog';
-import { SaleConfirmation } from './components/SaleConfirmation';
-import { ReceiptDialog } from './components/ReceiptDialog';
+import { SaleSuccessModal, type SaleReceiptData, type TicketConfig } from './components/SaleSuccessModal';
 import { Breadcrumbs } from './components/Breadcrumbs';
 import { CollectionGrid } from './components/CollectionGrid';
 import { ProductGrid, type VariantCard } from './components/ProductGrid';
-import { SizePickerModal, type SizeOption } from './components/SizePickerModal';
+import { QuickViewModal, type QuickViewSelection } from './components/QuickViewModal';
 import { TicketPanel } from './components/TicketPanel';
-import { PaymentModal } from './components/PaymentModal';
+import { PaymentModal, type PaymentEntry } from './components/PaymentModal';
+import { useCashOperation } from './components/CashOperationsMenu';
+import { CashCloseModal } from './components/CashCloseModal';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -46,7 +45,6 @@ interface ProductVariant {
   stock_available: number;
 }
 
-// ─── Helpers to extract attributes ───────────────────────────
 function variantColor(v: ProductVariant): string {
   return v.attributes?.['Color'] || '';
 }
@@ -94,59 +92,41 @@ export default function PosPage() {
   const router = useRouter();
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // ─── Auth & Session ─────────────────────────────────────────
   const { isAuthenticated, userType, user } = useAuthStore();
-  const { session, posEmployee, cashRegister, loading: sessionLoading, loadActiveSession, closeSession } = usePosSessionStore();
+  const { session, posEmployee, cashRegister, loading: sessionLoading, loadActiveSession, closeSession, clearSession } = usePosSessionStore();
   const { selectedBranchId } = useBranchStore();
 
-  // ─── Catalog data ───────────────────────────────────────────
   const [catalog, setCatalog] = useState<CatalogData | null>(null);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
 
-  // ─── Navigation ─────────────────────────────────────────────
   const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
   const [currentCollectionId, setCurrentCollectionId] = useState<string | null>(null);
 
-  // ─── Search ─────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
   const searchMode = searchQuery.trim().length > 0;
 
-  // ─── Size picker ────────────────────────────────────────────
-  const [sizePickerData, setSizePickerData] = useState<{
-    productName: string;
-    color: string;
-    image_url?: string | null;
-    price: number;
-    productId: string;
-    sizes: SizeOption[];
-  } | null>(null);
+  // QuickView state
+  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const [quickViewColor, setQuickViewColor] = useState('');
 
-  // ─── Payment ────────────────────────────────────────────────
   const [showPayment, setShowPayment] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
 
-  // ─── Dialogs ────────────────────────────────────────────────
   const [showSwitchDialog, setShowSwitchDialog] = useState(false);
   const [showCloseDialog, setShowCloseDialog] = useState(false);
-  const [closingAmount, setClosingAmount] = useState('');
-  const [confirmSale, setConfirmSale] = useState<{
-    id: string; total: number; paymentMethod: string; itemCount: number;
-    customerName?: string; items: { name: string; variant: string; qty: number; price: number }[];
-  } | null>(null);
-  const [showReceipt, setShowReceipt] = useState(false);
+  const [confirmSale, setConfirmSale] = useState<SaleReceiptData | null>(null);
+  const [ticketConfig, setTicketConfig] = useState<TicketConfig | null>(null);
   const [isOnline, setIsOnline] = useState(true);
+  const cashOps = useCashOperation();
 
-  // ─── Customer ───────────────────────────────────────────────
   const [customerQuery, setCustomerQuery] = useState('');
   const [customerResults, setCustomerResults] = useState<CustomerResult[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerResult | null>(null);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [searchingCustomers, setSearchingCustomers] = useState(false);
 
-  // ─── Stores ─────────────────────────────────────────────────
   const { items, addItem, clearCart, total } = useCartStore();
 
-  // ─── Route guard ────────────────────────────────────────────
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
@@ -156,27 +136,22 @@ export default function PosPage() {
     else if (userType === 'super-admin') router.replace('/admin');
   }, [mounted, isAuthenticated, userType, router]);
 
-  // ─── Session + connectivity ─────────────────────────────────
   useEffect(() => {
     if (!mounted || !isAuthenticated || userType === 'super-admin') return;
     loadActiveSession();
     startSyncListener();
-
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     setIsOnline(typeof navigator !== 'undefined' ? navigator.onLine : true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
+    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
   }, [mounted, isAuthenticated, userType]);
 
-  // ─── Load catalog when session active ───────────────────────
   useEffect(() => {
     if (!session) return;
     fetchCatalog();
+    fetchTicketConfig();
   }, [session]);
 
   const fetchCatalog = async () => {
@@ -184,20 +159,14 @@ export default function PosPage() {
     try {
       const res = await apiClient.get(`/pos/catalog?branch_id=${session!.branch_id}`);
       setCatalog(res.data);
-
-      // Cache products for offline
       try {
         await offlineDB.products.clear();
         await offlineDB.products.bulkPut(
           (res.data.products || []).map((p: Product) => ({
-            id: p.id,
-            name: p.name,
-            brand: p.brand?.name || '',
-            category: p.category?.name || '',
+            id: p.id, name: p.name, brand: p.brand?.name || '', category: p.category?.name || '',
             variants: p.variants.map((v) => ({
               id: v.id, sku: v.sku, color: variantColor(v), size_mex: variantSize(v),
-              price: parseFloat(String(v.price_override)) || 0, barcode: v.barcode,
-              stock: v.stock_available ?? 0,
+              price: parseFloat(String(v.price_override)) || 0, barcode: v.barcode, stock: v.stock_available ?? 0,
             })),
           })),
         );
@@ -209,43 +178,37 @@ export default function PosPage() {
     }
   };
 
-  // ─── Customer search debounce ───────────────────────────────
+  const fetchTicketConfig = async () => {
+    try {
+      const res = await apiClient.get(`/pos/ticket-config?branch_id=${session!.branch_id}`);
+      setTicketConfig(res.data);
+    } catch {}
+  };
+
   useEffect(() => {
     if (!customerQuery.trim() || customerQuery.length < 2) {
-      setCustomerResults([]);
-      setShowCustomerDropdown(false);
-      return;
+      setCustomerResults([]); setShowCustomerDropdown(false); return;
     }
     const timer = setTimeout(async () => {
       setSearchingCustomers(true);
       try {
         const res = await apiClient.get(`/customers?search=${encodeURIComponent(customerQuery)}`);
-        setCustomerResults(res.data || []);
-        setShowCustomerDropdown(true);
-      } catch {
-        setCustomerResults([]);
-      } finally {
-        setSearchingCustomers(false);
-      }
+        setCustomerResults(res.data || []); setShowCustomerDropdown(true);
+      } catch { setCustomerResults([]); }
+      finally { setSearchingCustomers(false); }
     }, 300);
     return () => clearTimeout(timer);
   }, [customerQuery]);
 
-  // ─── Build product map for quick access ─────────────────────
   const productMap = useMemo(() => {
     if (!catalog) return new Map<string, Product>();
     const map = new Map<string, Product>();
-    for (const p of catalog.products) {
-      map.set(p.id, p);
-    }
+    for (const p of catalog.products) map.set(p.id, p);
     return map;
   }, [catalog]);
 
-  // ─── Resolve current view (collections or products) ─────────
   const currentView = useMemo(() => {
     if (!catalog) return { type: 'loading' as const };
-
-    // Find current collection's children
     const findChildren = (id: string | null): CollectionNode[] => {
       if (id === null) return catalog.collections;
       const findInTree = (nodes: CollectionNode[]): CollectionNode | null => {
@@ -256,70 +219,45 @@ export default function PosPage() {
         }
         return null;
       };
-      const node = findInTree(catalog.collections);
-      return node?.children || [];
+      return findInTree(catalog.collections)?.children || [];
     };
-
     const children = findChildren(currentCollectionId);
-
-    if (children.length > 0) {
-      return { type: 'collections' as const, collections: children };
-    }
-
-    // Leaf collection → show products
+    if (children.length > 0) return { type: 'collections' as const, collections: children };
     if (currentCollectionId) {
       const productIds = catalog.collection_products[currentCollectionId] || [];
       const products = productIds.map((id) => productMap.get(id)).filter(Boolean) as Product[];
       return { type: 'products' as const, products };
     }
-
-    // Root with no collections → show all products
-    if (catalog.collections.length === 0) {
-      return { type: 'products' as const, products: catalog.products };
-    }
-
+    if (catalog.collections.length === 0) return { type: 'products' as const, products: catalog.products };
     return { type: 'collections' as const, collections: catalog.collections };
   }, [catalog, currentCollectionId, productMap]);
 
-  // ─── Build variant cards for product view ───────────────────
   const variantCards = useMemo((): VariantCard[] => {
     if (currentView.type !== 'products') return [];
     const cards: VariantCard[] = [];
-
     for (const product of currentView.products) {
-      // Group variants by color
       const byColor = new Map<string, ProductVariant[]>();
       for (const v of product.variants) {
         const key = variantColor(v) || 'default';
         if (!byColor.has(key)) byColor.set(key, []);
         byColor.get(key)!.push(v);
       }
-
       for (const [color, variants] of byColor) {
         const totalStock = variants.reduce((sum, v) => sum + (v.stock_available ?? 0), 0);
         const firstVariant = variants[0];
         const price = catalog?.variant_prices[firstVariant.id] ?? parseFloat(String(firstVariant.price_override)) ?? 0;
-
         cards.push({
-          variant_id: firstVariant.id,
-          product_id: product.id,
-          product_name: product.name,
-          color,
-          image_url: variantImage(firstVariant),
-          price,
-          total_stock: totalStock,
+          variant_id: firstVariant.id, product_id: product.id, product_name: product.name,
+          color, image_url: variantImage(firstVariant), price, total_stock: totalStock,
         });
       }
     }
-
     return cards;
   }, [currentView, catalog]);
 
-  // ─── Search results (override) ──────────────────────────────
   const searchResults = useMemo((): VariantCard[] => {
     if (!searchMode || !catalog) return [];
     const q = searchQuery.toLowerCase();
-
     const cards: VariantCard[] = [];
     for (const product of catalog.products) {
       const byColor = new Map<string, ProductVariant[]>();
@@ -328,39 +266,26 @@ export default function PosPage() {
         if (!byColor.has(key)) byColor.set(key, []);
         byColor.get(key)!.push(v);
       }
-
       for (const [color, variants] of byColor) {
-        // Check if any variant matches the query
         const matches = variants.some(
-          (v) =>
-            product.name.toLowerCase().includes(q) ||
-            (v.sku && v.sku.toLowerCase().includes(q)) ||
-            color.toLowerCase().includes(q) ||
-            (product.brand?.name && product.brand.name.toLowerCase().includes(q)) ||
+          (v) => product.name.toLowerCase().includes(q) || (v.sku && v.sku.toLowerCase().includes(q)) ||
+            color.toLowerCase().includes(q) || (product.brand?.name && product.brand.name.toLowerCase().includes(q)) ||
             (v.barcode && v.barcode.includes(q)),
         );
         if (!matches) continue;
-
         const totalStock = variants.reduce((sum, v) => sum + (v.stock_available ?? 0), 0);
         const firstVariant = variants[0];
         const price = catalog.variant_prices[firstVariant.id] ?? parseFloat(String(firstVariant.price_override)) ?? 0;
-
         cards.push({
-          variant_id: firstVariant.id,
-          product_id: product.id,
-          product_name: product.name,
-          color,
-          image_url: variantImage(firstVariant),
-          price,
-          total_stock: totalStock,
+          variant_id: firstVariant.id, product_id: product.id, product_name: product.name,
+          color, image_url: variantImage(firstVariant), price, total_stock: totalStock,
         });
       }
     }
-
     return cards;
   }, [searchMode, searchQuery, catalog]);
 
-  // ─── Navigation handlers ────────────────────────────────────
+  // ─── Navigation ─────────────────────────────────────────────
 
   const handleCollectionSelect = useCallback((col: CollectionNode) => {
     setCurrentCollectionId(col.id);
@@ -369,14 +294,11 @@ export default function PosPage() {
 
   const handleBreadcrumbNavigate = useCallback((id: string | null, index: number) => {
     setCurrentCollectionId(id);
-    if (id === null) {
-      setBreadcrumb([]);
-    } else {
-      setBreadcrumb((prev) => prev.slice(0, index + 1));
-    }
+    if (id === null) setBreadcrumb([]);
+    else setBreadcrumb((prev) => prev.slice(0, index + 1));
   }, []);
 
-  // ─── Product selection → size picker ────────────────────────
+  // ─── Product card click → QuickView ────────────────────────
 
   const handleVariantCardSelect = useCallback((card: VariantCard) => {
     if (!catalog) return;
@@ -388,88 +310,50 @@ export default function PosPage() {
       (v) => (variantColor(v) || 'default') === card.color,
     );
 
-    // If only one size → add directly to cart
+    // If only ONE variant total for this color (1 size) → add directly
     if (colorVariants.length === 1) {
       const v = colorVariants[0];
       const price = catalog.variant_prices[v.id] ?? parseFloat(String(v.price_override)) ?? 0;
       addItem({
-        id: v.id,
-        variant_id: v.id,
-        product_id: product.id,
-        name: product.name,
+        id: v.id, variant_id: v.id, product_id: product.id, name: product.name,
         variant_label: `${variantColor(v)} - ${variantSize(v)}`,
-        image_url: variantImage(v),
-        default_price: price,
-        price,
-        stock: v.stock_available ?? 0,
+        image_url: variantImage(v), default_price: price, price, stock: v.stock_available ?? 0,
       });
       setSearchQuery('');
       searchRef.current?.focus();
       return;
     }
 
-    // Multiple sizes → show picker
-    const sizes: SizeOption[] = colorVariants.map((v) => ({
-      variant_id: v.id,
-      size_mex: variantSize(v),
-      stock: v.stock_available ?? 0,
-      sku: v.sku,
-      barcode: v.barcode,
-    }));
-
-    setSizePickerData({
-      productName: product.name,
-      color: card.color,
-      image_url: card.image_url,
-      price: card.price,
-      productId: product.id,
-      sizes,
-    });
+    // Multiple sizes → open QuickView
+    setQuickViewProduct(product);
+    setQuickViewColor(card.color);
   }, [catalog, productMap, addItem]);
 
-  const handleSizeSelect = useCallback((size: SizeOption) => {
-    if (!sizePickerData || !catalog) return;
-    const product = productMap.get(sizePickerData.productId);
-    if (!product) return;
+  // ─── QuickView add to cart ──────────────────────────────────
 
-    const price = catalog.variant_prices[size.variant_id] ?? sizePickerData.price;
-
+  const handleQuickViewAdd = useCallback((sel: QuickViewSelection) => {
     addItem({
-      id: size.variant_id,
-      variant_id: size.variant_id,
-      product_id: sizePickerData.productId,
-      name: sizePickerData.productName,
-      variant_label: `${sizePickerData.color} - ${size.size_mex}`,
-      image_url: sizePickerData.image_url ?? undefined,
-      default_price: price,
-      price,
-      stock: size.stock,
+      id: sel.variant_id, variant_id: sel.variant_id, product_id: sel.product_id,
+      name: sel.product_name,
+      variant_label: `${sel.color} - ${sel.size}`,
+      image_url: sel.image_url, default_price: sel.price, price: sel.price, stock: sel.stock,
     });
-
-    setSizePickerData(null);
     setSearchQuery('');
     searchRef.current?.focus();
-  }, [sizePickerData, catalog, productMap, addItem]);
+  }, [addItem]);
 
-  // ─── Barcode scan handler ───────────────────────────────────
+  // ─── Barcode scan ───────────────────────────────────────────
 
   const handleSearchKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && searchQuery && catalog) {
-      // Try exact barcode/sku match
       for (const p of catalog.products) {
         for (const v of p.variants) {
           if (v.barcode === searchQuery || v.sku === searchQuery) {
             const price = catalog.variant_prices[v.id] ?? parseFloat(String(v.price_override)) ?? 0;
             addItem({
-              id: v.id,
-              variant_id: v.id,
-              product_id: p.id,
-              name: p.name,
+              id: v.id, variant_id: v.id, product_id: p.id, name: p.name,
               variant_label: `${variantColor(v)} - ${variantSize(v)}`,
-              image_url: variantImage(v),
-              default_price: price,
-              price,
-              stock: v.stock_available ?? 0,
+              image_url: variantImage(v), default_price: price, price, stock: v.stock_available ?? 0,
             });
             setSearchQuery('');
             searchRef.current?.focus();
@@ -477,11 +361,7 @@ export default function PosPage() {
           }
         }
       }
-
-      // If only one search result, select it
-      if (searchResults.length === 1) {
-        handleVariantCardSelect(searchResults[0]);
-      }
+      if (searchResults.length === 1) handleVariantCardSelect(searchResults[0]);
     }
   }, [searchQuery, catalog, addItem, searchResults, handleVariantCardSelect]);
 
@@ -500,102 +380,92 @@ export default function PosPage() {
 
   // ─── Payment ────────────────────────────────────────────────
 
-  const handlePaymentConfirm = async (method: 'cash' | 'card' | 'mixed', amountReceived?: number) => {
-    if (items.length === 0 || !session) return;
+  const handlePaymentConfirm = async (payments: PaymentEntry[]) => {
+    if (items.length === 0 || !session || payments.length === 0) return;
     setProcessingPayment(true);
-
     const cartTotal = total();
+
+    // Determine display method label
+    const methodLabel = payments.length === 1
+      ? payments[0].payment_method_name
+      : payments.map((p) => p.payment_method_name).join(' + ');
+
+    // Calculate cash change using tendered amount (actual cash handed over)
+    const cashTendered = payments
+      .filter((p) => p.payment_method_name.toLowerCase().includes('efectivo'))
+      .reduce((sum, p) => sum + (p.tendered ?? p.amount), 0);
+    const nonCashTotal = payments
+      .filter((p) => !p.payment_method_name.toLowerCase().includes('efectivo'))
+      .reduce((sum, p) => sum + p.amount, 0);
+    const cashNeeded = cartTotal - nonCashTotal;
+    const cashChange = Math.max(0, cashTendered - cashNeeded);
+
     const saleData = {
-      id: crypto.randomUUID(),
-      pos_session_id: session.id,
-      branch_id: session.branch_id,
-      employee_id: user?.sub || user?.id,
-      customer_id: selectedCustomer?.id || undefined,
-      total_amount: cartTotal,
-      discount_amount: 0,
-      tax_amount: 0,
-      payment_method: method,
+      id: crypto.randomUUID(), pos_session_id: session.id, branch_id: session.branch_id,
+      employee_id: user?.sub || user?.id, customer_id: selectedCustomer?.id || undefined,
+      total_amount: cartTotal, discount_amount: 0, tax_amount: 0,
+      payment_method: payments.length === 1
+        ? (payments[0].payment_method_name.toLowerCase().includes('efectivo') ? 'cash' : 'card')
+        : 'mixed',
       sale_type: 'in_store',
       items: items.map((i) => ({
-        variant_id: i.variant_id,
-        quantity: i.quantity,
-        unit_price: i.price,
-        discount: 0,
-        subtotal: i.price * i.quantity,
+        variant_id: i.variant_id, quantity: i.quantity, unit_price: i.price, discount: 0, subtotal: i.price * i.quantity,
+      })),
+      payments: payments.map((p) => ({
+        payment_method_id: p.payment_method_id,
+        payment_method_name: p.payment_method_name,
+        amount: p.amount,
+        reference: p.reference,
       })),
     };
-
     const receiptItems = items.map((i) => ({
-      name: i.name,
-      variant: i.variant_label,
-      qty: i.quantity,
-      price: i.price,
+      name: i.name, variant: i.variant_label, qty: i.quantity, unitPrice: i.price,
     }));
+    const receiptPayments = payments.map((p) => ({
+      method: p.payment_method_name, amount: p.amount, reference: p.reference,
+    }));
+
+    const buildReceiptData = (saleId: string): SaleReceiptData => ({
+      id: saleId, total: cartTotal, paymentMethod: methodLabel, itemCount: items.length,
+      customerName: selectedCustomer?.name, items: receiptItems,
+      payments: receiptPayments, cashChange,
+    });
 
     try {
       const response = await apiClient.post('/pos/transactions', saleData);
       setShowPayment(false);
-      setConfirmSale({
-        id: response.data.id,
-        total: cartTotal,
-        paymentMethod: method,
-        itemCount: items.length,
-        customerName: selectedCustomer?.name,
-        items: receiptItems,
-      });
-      clearCart();
-      setSelectedCustomer(null);
-      setCustomerQuery('');
-      fetchCatalog(); // Refresh stock
+      setConfirmSale(buildReceiptData(response.data.id));
+      clearCart(); setSelectedCustomer(null); setCustomerQuery('');
+      fetchCatalog();
     } catch (err: any) {
       const msg = err?.response?.data?.message || 'No se pudo registrar la venta.';
       if (msg.includes('Stock insuficiente')) {
         toast({ title: 'Stock insuficiente', description: msg, variant: 'destructive' });
         fetchCatalog();
       } else {
-        // Save offline
         try {
-          const offlineSale: OfflineSale = {
-            ...saleData,
-            created_at: new Date().toISOString(),
-            synced: false,
-          };
+          const offlineSale: OfflineSale = { ...saleData, created_at: new Date().toISOString(), synced: false };
           await offlineDB.sales.add(offlineSale);
           setShowPayment(false);
-          setConfirmSale({
-            id: saleData.id,
-            total: cartTotal,
-            paymentMethod: method,
-            itemCount: items.length,
-            customerName: selectedCustomer?.name,
-            items: receiptItems,
-          });
-          clearCart();
-          setSelectedCustomer(null);
-          setCustomerQuery('');
-          toast({
-            title: 'Venta guardada offline',
-            description: 'Se sincronizara automaticamente cuando haya conexion.',
-          });
-        } catch {
-          toast({ title: 'Error', description: msg, variant: 'destructive' });
-        }
+          setConfirmSale(buildReceiptData(saleData.id));
+          clearCart(); setSelectedCustomer(null); setCustomerQuery('');
+          toast({ title: 'Venta guardada offline', description: 'Se sincronizara automaticamente cuando haya conexion.' });
+        } catch { toast({ title: 'Error', description: msg, variant: 'destructive' }); }
       }
-    } finally {
-      setProcessingPayment(false);
-    }
+    } finally { setProcessingPayment(false); }
   };
 
-  // ─── Close session ──────────────────────────────────────────
+  const handleCloseSessionCorteZ = async (declaredAmount: number) => {
+    const result = await closeSession(declaredAmount);
+    if (!result) throw new Error('No se pudo cerrar la caja');
+    return result;
+  };
 
-  const handleCloseSession = async () => {
-    try {
-      await closeSession(parseFloat(closingAmount) || 0);
-      toast({ title: 'Caja cerrada', description: 'Tu turno ha finalizado.' });
-      router.push('/dashboard');
-    } catch {
-      toast({ title: 'Error', description: 'No se pudo cerrar la caja.', variant: 'destructive' });
-    }
+  const handleCloseComplete = () => {
+    setShowCloseDialog(false);
+    clearSession(); // Now clear session after the reveal modal is dismissed
+    toast({ title: 'Caja cerrada', description: 'Tu turno ha finalizado.' });
+    router.push('/dashboard');
   };
 
   // ─── Render guards ──────────────────────────────────────────
@@ -605,63 +475,35 @@ export default function PosPage() {
   const needsSession = !sessionLoading && !session;
 
   if (needsSession) {
-    return (
-      <CashRegisterSetup
-        onReady={() => {
-          loadActiveSession();
-        }}
-      />
-    );
+    return <CashRegisterSetup onReady={() => { loadActiveSession(); }} />;
   }
 
   // ─── Main layout ────────────────────────────────────────────
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-slate-950">
       {/* Dialogs */}
       <SwitchCashierDialog
         open={showSwitchDialog}
         onClose={() => setShowSwitchDialog(false)}
-        onSwitched={() => {
-          setShowSwitchDialog(false);
-          loadActiveSession();
-        }}
+        onSwitched={() => { setShowSwitchDialog(false); loadActiveSession(); }}
       />
-
-      <SaleConfirmation
-        open={!!confirmSale && !showReceipt}
-        onClose={() => {
-          setConfirmSale(null);
-          searchRef.current?.focus();
-        }}
-        onPrintReceipt={() => setShowReceipt(true)}
+      <SaleSuccessModal
+        open={!!confirmSale}
         sale={confirmSale}
+        ticketConfig={ticketConfig}
+        employeeName={posEmployee?.name || user?.name || ''}
+        onClose={() => { setConfirmSale(null); searchRef.current?.focus(); }}
       />
 
-      {confirmSale && showReceipt && (
-        <ReceiptDialog
-          open={showReceipt}
-          onClose={() => {
-            setShowReceipt(false);
-            setConfirmSale(null);
-            searchRef.current?.focus();
-          }}
-          sale={confirmSale}
-          branchName={session?.branch?.name || ''}
-          employeeName={user?.name || ''}
-        />
-      )}
-
-      {/* Size Picker */}
-      <SizePickerModal
-        open={!!sizePickerData}
-        productName={sizePickerData?.productName || ''}
-        color={sizePickerData?.color || ''}
-        image_url={sizePickerData?.image_url}
-        price={sizePickerData?.price || 0}
-        sizes={sizePickerData?.sizes || []}
-        onSelect={handleSizeSelect}
-        onClose={() => setSizePickerData(null)}
+      {/* QuickView Modal */}
+      <QuickViewModal
+        open={!!quickViewProduct}
+        product={quickViewProduct}
+        variantPrices={catalog?.variant_prices || {}}
+        preselectedColor={quickViewColor}
+        onAddToCart={handleQuickViewAdd}
+        onClose={() => setQuickViewProduct(null)}
       />
 
       {/* Payment Modal */}
@@ -673,83 +515,70 @@ export default function PosPage() {
         onClose={() => setShowPayment(false)}
       />
 
-      {/* Close Session Dialog */}
-      {showCloseDialog && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
-          <div className="bg-background rounded-lg p-6 w-full max-w-sm space-y-4">
-            <h3 className="text-lg font-semibold">Cerrar Caja</h3>
-            <p className="text-sm text-muted-foreground">
-              Ingresa el monto de cierre para finalizar tu turno.
-            </p>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Monto de Cierre ($)</label>
-              <Input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={closingAmount}
-                onChange={(e) => setClosingAmount(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setShowCloseDialog(false)}>
-                Cancelar
-              </Button>
-              <Button variant="destructive" className="flex-1" onClick={handleCloseSession}>
-                Cerrar Caja
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Corte Z — Cash Close Modal */}
+      <CashCloseModal
+        open={showCloseDialog}
+        sessionId={session?.id || ''}
+        employeeName={posEmployee?.name || ''}
+        cashRegisterName={cashRegister?.name || ''}
+        onClose={handleCloseComplete}
+        onCloseSession={handleCloseSessionCorteZ}
+      />
+
+      {/* Cash Operations Menu (Cash In / Cash Out / Audit) */}
+      <cashOps.CashOperationsMenuWithState
+        sessionId={session?.id || ''}
+        employeeId={posEmployee?.id || ''}
+      />
 
       {/* ═══ LEFT PANEL (65%) — Catalog ═══ */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Search bar */}
-        <div className="flex items-center gap-3 p-3 border-b">
+        <div className="flex items-center gap-3 p-4">
           <Link href="/dashboard">
-            <Button variant="ghost" size="icon" className="flex-shrink-0">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
+            <button className="p-2.5 rounded-xl bg-slate-900/60 text-slate-400 hover:text-white hover:bg-slate-800 transition-all border border-slate-800/40">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
           </Link>
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <input
               ref={searchRef}
               placeholder="Escanear codigo de barras o buscar producto..."
-              className="pl-10 h-11 text-base"
+              className="w-full pl-11 pr-16 h-12 text-base rounded-xl bg-slate-900 border border-slate-700/50 text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20 backdrop-blur-sm transition-all shadow-sm shadow-slate-900/50"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               autoFocus
             />
+            {/* Shortcut badge */}
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-2 py-1 rounded-md bg-slate-800/60 border border-slate-700/30">
+              <span className="text-[10px] text-slate-500 font-mono">F12</span>
+            </div>
           </div>
         </div>
 
         {/* Breadcrumbs */}
         {!searchMode && breadcrumb.length > 0 && (
-          <div className="px-3 border-b">
+          <div className="px-4 pb-1">
             <Breadcrumbs items={breadcrumb} onNavigate={handleBreadcrumbNavigate} />
           </div>
         )}
 
         {/* Content area */}
-        <div className="flex-1 overflow-auto p-3">
+        <div className="flex-1 overflow-auto px-4 pb-4">
           {sessionLoading || loadingCatalog ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {Array.from({ length: 12 }).map((_, i) => (
-                <Skeleton key={i} className="aspect-square rounded-xl" />
+                <Skeleton key={i} className="aspect-square rounded-2xl bg-slate-900/50" />
               ))}
             </div>
           ) : searchMode ? (
-            /* Search results */
             searchResults.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-muted-foreground">
+              <div className="flex items-center justify-center h-full text-slate-500">
                 <div className="text-center">
                   <ShoppingBag className="h-12 w-12 mx-auto mb-3 opacity-40" />
-                  <p className="text-lg">Sin resultados para &ldquo;{searchQuery}&rdquo;</p>
+                  <p className="text-lg text-slate-400">Sin resultados para &ldquo;{searchQuery}&rdquo;</p>
                   <p className="text-sm">Intenta con otro termino de busqueda</p>
                 </div>
               </div>
@@ -757,10 +586,7 @@ export default function PosPage() {
               <ProductGrid variants={searchResults} onSelect={handleVariantCardSelect} />
             )
           ) : currentView.type === 'collections' ? (
-            <CollectionGrid
-              collections={currentView.collections}
-              onSelect={handleCollectionSelect}
-            />
+            <CollectionGrid collections={currentView.collections} onSelect={handleCollectionSelect} />
           ) : currentView.type === 'products' ? (
             <ProductGrid variants={variantCards} onSelect={handleVariantCardSelect} />
           ) : null}
@@ -768,7 +594,7 @@ export default function PosPage() {
       </div>
 
       {/* ═══ RIGHT PANEL (35%) — Ticket ═══ */}
-      <div className="w-[380px] border-l bg-card flex-shrink-0">
+      <div className="w-[380px] border-l border-slate-800/60 flex-shrink-0">
         <TicketPanel
           cashRegisterName={cashRegister?.name}
           employeeName={posEmployee?.name}
@@ -776,6 +602,9 @@ export default function PosPage() {
           onCobrar={() => setShowPayment(true)}
           onSwitchCashier={() => setShowSwitchDialog(true)}
           onCloseSession={() => setShowCloseDialog(true)}
+          onCashIn={cashOps.openCashIn}
+          onCashOut={cashOps.openCashOut}
+          onAudit={cashOps.openAudit}
           selectedCustomer={selectedCustomer}
           onCustomerSelect={setSelectedCustomer}
           customerQuery={customerQuery}

@@ -12,6 +12,7 @@ import { Customer } from './customer.entity';
 import { Employee } from './employee.entity';
 import { Branch } from './branch.entity';
 import { SaleItem } from './sale-item.entity';
+import { SalePayment } from './sale-payment.entity';
 
 @Entity('sales')
 export class Sale {
@@ -69,6 +70,9 @@ export class Sale {
 
   @OneToMany(() => SaleItem, (item) => item.sale, { cascade: true })
   items: SaleItem[];
+
+  @OneToMany(() => SalePayment, (payment) => payment.sale, { cascade: true })
+  payments: SalePayment[];
 
   @CreateDateColumn()
   created_at: Date;

@@ -53,7 +53,7 @@ interface PosSessionState {
   verifyPin: (pinCode: string, branchId: string) => Promise<VerifyPinResult>;
   openSession: (branchId: string, openingAmount: number, employeeId: string, cashRegisterId: string) => Promise<PosSessionData>;
   switchCashier: (sessionId: string, newEmployeeId: string) => Promise<PosSessionData>;
-  closeSession: (closingAmount: number) => Promise<void>;
+  closeSession: (declaredAmount: number, closedBy?: string) => Promise<any>;
   clearSession: () => void;
 }
 
@@ -138,14 +138,17 @@ export const usePosSessionStore = create<PosSessionState>()(
         return session;
       },
 
-      closeSession: async (closingAmount: number) => {
+      closeSession: async (declaredAmount: number, closedBy?: string) => {
         const { session } = get();
-        if (!session) return;
-        await apiClient.post('/pos/sessions/close', {
+        if (!session) return null;
+        const response = await apiClient.post('/pos/sessions/close', {
           session_id: session.id,
-          closing_amount: closingAmount,
+          declared_amount: declaredAmount,
+          closed_by: closedBy,
         });
-        set({ session: null, posEmployee: null, cashRegister: null });
+        // NOTE: Do NOT clear session here. The POS page clears it
+        // after the Corte Z reveal modal is dismissed via clearSession().
+        return response.data; // { session, summary }
       },
 
       clearSession: () => set({ session: null, posEmployee: null, cashRegister: null }),

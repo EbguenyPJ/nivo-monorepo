@@ -14,30 +14,31 @@ interface BreadcrumbsProps {
 
 export function Breadcrumbs({ items, onNavigate }: BreadcrumbsProps) {
   return (
-    <nav className="flex items-center gap-1 text-sm py-2 px-1 min-h-[36px]">
+    <nav className="flex items-center gap-1.5 text-sm py-2.5 px-1">
+      {/* Home pill */}
       <button
         type="button"
         onClick={() => onNavigate(null, -1)}
-        className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors rounded px-1.5 py-0.5 hover:bg-muted"
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/60 text-slate-400 hover:text-white hover:bg-slate-700/80 backdrop-blur-sm transition-all duration-200"
       >
         <Home className="h-3.5 w-3.5" />
-        <span>Inicio</span>
+        <span className="text-xs font-medium">Inicio</span>
       </button>
 
       {items.map((item, idx) => {
         const isLast = idx === items.length - 1;
         return (
-          <span key={item.id} className="flex items-center gap-1">
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/50" />
+          <span key={item.id} className="flex items-center gap-1.5">
+            <ChevronRight className="h-3 w-3 text-slate-600" />
             {isLast ? (
-              <span className="font-semibold text-foreground px-1.5 py-0.5">
+              <span className="px-3 py-1.5 rounded-full bg-amber-500/10 text-amber-400 text-xs font-semibold backdrop-blur-sm border border-amber-500/20 shadow-sm shadow-amber-500/10">
                 {item.name}
               </span>
             ) : (
               <button
                 type="button"
                 onClick={() => onNavigate(item.id, idx)}
-                className="text-muted-foreground hover:text-foreground transition-colors rounded px-1.5 py-0.5 hover:bg-muted"
+                className="px-3 py-1.5 rounded-full bg-slate-800/40 text-slate-400 text-xs font-medium hover:text-white hover:bg-slate-700/60 backdrop-blur-sm transition-all duration-200"
               >
                 {item.name}
               </button>

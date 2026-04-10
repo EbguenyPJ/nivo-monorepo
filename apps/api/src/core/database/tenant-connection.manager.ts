@@ -20,6 +20,7 @@ import {
   Customer,
   Sale,
   SaleItem,
+  SalePayment,
   PaymentMethod,
   Tax,
   CancellationReason,
@@ -37,6 +38,7 @@ import {
   InventoryLocation,
   CustomerAddress,
   CashRegister,
+  CashTransaction,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -58,6 +60,7 @@ const TENANT_ENTITIES = [
   Customer,
   Sale,
   SaleItem,
+  SalePayment,
   PaymentMethod,
   Tax,
   CancellationReason,
@@ -75,6 +78,7 @@ const TENANT_ENTITIES = [
   InventoryLocation,
   CustomerAddress,
   CashRegister,
+  CashTransaction,
 ];
 
 @Injectable()

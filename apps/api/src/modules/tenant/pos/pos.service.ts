@@ -1,15 +1,17 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { PosSession, Sale, SaleItem, Inventory, Product, Employee, CashRegister, CollectionProduct } from '@nivo/database';
+import { PosSession, Sale, SaleItem, SalePayment, Inventory, Product, Employee, CashRegister, CashTransaction, CollectionProduct, PaymentMethod, Branch, TenantSetting } from '@nivo/database';
 import * as bcrypt from 'bcrypt';
 import { CollectionsService } from '../collections/collections.service';
 import { PricingService } from '../pricing/pricing.service';
+import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
 
 @Injectable()
 export class PosService {
   constructor(
     private readonly collectionsService: CollectionsService,
     private readonly pricingService: PricingService,
+    private readonly tenantSettingsService: TenantSettingsService,
   ) {}
 
   // ─── POS Catalog (single call for frontend) ──────────────────
@@ -221,16 +223,317 @@ export class PosService {
     });
   }
 
-  async closeSession(connection: DataSource, data: { session_id: string; closing_amount: number }) {
+  /**
+   * Corte Z — Definitive close. Performs blind close with declared amount,
+   * calculates expected cash, difference, and locks the session.
+   */
+  async closeSession(
+    connection: DataSource,
+    data: {
+      session_id: string;
+      declared_amount: number;
+      closed_by?: string; // employee_id of who is forcing the close (manager override)
+    },
+  ) {
     const repo = connection.getRepository(PosSession);
-    const session = await repo.findOne({ where: { id: data.session_id, status: 'open' } });
+    const session = await repo.findOne({
+      where: { id: data.session_id, status: 'open' },
+      relations: ['cash_register'],
+    });
     if (!session) throw new NotFoundException('Sesion de caja no encontrada');
 
-    session.closing_amount = data.closing_amount;
+    // Calculate expected cash amount
+    const expectedAmount = await this.calculateExpectedCash(connection, session.id);
+
+    session.closing_amount = data.declared_amount;
+    session.expected_amount = expectedAmount;
+    session.difference = parseFloat((data.declared_amount - expectedAmount).toFixed(2));
     session.status = 'closed';
     session.closed_at = new Date();
+    if (data.closed_by) {
+      session.closed_by = data.closed_by;
+    }
+
+    const saved = await repo.save(session);
+
+    // Build the close summary
+    const summary = await this.getSessionSummary(connection, session.id);
+
+    return {
+      session: saved,
+      summary,
+    };
+  }
+
+  /**
+   * Force-close an orphan session (manager permission required).
+   * Marks the session as closed with the manager who forced it.
+   */
+  async forceCloseSession(
+    connection: DataSource,
+    data: { session_id: string; manager_employee_id: string },
+  ) {
+    const repo = connection.getRepository(PosSession);
+    const session = await repo.findOne({
+      where: { id: data.session_id, status: 'open' },
+    });
+    if (!session) throw new NotFoundException('Sesion de caja no encontrada');
+
+    const expectedAmount = await this.calculateExpectedCash(connection, session.id);
+
+    session.closing_amount = 0; // Not counted — forced close
+    session.expected_amount = expectedAmount;
+    session.difference = parseFloat((0 - expectedAmount).toFixed(2));
+    session.status = 'closed';
+    session.closed_at = new Date();
+    session.closed_by = data.manager_employee_id;
 
     return repo.save(session);
+  }
+
+  // ─── Cash Operations (Entries / Withdrawals / Audits) ──────────
+
+  /**
+   * Calculate expected cash in the register for a given session.
+   * Formula: opening_amount + sale_cash - refunds + cash_in - cash_out
+   */
+  async calculateExpectedCash(connection: DataSource, sessionId: string): Promise<number> {
+    const session = await connection.getRepository(PosSession).findOne({
+      where: { id: sessionId },
+    });
+    if (!session) return 0;
+
+    const txRepo = connection.getRepository(CashTransaction);
+    const transactions = await txRepo.find({ where: { session_id: sessionId } });
+
+    let expected = parseFloat(String(session.opening_amount)) || 0;
+    for (const tx of transactions) {
+      const amt = parseFloat(String(tx.amount)) || 0;
+      switch (tx.type) {
+        case 'sale_cash':
+        case 'cash_in':
+          expected += amt;
+          break;
+        case 'refund':
+        case 'cash_out':
+          expected -= amt;
+          break;
+        // 'audit' doesn't affect balance
+      }
+    }
+
+    return parseFloat(expected.toFixed(2));
+  }
+
+  /**
+   * Record a cash entry (extra change fund, etc.)
+   */
+  async addCashIn(
+    connection: DataSource,
+    data: { session_id: string; employee_id: string; amount: number; description?: string },
+  ) {
+    const session = await connection.getRepository(PosSession).findOne({
+      where: { id: data.session_id, status: 'open' },
+    });
+    if (!session) throw new NotFoundException('Sesion de caja no encontrada');
+
+    const tx = connection.getRepository(CashTransaction).create({
+      session_id: data.session_id,
+      employee_id: data.employee_id,
+      type: 'cash_in',
+      amount: data.amount,
+      description: data.description || 'Entrada de efectivo',
+    });
+    return connection.getRepository(CashTransaction).save(tx);
+  }
+
+  /**
+   * Record a cash withdrawal (sangria / security withdrawal).
+   */
+  async addCashOut(
+    connection: DataSource,
+    data: { session_id: string; employee_id: string; amount: number; description?: string },
+  ) {
+    const session = await connection.getRepository(PosSession).findOne({
+      where: { id: data.session_id, status: 'open' },
+    });
+    if (!session) throw new NotFoundException('Sesion de caja no encontrada');
+
+    // Validate there's enough cash
+    const expected = await this.calculateExpectedCash(connection, data.session_id);
+    if (data.amount > expected) {
+      throw new BadRequestException(
+        `No se puede retirar $${data.amount.toFixed(2)}. Efectivo esperado en caja: $${expected.toFixed(2)}`,
+      );
+    }
+
+    const tx = connection.getRepository(CashTransaction).create({
+      session_id: data.session_id,
+      employee_id: data.employee_id,
+      type: 'cash_out',
+      amount: data.amount,
+      description: data.description || 'Retiro de valores',
+    });
+    return connection.getRepository(CashTransaction).save(tx);
+  }
+
+  /**
+   * Corte X — Blind audit. Records the declared amount without closing the session.
+   */
+  async performAudit(
+    connection: DataSource,
+    data: { session_id: string; employee_id: string; declared_amount: number },
+  ) {
+    const session = await connection.getRepository(PosSession).findOne({
+      where: { id: data.session_id, status: 'open' },
+    });
+    if (!session) throw new NotFoundException('Sesion de caja no encontrada');
+
+    const expectedAmount = await this.calculateExpectedCash(connection, data.session_id);
+    const difference = parseFloat((data.declared_amount - expectedAmount).toFixed(2));
+
+    const tx = connection.getRepository(CashTransaction).create({
+      session_id: data.session_id,
+      employee_id: data.employee_id,
+      type: 'audit',
+      amount: 0,
+      description: 'Arqueo de caja (Corte X)',
+      declared_amount: data.declared_amount,
+      expected_amount: expectedAmount,
+      difference,
+    });
+
+    const saved = await connection.getRepository(CashTransaction).save(tx);
+
+    return {
+      ...saved,
+      expected_amount: expectedAmount,
+      declared_amount: data.declared_amount,
+      difference,
+    };
+  }
+
+  /**
+   * Get the full financial summary for a session (used in Corte Z reveal).
+   */
+  async getSessionSummary(connection: DataSource, sessionId: string) {
+    const session = await connection.getRepository(PosSession).findOne({
+      where: { id: sessionId },
+      relations: ['employee', 'cash_register'],
+    });
+    if (!session) throw new NotFoundException('Sesion no encontrada');
+
+    const transactions = await connection.getRepository(CashTransaction).find({
+      where: { session_id: sessionId },
+      order: { created_at: 'ASC' },
+    });
+
+    // Get sales for this session with their payments
+    const sales = await connection.getRepository(Sale).find({
+      where: { pos_session_id: sessionId, status: 'completed' },
+    });
+
+    const salePayments = await connection.getRepository(SalePayment)
+      .createQueryBuilder('sp')
+      .where('sp.sale_id IN (:...saleIds)', {
+        saleIds: sales.length > 0 ? sales.map((s) => s.id) : ['00000000-0000-0000-0000-000000000000'],
+      })
+      .getMany();
+
+    // Aggregate by payment method
+    const paymentSummary: Record<string, { method: string; total: number; count: number }> = {};
+    for (const sp of salePayments) {
+      const key = sp.payment_method_name;
+      if (!paymentSummary[key]) {
+        paymentSummary[key] = { method: key, total: 0, count: 0 };
+      }
+      paymentSummary[key].total += parseFloat(String(sp.amount));
+      paymentSummary[key].count++;
+    }
+
+    // Cash-specific totals
+    let totalCashSales = 0;
+    let totalCashIn = 0;
+    let totalCashOut = 0;
+    let totalRefunds = 0;
+    const audits: any[] = [];
+
+    for (const tx of transactions) {
+      const amt = parseFloat(String(tx.amount)) || 0;
+      switch (tx.type) {
+        case 'sale_cash':
+          totalCashSales += amt;
+          break;
+        case 'cash_in':
+          totalCashIn += amt;
+          break;
+        case 'cash_out':
+          totalCashOut += amt;
+          break;
+        case 'refund':
+          totalRefunds += amt;
+          break;
+        case 'audit':
+          audits.push({
+            declared: parseFloat(String(tx.declared_amount)) || 0,
+            expected: parseFloat(String(tx.expected_amount)) || 0,
+            difference: parseFloat(String(tx.difference)) || 0,
+            time: tx.created_at,
+          });
+          break;
+      }
+    }
+
+    const openingAmount = parseFloat(String(session.opening_amount)) || 0;
+    const expectedCash = parseFloat(
+      (openingAmount + totalCashSales - totalRefunds + totalCashIn - totalCashOut).toFixed(2),
+    );
+
+    return {
+      session_id: sessionId,
+      employee_name: session.employee?.name || '',
+      cash_register_name: session.cash_register?.name || '',
+      opened_at: session.opened_at,
+      closed_at: session.closed_at,
+      status: session.status,
+      // Cash flow
+      opening_amount: openingAmount,
+      total_cash_sales: parseFloat(totalCashSales.toFixed(2)),
+      total_cash_in: parseFloat(totalCashIn.toFixed(2)),
+      total_cash_out: parseFloat(totalCashOut.toFixed(2)),
+      total_refunds: parseFloat(totalRefunds.toFixed(2)),
+      expected_cash: expectedCash,
+      declared_amount: session.closing_amount != null ? parseFloat(String(session.closing_amount)) : null,
+      difference: session.difference != null ? parseFloat(String(session.difference)) : null,
+      // Other payment methods
+      payment_methods: Object.values(paymentSummary),
+      // Total sales
+      total_sales_count: sales.length,
+      total_sales_amount: parseFloat(
+        sales.reduce((sum, s) => sum + parseFloat(String(s.total_amount)), 0).toFixed(2),
+      ),
+      // Audits performed during this session
+      audits,
+      // Raw transactions for detailed view
+      transactions: transactions.map((tx) => ({
+        id: tx.id,
+        type: tx.type,
+        amount: parseFloat(String(tx.amount)),
+        description: tx.description,
+        created_at: tx.created_at,
+      })),
+    };
+  }
+
+  /**
+   * Get transactions list for the active session.
+   */
+  async getSessionTransactions(connection: DataSource, sessionId: string) {
+    return connection.getRepository(CashTransaction).find({
+      where: { session_id: sessionId },
+      relations: ['employee'],
+      order: { created_at: 'DESC' },
+    });
   }
 
   // ─── PIN verification ──────────────────────────────────────────
@@ -330,6 +633,53 @@ export class PosService {
     }));
   }
 
+  // ─── Ticket Config ─────────────────────────────────────────────
+
+  /**
+   * Returns branch info + ticket-related tenant settings for receipt printing.
+   */
+  async getTicketConfig(connection: DataSource, branchId: string) {
+    const [branch, settings] = await Promise.all([
+      connection.getRepository(Branch).findOne({ where: { id: branchId } }),
+      this.tenantSettingsService.findAll(connection, 'ticket'),
+    ]);
+
+    const settingsMap: Record<string, string> = {};
+    for (const s of settings) {
+      settingsMap[s.key] = s.value;
+    }
+
+    return {
+      branch: branch
+        ? {
+            name: branch.name,
+            address: branch.address,
+            city: branch.city,
+            zip_code: branch.zip_code,
+            phone: branch.phone,
+            ticket_footer: branch.ticket_footer,
+          }
+        : null,
+      settings: {
+        auto_print_receipt: settingsMap['ticket.auto_print_receipt'] === 'true',
+        show_logo: settingsMap['ticket.show_logo'] !== 'false',
+        show_branch_address: settingsMap['ticket.show_branch_address'] !== 'false',
+        business_name: settingsMap['ticket.business_name'] || '',
+        rfc: settingsMap['ticket.rfc'] || '',
+        footer_message: settingsMap['ticket.footer_message'] || 'Gracias por tu compra!',
+      },
+    };
+  }
+
+  // ─── Payment Methods ────────────────────────────────────────────
+
+  async getPaymentMethods(connection: DataSource) {
+    return connection.getRepository(PaymentMethod).find({
+      where: { is_active: true },
+      order: { name: 'ASC' },
+    });
+  }
+
   // ─── Sales ─────────────────────────────────────────────────────
 
   async createSale(connection: DataSource, user: any, data: any) {
@@ -347,6 +697,18 @@ export class PosService {
         }
       }
 
+      // Determine payment_method enum from payments array
+      let paymentMethodEnum = data.payment_method || 'cash';
+      if (data.payments && data.payments.length > 0) {
+        const hasCash = data.payments.some((p: any) => p.payment_method_name?.toLowerCase().includes('efectivo'));
+        const hasNonCash = data.payments.some((p: any) => !p.payment_method_name?.toLowerCase().includes('efectivo'));
+        if (data.payments.length === 1) {
+          paymentMethodEnum = hasCash ? 'cash' : 'card';
+        } else {
+          paymentMethodEnum = 'mixed';
+        }
+      }
+
       const sale = manager.create(Sale, {
         id: data.id,
         pos_session_id: data.pos_session_id,
@@ -356,7 +718,7 @@ export class PosService {
         total_amount: data.total_amount || 0,
         discount_amount: data.discount_amount || 0,
         tax_amount: data.tax_amount || 0,
-        payment_method: data.payment_method,
+        payment_method: paymentMethodEnum,
         sale_type: data.sale_type || 'in_store',
         status: 'completed',
         notes: data.notes,
@@ -364,6 +726,7 @@ export class PosService {
 
       const savedSale = await manager.save(sale);
 
+      // Create sale items and compute total
       let total = 0;
       for (const item of data.items) {
         const subtotal = item.quantity * item.unit_price - (item.discount || 0);
@@ -391,6 +754,40 @@ export class PosService {
 
       savedSale.total_amount = total - (data.discount_amount || 0);
       await manager.save(savedSale);
+
+      // Create payment records (split payments)
+      let cashAmount = 0;
+      if (data.payments && data.payments.length > 0) {
+        for (const payment of data.payments) {
+          const salePayment = manager.create(SalePayment, {
+            sale_id: savedSale.id,
+            payment_method_id: payment.payment_method_id,
+            payment_method_name: payment.payment_method_name,
+            amount: payment.amount,
+            reference: payment.reference || null,
+          });
+          await manager.save(salePayment);
+
+          // Track cash portion for CashTransaction
+          if (payment.payment_method_name?.toLowerCase().includes('efectivo')) {
+            cashAmount += parseFloat(String(payment.amount)) || 0;
+          }
+        }
+      } else if (paymentMethodEnum === 'cash') {
+        cashAmount = savedSale.total_amount;
+      }
+
+      // Auto-create CashTransaction for cash portion of the sale
+      if (cashAmount > 0 && data.pos_session_id) {
+        const cashTx = manager.create(CashTransaction, {
+          session_id: data.pos_session_id,
+          employee_id: user.sub,
+          type: 'sale_cash',
+          amount: cashAmount,
+          description: `Venta ${savedSale.id.slice(0, 8).toUpperCase()}`,
+        });
+        await manager.save(cashTx);
+      }
 
       return savedSale;
     });
