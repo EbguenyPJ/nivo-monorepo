@@ -12,6 +12,9 @@ export interface JwtPayload {
   role: string;
   type: 'super-admin' | 'employee';
   tenant_id?: string;
+  role_id?: string;
+  is_owner?: boolean;
+  branch_id?: string;
 }
 
 @Injectable()
@@ -65,6 +68,9 @@ export class AuthService {
       role: (employee as any).role,
       type: 'employee',
       tenant_id: tenant.id,
+      role_id: (employee as any).role_id || undefined,
+      is_owner: (employee as any).is_owner || false,
+      branch_id: (employee as any).branch_id || undefined,
     };
 
     return {
@@ -74,6 +80,8 @@ export class AuthService {
         email: (employee as any).email,
         name: (employee as any).name,
         role: (employee as any).role,
+        role_id: (employee as any).role_id,
+        is_owner: (employee as any).is_owner || false,
         branch_id: (employee as any).branch_id,
       },
       tenant: { id: tenant.id, name: tenant.name, subdomain: tenant.subdomain },
@@ -114,6 +122,9 @@ export class AuthService {
       role: matched.role,
       type: 'employee',
       tenant_id: tenant.id,
+      role_id: matched.role_id || undefined,
+      is_owner: matched.is_owner || false,
+      branch_id: matched.branch_id || undefined,
     };
 
     return {
@@ -122,6 +133,8 @@ export class AuthService {
         id: matched.id,
         name: matched.name,
         role: matched.role,
+        role_id: matched.role_id,
+        is_owner: matched.is_owner || false,
         branch_id: matched.branch_id,
       },
       tenant: { id: tenant.id, name: tenant.name },

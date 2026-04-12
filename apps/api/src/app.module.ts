@@ -30,6 +30,7 @@ import { TenantSettingsModule } from './modules/tenant/tenant-settings/tenant-se
 import { PricingModule } from './modules/tenant/pricing/pricing.module';
 import { StorageLocationsModule } from './modules/tenant/storage-locations/storage-locations.module';
 import { PurchasingModule } from './modules/tenant/purchasing/purchasing.module';
+import { AuditsModule } from './modules/tenant/audits/audits.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -69,6 +70,7 @@ import { HealthController } from './health.controller';
     PricingModule,
     StorageLocationsModule,
     PurchasingModule,
+    AuditsModule,
   ],
   controllers: [HealthController],
 })

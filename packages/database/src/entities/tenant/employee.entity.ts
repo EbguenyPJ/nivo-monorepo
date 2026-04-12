@@ -5,10 +5,12 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { Branch } from './branch.entity';
 import { Role } from './role.entity';
+import { BranchRoleEmployee } from './branch-role-employee.entity';
 
 @Entity('employees')
 export class Employee {
@@ -27,15 +29,15 @@ export class Employee {
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone: string | null;
 
-  /** Hashed PIN for fast POS unlock (4-6 digits) */
+  /** Hashed PIN for fast POS unlock (4-6 digits, unique per tenant) */
   @Column({ type: 'varchar', nullable: true })
   pin_hash: string | null;
 
-  // ─── Legacy role column (kept for backwards compat during migration) ───
+  // ─── Legacy role column (kept for backwards compat) ─────────────
   @Column({ type: 'enum', enum: ['admin', 'manager', 'cashier'], default: 'cashier' })
   role: string;
 
-  // ─── New RBAC role relation ───
+  // ─── Default role (used when not in a specific branch context) ──
   @Column({ type: 'uuid', nullable: true })
   role_id: string | null;
 
@@ -43,7 +45,7 @@ export class Employee {
   @JoinColumn({ name: 'role_id' })
   roleEntity: Role | null;
 
-  // ─── Branch assignment ───
+  // ─── Default branch (home branch for this employee) ────────────
   @Column({ type: 'uuid', nullable: true })
   branch_id: string | null;
 
@@ -51,8 +53,16 @@ export class Employee {
   @JoinColumn({ name: 'branch_id' })
   branch: Branch | null;
 
+  /** Owner/Super-Admin of the tenant — cannot be modified or deleted */
+  @Column({ type: 'boolean', default: false })
+  is_owner: boolean;
+
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
+
+  /** Multi-branch role assignments */
+  @OneToMany(() => BranchRoleEmployee, (bre) => bre.employee, { cascade: true })
+  branch_roles: BranchRoleEmployee[];
 
   @CreateDateColumn()
   created_at: Date;

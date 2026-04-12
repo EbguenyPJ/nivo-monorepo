@@ -39,6 +39,7 @@ import {
   DollarSign,
   Globe,
   Truck,
+  ClipboardCheck,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@nivo/ui';
@@ -95,6 +96,7 @@ const sidebarGroups: SidebarGroup[] = [
       { href: '/dashboard/inventory', icon: Warehouse, label: 'Stock por Sucursal' },
       { href: '/dashboard/transfers', icon: ArrowLeftRight, label: 'Traspasos', badgeKey: 'transfers_incoming' },
       { href: '/dashboard/stock-movements', icon: PackagePlus, label: 'Entradas y Salidas' },
+      { href: '/dashboard/audits', icon: ClipboardCheck, label: 'Auditorías de Stock' },
     ],
   },
   {
@@ -115,7 +117,7 @@ const sidebarGroups: SidebarGroup[] = [
     label: 'Administración',
     items: [
       { href: '/dashboard/expenses', icon: Wallet, label: 'Control de Gastos' },
-      { href: '/dashboard/employees', icon: UserCog, label: 'Empleados' },
+      { href: '/dashboard/employees', icon: UserCog, label: 'Equipo y Seguridad' },
       { href: '/dashboard/branches', icon: MapPin, label: 'Sucursales' },
     ],
   },

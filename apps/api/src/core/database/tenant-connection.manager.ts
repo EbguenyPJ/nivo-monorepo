@@ -43,10 +43,14 @@ import {
   SaleReturnItem,
   InventoryTransfer,
   InventoryTransferItem,
+  InventoryAudit,
+  InventoryAuditItem,
+  InventoryAdjustment,
   Supplier,
   PurchaseOrder,
   PurchaseOrderItem,
   AccountPayable,
+  BranchRoleEmployee,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -91,10 +95,14 @@ const TENANT_ENTITIES = [
   SaleReturnItem,
   InventoryTransfer,
   InventoryTransferItem,
+  InventoryAudit,
+  InventoryAuditItem,
+  InventoryAdjustment,
   Supplier,
   PurchaseOrder,
   PurchaseOrderItem,
   AccountPayable,
+  BranchRoleEmployee,
 ];
 
 @Injectable()
