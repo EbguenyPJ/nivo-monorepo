@@ -51,6 +51,13 @@ import {
   PurchaseOrderItem,
   AccountPayable,
   BranchRoleEmployee,
+  LoyaltyConfig,
+  LoyaltyLedger,
+  Layaway,
+  LayawayItem,
+  LayawayPayment,
+  CreditAccount,
+  CreditTransaction,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -103,6 +110,13 @@ const TENANT_ENTITIES = [
   PurchaseOrderItem,
   AccountPayable,
   BranchRoleEmployee,
+  LoyaltyConfig,
+  LoyaltyLedger,
+  Layaway,
+  LayawayItem,
+  LayawayPayment,
+  CreditAccount,
+  CreditTransaction,
 ];
 
 @Injectable()

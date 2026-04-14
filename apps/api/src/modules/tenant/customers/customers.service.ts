@@ -5,7 +5,10 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { DataSource, IsNull } from 'typeorm';
-import { Customer, CustomerAddress, Sale } from '@nivo/database';
+import {
+  Customer, CustomerAddress, Sale, SaleItem,
+  LoyaltyLedger, Layaway, CreditAccount,
+} from '@nivo/database';
 
 @Injectable()
 export class CustomersService {
@@ -63,12 +66,12 @@ export class CustomersService {
     };
   }
 
-  // ─── Single customer with addresses + stats ─────────────────────
+  // ��── Single customer with 360° profile ──────────────────────────
   async findOne(connection: DataSource, id: string) {
     const repo = connection.getRepository(Customer);
     const customer = await repo.findOne({
       where: { id, deleted_at: IsNull() },
-      relations: ['addresses'],
+      relations: ['addresses', 'price_list'],
     });
     if (!customer) throw new NotFoundException('Cliente no encontrado');
 
@@ -84,14 +87,64 @@ export class CustomersService {
       .andWhere('s.status = :status', { status: 'completed' })
       .getRawOne();
 
+    // Most purchased size (analyze attributes.Talla from sale items)
+    let favorite_size: string | null = null;
+    try {
+      const sizeData = await connection.getRepository(SaleItem)
+        .createQueryBuilder('si')
+        .innerJoin('si.sale', 's')
+        .innerJoin('si.variant', 'v')
+        .select("v.attributes->>'Talla MX'", 'size')
+        .addSelect('SUM(si.quantity)', 'qty')
+        .where('s.customer_id = :id', { id })
+        .andWhere('s.status = :status', { status: 'completed' })
+        .andWhere("v.attributes->>'Talla MX' IS NOT NULL")
+        .groupBy("v.attributes->>'Talla MX'")
+        .orderBy('qty', 'DESC')
+        .limit(1)
+        .getRawOne();
+      favorite_size = sizeData?.size || null;
+    } catch {
+      // Attributes column may not have Talla MX for all tenants
+    }
+
+    // Loyalty recent (last 5 entries)
+    const loyaltyRecent = await connection.getRepository(LoyaltyLedger).find({
+      where: { customer_id: id },
+      order: { created_at: 'DESC' },
+      take: 5,
+    });
+
+    // Layaway summary
+    const layawayRepo = connection.getRepository(Layaway);
+    const activeLayaways = await layawayRepo.count({ where: { customer_id: id, status: 'active' } });
+    const totalLayaways = await layawayRepo.count({ where: { customer_id: id } });
+
+    // Credit account
+    const creditAccount = await connection.getRepository(CreditAccount).findOne({
+      where: { customer_id: id },
+    });
+
     return {
       ...customer,
       stats: {
         total_purchases: Number(stats?.total_purchases || 0),
         total_spent: Number(stats?.total_spent || 0),
+        lifetime_value: Number(stats?.total_spent || 0),
         last_purchase_date: stats?.last_purchase_date || null,
         average_ticket: Number(Number(stats?.average_ticket || 0).toFixed(2)),
+        favorite_size,
       },
+      loyalty_recent: loyaltyRecent,
+      layaway_summary: { active: activeLayaways, total: totalLayaways },
+      credit_account: creditAccount ? {
+        id: creditAccount.id,
+        credit_limit: Number(creditAccount.credit_limit),
+        current_balance: Number(creditAccount.current_balance),
+        available_credit: Number(creditAccount.credit_limit) - Number(creditAccount.current_balance),
+        payment_terms: creditAccount.payment_terms,
+        is_active: creditAccount.is_active,
+      } : null,
     };
   }
 
@@ -125,6 +178,9 @@ export class CustomersService {
       rfc: data.rfc?.trim().toUpperCase() || null,
       date_of_birth: data.date_of_birth || null,
       notes: data.notes?.trim() || null,
+      internal_notes: data.internal_notes?.trim() || null,
+      price_list_id: data.price_list_id || null,
+      membership_tier: data.membership_tier || null,
       tags: data.tags || [],
     });
 

@@ -125,6 +125,7 @@ const sidebarGroups: SidebarGroup[] = [
     label: 'Análisis',
     items: [
       { href: '/dashboard/reports', icon: BarChart3, label: 'Reportes de Ventas' },
+      { href: '/dashboard/profitability', icon: DollarSign, label: 'Rentabilidad' },
       { href: '/dashboard/analytics', icon: TrendingUp, label: 'Rendimiento' },
     ],
   },

@@ -5,29 +5,29 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { Sale } from './sale.entity';
+import { Layaway } from './layaway.entity';
 import { ProductVariant } from './product-variant.entity';
 
-@Entity('sale_items')
-export class SaleItem {
+@Entity('layaway_items')
+export class LayawayItem {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column({ type: 'uuid' })
-  sale_id: string;
+  layaway_id: string;
 
-  @ManyToOne(() => Sale, (sale) => sale.items)
-  @JoinColumn({ name: 'sale_id' })
-  sale: Sale;
+  @ManyToOne(() => Layaway, (l) => l.items, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'layaway_id' })
+  layaway: Layaway;
 
   @Column({ type: 'uuid' })
   variant_id: string;
 
-  @ManyToOne(() => ProductVariant)
+  @ManyToOne(() => ProductVariant, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'variant_id' })
   variant: ProductVariant;
 
-  @Column({ type: 'int' })
+  @Column({ type: 'int', default: 1 })
   quantity: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
@@ -38,8 +38,4 @@ export class SaleItem {
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
   subtotal: number;
-
-  /** Cost snapshot at time of sale — enables historical COGS without relying on current variant cost */
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, default: null })
-  unit_cost_at_sale: number;
 }

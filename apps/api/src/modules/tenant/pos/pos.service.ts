@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { PosSession, Sale, SaleItem, SalePayment, SaleReturn, SaleReturnItem, Inventory, Product, Employee, CashRegister, CashTransaction, CollectionProduct, PaymentMethod, Branch, TenantSetting } from '@nivo/database';
+import { PosSession, Sale, SaleItem, SalePayment, SaleReturn, SaleReturnItem, Inventory, Product, ProductVariant, Employee, CashRegister, CashTransaction, CollectionProduct, PaymentMethod, Branch, TenantSetting } from '@nivo/database';
 import * as bcrypt from 'bcrypt';
 import { CollectionsService } from '../collections/collections.service';
 import { PricingService } from '../pricing/pricing.service';
@@ -968,6 +968,10 @@ export class PosService {
         const subtotal = item.quantity * item.unit_price - (item.discount || 0);
         total += subtotal;
 
+        // Snapshot current cost for historical COGS tracking
+        const variant = await manager.findOne(ProductVariant, { where: { id: item.variant_id } });
+        const unitCost = variant ? Number(variant.cost) || 0 : 0;
+
         const saleItem = manager.create(SaleItem, {
           sale_id: savedSale.id,
           variant_id: item.variant_id,
@@ -975,6 +979,7 @@ export class PosService {
           unit_price: item.unit_price,
           discount: item.discount || 0,
           subtotal,
+          unit_cost_at_sale: unitCost,
         });
         await manager.save(saleItem);
 

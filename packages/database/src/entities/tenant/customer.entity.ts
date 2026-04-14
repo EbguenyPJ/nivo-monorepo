@@ -6,9 +6,12 @@ import {
   UpdateDateColumn,
   DeleteDateColumn,
   OneToMany,
+  ManyToOne,
+  JoinColumn,
   Index,
 } from 'typeorm';
 import { CustomerAddress } from './customer-address.entity';
+import { PriceList } from './price-list.entity';
 
 @Entity('customers')
 export class Customer {
@@ -44,6 +47,18 @@ export class Customer {
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  /** Internal staff-only notes (e.g. "Cliente problemático con devoluciones") */
+  @Column({ type: 'text', nullable: true })
+  internal_notes: string | null;
+
+  /** Automatic price list for this customer (e.g. Mayoreo, VIP) */
+  @Column({ type: 'uuid', nullable: true })
+  price_list_id: string | null;
+
+  @ManyToOne(() => PriceList, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'price_list_id' })
+  price_list: PriceList | null;
 
   @Column({ type: 'int', default: 0 })
   loyalty_points: number;

@@ -31,6 +31,10 @@ import { PricingModule } from './modules/tenant/pricing/pricing.module';
 import { StorageLocationsModule } from './modules/tenant/storage-locations/storage-locations.module';
 import { PurchasingModule } from './modules/tenant/purchasing/purchasing.module';
 import { AuditsModule } from './modules/tenant/audits/audits.module';
+import { LoyaltyModule } from './modules/tenant/loyalty/loyalty.module';
+import { LayawaysModule } from './modules/tenant/layaways/layaways.module';
+import { CreditAccountsModule } from './modules/tenant/credit-accounts/credit-accounts.module';
+import { DashboardModule } from './modules/tenant/dashboard/dashboard.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -71,6 +75,10 @@ import { HealthController } from './health.controller';
     StorageLocationsModule,
     PurchasingModule,
     AuditsModule,
+    LoyaltyModule,
+    LayawaysModule,
+    CreditAccountsModule,
+    DashboardModule,
   ],
   controllers: [HealthController],
 })

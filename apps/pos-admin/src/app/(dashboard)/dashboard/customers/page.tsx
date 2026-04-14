@@ -56,8 +56,10 @@ interface CustomerAddress {
 interface CustomerStats {
   total_purchases: number;
   total_spent: number;
+  lifetime_value: number;
   last_purchase_date: string | null;
   average_ticket: number;
+  favorite_size: string | null;
 }
 
 interface PaginatedResponse {
@@ -113,7 +115,7 @@ export default function CustomersPage() {
   // Form state
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '', phone: '',
-    rfc: '', date_of_birth: '', notes: '',
+    rfc: '', date_of_birth: '', notes: '', internal_notes: '',
   });
 
   // Debounced search
@@ -154,7 +156,7 @@ export default function CustomersPage() {
 
   const openCreate = () => {
     setEditingCustomer(null);
-    setForm({ first_name: '', last_name: '', email: '', phone: '', rfc: '', date_of_birth: '', notes: '' });
+    setForm({ first_name: '', last_name: '', email: '', phone: '', rfc: '', date_of_birth: '', notes: '', internal_notes: '' });
     setDialogOpen(true);
   };
 
@@ -176,6 +178,7 @@ export default function CustomersPage() {
       rfc: c.rfc || '',
       date_of_birth: c.date_of_birth ? c.date_of_birth.split('T')[0] : '',
       notes: c.notes || '',
+      internal_notes: (c as any).internal_notes || '',
     });
     setDialogOpen(true);
   };
@@ -194,6 +197,7 @@ export default function CustomersPage() {
         rfc: form.rfc || undefined,
         date_of_birth: form.date_of_birth || undefined,
         notes: form.notes || undefined,
+        internal_notes: form.internal_notes || undefined,
       };
       if (editingCustomer) {
         await apiClient.put(`/customers/${editingCustomer.id}`, payload);
@@ -559,7 +563,7 @@ export default function CustomersPage() {
                   />
                 </div>
                 <div className="space-y-2 mt-3">
-                  <Label htmlFor="notes">Notas Internas</Label>
+                  <Label htmlFor="notes">Notas</Label>
                   <Textarea
                     id="notes"
                     rows={2}
@@ -567,6 +571,17 @@ export default function CustomersPage() {
                     className="resize-none"
                     value={form.notes}
                     onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2 mt-3">
+                  <Label htmlFor="internal-notes">Notas Internas (solo staff)</Label>
+                  <Textarea
+                    id="internal-notes"
+                    rows={2}
+                    placeholder="Notas visibles solo para el equipo..."
+                    className="resize-none"
+                    value={form.internal_notes}
+                    onChange={(e) => setForm((p) => ({ ...p, internal_notes: e.target.value }))}
                   />
                 </div>
               </div>
@@ -667,9 +682,9 @@ export default function CustomersPage() {
                 )}
               </div>
 
-              {/* Stats */}
+              {/* Stats — 360° Profile */}
               {detailCustomer.stats && (
-                <div className="grid grid-cols-4 gap-3 mt-4">
+                <div className="grid grid-cols-5 gap-3 mt-4">
                   <div className="rounded-lg border p-3 text-center">
                     <ShoppingBag className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
                     <p className="text-lg font-bold">{detailCustomer.stats.total_purchases}</p>
@@ -677,8 +692,8 @@ export default function CustomersPage() {
                   </div>
                   <div className="rounded-lg border p-3 text-center">
                     <CreditCard className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
-                    <p className="text-lg font-bold">{formatCurrency(detailCustomer.stats.total_spent)}</p>
-                    <p className="text-xs text-muted-foreground">Total Gastado</p>
+                    <p className="text-lg font-bold">{formatCurrency(detailCustomer.stats.lifetime_value || detailCustomer.stats.total_spent)}</p>
+                    <p className="text-xs text-muted-foreground">Lifetime Value</p>
                   </div>
                   <div className="rounded-lg border p-3 text-center">
                     <Receipt className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
@@ -690,11 +705,68 @@ export default function CustomersPage() {
                     <p className="text-lg font-bold">{detailCustomer.loyalty_points}</p>
                     <p className="text-xs text-muted-foreground">Puntos</p>
                   </div>
+                  {detailCustomer.stats.favorite_size && (
+                    <div className="rounded-lg border p-3 text-center">
+                      <MapPin className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
+                      <p className="text-lg font-bold">{detailCustomer.stats.favorite_size}</p>
+                      <p className="text-xs text-muted-foreground">Talla Favorita</p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Credit balance */}
-              {Number(detailCustomer.credit_balance) > 0 && (
+              {detailCustomer.stats?.last_purchase_date && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Ultima visita: {new Date(detailCustomer.stats.last_purchase_date).toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' })}
+                </p>
+              )}
+
+              {/* Layaway + Credit summary row */}
+              {((detailCustomer as any).layaway_summary || (detailCustomer as any).credit_account) && (
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  {(detailCustomer as any).layaway_summary && (detailCustomer as any).layaway_summary.total > 0 && (
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div className="text-sm">
+                        <p className="font-medium">Apartados</p>
+                        <p className="text-xs text-muted-foreground">
+                          {(detailCustomer as any).layaway_summary.active} activo{(detailCustomer as any).layaway_summary.active !== 1 ? 's' : ''} de {(detailCustomer as any).layaway_summary.total} total
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                  {(detailCustomer as any).credit_account && (
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div className="text-sm">
+                        <p className="font-medium">Cuenta de Credito</p>
+                        <p className="text-xs text-muted-foreground">
+                          Deuda: {formatCurrency((detailCustomer as any).credit_account.current_balance)} / {formatCurrency((detailCustomer as any).credit_account.credit_limit)}
+                        </p>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{(detailCustomer as any).credit_account.payment_terms}d</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Loyalty recent */}
+              {(detailCustomer as any).loyalty_recent && (detailCustomer as any).loyalty_recent.length > 0 && (
+                <div className="mt-4">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Puntos Recientes</p>
+                  <div className="space-y-1">
+                    {(detailCustomer as any).loyalty_recent.slice(0, 3).map((entry: any) => (
+                      <div key={entry.id} className="flex items-center justify-between text-xs py-1.5 border-b last:border-0">
+                        <span className="text-muted-foreground">{entry.description || entry.type}</span>
+                        <span className={entry.points_earned > 0 ? 'text-green-400 font-medium' : 'text-red-400 font-medium'}>
+                          {entry.points_earned > 0 ? `+${entry.points_earned}` : `-${entry.points_spent}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Credit balance (legacy field) */}
+              {Number(detailCustomer.credit_balance) > 0 && !(detailCustomer as any).credit_account && (
                 <div className="flex items-center justify-between rounded-lg border p-3 mt-4">
                   <div className="flex items-center gap-2 text-sm font-medium">
                     <CreditCard className="h-4 w-4 text-muted-foreground" />
@@ -705,10 +777,18 @@ export default function CustomersPage() {
               )}
 
               {/* Notes */}
-              {detailCustomer.notes && (
+              {(detailCustomer.notes || (detailCustomer as any).internal_notes) && (
                 <div className="mt-4">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Notas</p>
-                  <p className="text-sm bg-muted/50 rounded-md p-3">{detailCustomer.notes}</p>
+                  {detailCustomer.notes && (
+                    <p className="text-sm bg-muted/50 rounded-md p-3 mb-2">{detailCustomer.notes}</p>
+                  )}
+                  {(detailCustomer as any).internal_notes && (
+                    <p className="text-sm bg-amber-500/5 border border-amber-500/20 rounded-md p-3 text-amber-200">
+                      <span className="text-[10px] uppercase tracking-wider text-amber-400 font-semibold block mb-1">Nota Interna</span>
+                      {(detailCustomer as any).internal_notes}
+                    </p>
+                  )}
                 </div>
               )}
 
