@@ -8,6 +8,9 @@ export const QUEUE_NAMES = {
   REPORT_GENERATION: 'report-generation',
   INVOICE_GENERATION: 'invoice-generation',
   REPORTS_EXPORT: 'reports-export',
+  BILLING_TASKS: 'billing-tasks',
+  NOTIFICATIONS: 'notifications-queue',
+  REPORTS: 'reports-queue',
 } as const;
 
 @Global()
@@ -28,6 +31,9 @@ export const QUEUE_NAMES = {
       { name: QUEUE_NAMES.REPORT_GENERATION },
       { name: QUEUE_NAMES.INVOICE_GENERATION },
       { name: QUEUE_NAMES.REPORTS_EXPORT },
+      { name: QUEUE_NAMES.BILLING_TASKS },
+      { name: QUEUE_NAMES.NOTIFICATIONS },
+      { name: QUEUE_NAMES.REPORTS },
     ),
   ],
   exports: [BullModule],

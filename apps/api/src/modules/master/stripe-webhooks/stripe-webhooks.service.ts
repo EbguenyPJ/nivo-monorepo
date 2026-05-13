@@ -1,24 +1,45 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
+import Stripe from 'stripe';
 import { SubscriptionsService } from '../subscriptions/subscriptions.service';
 import { BillingService } from '../billing/billing.service';
+import { QUEUE_NAMES } from '../../../core/queue/queue.module';
 
 @Injectable()
 export class StripeWebhooksService {
   private readonly logger = new Logger(StripeWebhooksService.name);
+  private readonly stripe: Stripe;
 
   constructor(
     private readonly config: ConfigService,
     private readonly subscriptionsService: SubscriptionsService,
     private readonly billingService: BillingService,
-  ) {}
+    @InjectQueue(QUEUE_NAMES.BILLING_TASKS)
+    private readonly billingTasksQueue: Queue,
+  ) {
+    this.stripe = new Stripe(this.config.get('STRIPE_SECRET_KEY', ''), {
+      apiVersion: '2024-12-18.acacia',
+    });
+  }
 
-  async handleWebhook(body: any, _signature: string) {
-    // TODO: Verify Stripe signature in production
-    // const stripe = new Stripe(this.config.get('STRIPE_SECRET_KEY'));
-    // const event = stripe.webhooks.constructEvent(body, signature, this.config.get('STRIPE_WEBHOOK_SECRET'));
+  constructEvent(rawBody: Buffer, signature: string): Stripe.Event {
+    const webhookSecret = this.config.get<string>('STRIPE_WEBHOOK_SECRET', '');
+    if (!webhookSecret) {
+      this.logger.warn('STRIPE_WEBHOOK_SECRET not set — skipping signature verification');
+      return JSON.parse(rawBody.toString()) as Stripe.Event;
+    }
+    try {
+      return this.stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
+    } catch (err: any) {
+      this.logger.error(`Stripe signature verification failed: ${err.message}`);
+      throw new BadRequestException('Invalid Stripe signature');
+    }
+  }
 
-    const event = body;
+  async handleWebhook(body: any, signature: string) {
+    const event = this.constructEvent(body, signature);
     this.logger.log(`Received Stripe event: ${event.type}`);
 
     switch (event.type) {
@@ -38,8 +59,14 @@ export class StripeWebhooksService {
   private async handlePaymentSucceeded(invoice: any) {
     this.logger.log(`Payment succeeded for subscription: ${invoice.subscription}`);
 
-    // 1. Update subscription status
-    await this.subscriptionsService.updateStatus(invoice.subscription, 'active');
+    // 1. Update subscription status + current_period_end
+    if (invoice.subscription) {
+      await this.subscriptionsService.updateStatusWithPeriod(
+        invoice.subscription,
+        'active',
+        invoice.period_end ? new Date(invoice.period_end * 1000) : null,
+      );
+    }
 
     // 2. Resolve tenant from subscription
     const tenantId = await this.resolveTenantId(invoice.subscription);
@@ -49,18 +76,34 @@ export class StripeWebhooksService {
     }
 
     // 3. Create billing_invoice record (idempotent — no duplicate on webhook retry)
+    const amountPaid = (invoice.amount_paid || invoice.total || 0) / 100;
+    const description = this.buildInvoiceDescription(invoice);
     const billingInvoice = await this.billingService.createInvoiceRecord({
       tenantId,
       stripeInvoiceId: invoice.id,
       stripeSubscriptionId: invoice.subscription || null,
-      amountTotal: (invoice.amount_paid || invoice.total || 0) / 100, // Stripe sends cents
-      description: this.buildInvoiceDescription(invoice),
+      amountTotal: amountPaid,
+      description,
       periodStart: invoice.period_start ? new Date(invoice.period_start * 1000) : null,
       periodEnd:   invoice.period_end   ? new Date(invoice.period_end   * 1000) : null,
     });
 
     // 4. Enqueue CFDI generation (async — worker checks requires_invoice before doing anything)
     await this.billingService.enqueueInvoiceGeneration(billingInvoice.id);
+
+    // 5. Enqueue billing notification tasks (email + invoice delivery)
+    const customerEmail = invoice.customer_email || this.config.get('MAIL_FROM_ADDRESS', 'nivo.demo2@gmail.com');
+    await this.billingTasksQueue.add('payment-notification', {
+      tenantId,
+      invoiceId: billingInvoice.id,
+      email: customerEmail,
+      amount: amountPaid,
+      description,
+    }, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+      removeOnComplete: true,
+    });
   }
 
   private async handleSubscriptionDeleted(subscription: any) {

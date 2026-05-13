@@ -39,6 +39,17 @@ export class SubscriptionsService {
     }
   }
 
+  async updateStatusWithPeriod(stripeSubscriptionId: string, status: string, currentPeriodEnd: Date | null) {
+    const subscription = await this.subscriptionRepo.findOne({
+      where: { stripe_subscription_id: stripeSubscriptionId },
+    });
+    if (subscription) {
+      subscription.status = status;
+      if (currentPeriodEnd) subscription.current_period_end = currentPeriodEnd;
+      return this.subscriptionRepo.save(subscription);
+    }
+  }
+
   async findByStripeId(stripeSubscriptionId: string): Promise<Subscription | null> {
     return this.subscriptionRepo.findOne({
       where: { stripe_subscription_id: stripeSubscriptionId },

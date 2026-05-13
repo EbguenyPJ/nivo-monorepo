@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Nivo Client",
+    "slug": "nivo-client",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "nivoclient",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#020617",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.nivo.client",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Se necesita tu ubicación para mostrar sucursales cercanas para recoger tu pedido."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#020617"
+      },
+      "package": "com.nivo.client",
+      "permissions": ["ACCESS_FINE_LOCATION"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-location",
+      "expo-secure-store",
+      [
+        "@stripe/stripe-react-native",
+        {
+          "merchantIdentifier": "merchant.com.nivo.client",
+          "enableGooglePay": true
+        }
+      ]
+    ]
+  }
+}

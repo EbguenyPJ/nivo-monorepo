@@ -61,3 +61,42 @@ export enum MembershipTier {
   GOLD = 'gold',
   WHOLESALE = 'wholesale',
 }
+
+// ==========================================
+// Mobile / BOPIS / Delivery Enums
+// ==========================================
+
+export enum OrderStatus {
+  PENDING_PAYMENT = 'pending_payment',
+  PAID = 'paid',
+  PICKING = 'picking',
+  PACKED = 'packed',
+  READY_FOR_PICKUP = 'ready_for_pickup',
+  PICKED_UP = 'picked_up',
+  OUT_FOR_DELIVERY = 'out_for_delivery',
+  DELIVERED = 'delivered',
+  CANCELLED = 'cancelled',
+}
+
+export enum OrderFulfillmentType {
+  BOPIS = 'bopis',
+  DELIVERY = 'delivery',
+  SHIP_TO_HOME = 'ship_to_home',
+}
+
+export enum DeliveryProofStatus {
+  PENDING = 'pending',
+  DELIVERED = 'delivered',
+  FAILED = 'failed',
+}
+
+export enum AuditScanMode {
+  SINGLE = 'single',
+  BATCH = 'batch',
+}
+
+export enum PreSaleStatus {
+  OPEN = 'open',
+  CONVERTED = 'converted',
+  EXPIRED = 'expired',
+}
