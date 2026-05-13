@@ -30,6 +30,12 @@ export class Branch {
   @Column({ type: 'decimal', precision: 8, scale: 2, nullable: true })
   custom_landed_cost_percentage: number | null;
 
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  latitude: number | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
+  longitude: number | null;
+
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 

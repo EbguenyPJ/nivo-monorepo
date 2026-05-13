@@ -6,6 +6,7 @@ import { QUEUE_NAMES } from '../../../core/queue/queue.module';
 import { BillingService } from './billing.service';
 import { BillingController } from './billing.controller';
 import { InvoiceGeneratorWorker } from './invoice-generator.worker';
+import { BillingTasksWorker } from './billing-tasks.worker';
 import { PacService } from './pac.service';
 import { StorageService } from './storage.service';
 import { EmailService } from './email.service';
@@ -13,12 +14,16 @@ import { EmailService } from './email.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([TenantBillingProfile, BillingInvoice, Tenant]),
-    BullModule.registerQueue({ name: QUEUE_NAMES.INVOICE_GENERATION }),
+    BullModule.registerQueue(
+      { name: QUEUE_NAMES.INVOICE_GENERATION },
+      { name: QUEUE_NAMES.BILLING_TASKS },
+    ),
   ],
   controllers: [BillingController],
   providers: [
     BillingService,
     InvoiceGeneratorWorker,
+    BillingTasksWorker,
     PacService,
     StorageService,
     EmailService,

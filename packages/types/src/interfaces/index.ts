@@ -213,3 +213,97 @@ export interface IInventoryLocation {
   quantity: number;
   updated_at: Date;
 }
+
+// ==========================================
+// Mobile B2C Interfaces
+// ==========================================
+
+export interface ICustomerAuth {
+  id: string;
+  customer_id: string;
+  email: string;
+  password_hash: string;
+  phone: string | null;
+  is_verified: boolean;
+  push_token: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface IOrder {
+  id: string;
+  order_number: number;
+  customer_id: string;
+  branch_id: string | null;
+  employee_id: string | null;
+  fulfillment_type: string;
+  status: string;
+  total_amount: number;
+  discount_amount: number;
+  tax_amount: number;
+  stripe_payment_intent_id: string | null;
+  shipping_address: Record<string, string> | null;
+  pickup_branch_id: string | null;
+  notes: string | null;
+  paid_at: Date | null;
+  packed_at: Date | null;
+  completed_at: Date | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface IOrderItem {
+  id: string;
+  order_id: string;
+  variant_id: string;
+  quantity: number;
+  unit_price: number;
+  discount: number;
+  subtotal: number;
+}
+
+export interface IDeliveryProof {
+  id: string;
+  order_id: string;
+  employee_id: string;
+  latitude: number;
+  longitude: number;
+  photo_url: string | null;
+  recipient_name: string | null;
+  notes: string | null;
+  status: string;
+  delivered_at: Date;
+  created_at: Date;
+}
+
+export interface IPreSale {
+  id: string;
+  branch_id: string;
+  employee_id: string;
+  customer_id: string | null;
+  status: string;
+  items: IPreSaleItem[];
+  total_amount: number;
+  qr_code: string;
+  expires_at: Date;
+  created_at: Date;
+}
+
+export interface IPreSaleItem {
+  id: string;
+  pre_sale_id: string;
+  variant_id: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+}
+
+// ==========================================
+// Branch with geo coordinates (for BOPIS)
+// ==========================================
+
+export interface IBranchWithGeo extends IBranch {
+  latitude: number | null;
+  longitude: number | null;
+  distance_km?: number;
+}

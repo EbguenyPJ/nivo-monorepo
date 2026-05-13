@@ -42,6 +42,15 @@ import { TenantIntegrationsModule } from './modules/tenant/tenant-integrations/t
 import { RequisitionsModule } from './modules/tenant/requisitions/requisitions.module';
 import { BillingModule } from './modules/master/billing/billing.module';
 import { ReportsExportModule } from './modules/tenant/reports-export/reports-export.module';
+import { MobileCatalogModule } from './modules/tenant/mobile-catalog/mobile-catalog.module';
+import { MobileAuthModule } from './modules/tenant/mobile-auth/mobile-auth.module';
+import { MobileOrdersModule } from './modules/tenant/orders/orders.module';
+import { PreSalesModule } from './modules/tenant/pre-sales/pre-sales.module';
+import { DeliveryModule } from './modules/tenant/delivery/delivery.module';
+import { NivoNotificationsModule } from './notifications/notifications.module';
+import { NivoReportsModule } from './reports/reports.module';
+import { NivoMailerModule } from './modules/tenant/mailer/mailer.module';
+import { LogisticsModule } from './modules/tenant/logistics/logistics.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -92,6 +101,16 @@ import { HealthController } from './health.controller';
     TenantIntegrationsModule,
     RequisitionsModule,
     ReportsExportModule,
+    // Mobile modules
+    MobileCatalogModule,
+    MobileAuthModule,
+    MobileOrdersModule,
+    PreSalesModule,
+    DeliveryModule,
+    NivoNotificationsModule,
+    NivoReportsModule,
+    NivoMailerModule,
+    LogisticsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

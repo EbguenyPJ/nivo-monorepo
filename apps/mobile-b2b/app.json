@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Nivo Staff",
+    "slug": "nivo-staff",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "nivo-staff",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#020617"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.nivo.staff",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Nivo Staff necesita acceso a la cámara para escanear códigos de barras y capturar tickets de gastos.",
+        "NSLocationWhenInUseUsageDescription": "Nivo Staff necesita tu ubicación para registrar la entrega de pedidos."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#020617"
+      },
+      "package": "com.nivo.staff",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-camera",
+      "expo-location",
+      "expo-image-picker",
+      "expo-secure-store"
+    ]
+  }
+}

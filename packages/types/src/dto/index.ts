@@ -213,3 +213,83 @@ export interface MoveInventoryLocationDto {
   to_location_id: string;
   quantity: number;
 }
+
+// ==========================================
+// Mobile B2C DTOs
+// ==========================================
+
+export interface CustomerRegisterDto {
+  email: string;
+  password: string;
+  name: string;
+  phone?: string;
+}
+
+export interface CustomerLoginDto {
+  email: string;
+  password: string;
+}
+
+export interface CreateOrderDto {
+  customer_id: string;
+  fulfillment_type: 'bopis' | 'delivery' | 'ship_to_home';
+  items: { variant_id: string; quantity: number; unit_price: number }[];
+  pickup_branch_id?: string;
+  shipping_address?: {
+    street: string;
+    city: string;
+    state: string;
+    zip_code: string;
+    country: string;
+  };
+  stripe_payment_method_id?: string;
+  notes?: string;
+}
+
+export interface LayawayStripePaymentDto {
+  layaway_id: string;
+  amount: number;
+  stripe_payment_method_id: string;
+}
+
+export interface UpdatePushTokenDto {
+  push_token: string;
+}
+
+// ==========================================
+// Mobile B2B DTOs
+// ==========================================
+
+export interface ScanBarcodeDto {
+  audit_id: string;
+  barcode: string;
+}
+
+export interface PickingVerifyDto {
+  order_id: string;
+  barcode: string;
+}
+
+export interface MarkPackedDto {
+  order_id: string;
+}
+
+export interface CreatePreSaleDto {
+  customer_id?: string;
+  items: { variant_id: string; quantity: number; unit_price: number }[];
+}
+
+export interface CreateExpenseWithReceiptDto {
+  branch_id: string;
+  category_id: string;
+  amount: number;
+  description: string;
+}
+
+export interface DeliveryProofDto {
+  order_id: string;
+  latitude: number;
+  longitude: number;
+  recipient_name?: string;
+  notes?: string;
+}
