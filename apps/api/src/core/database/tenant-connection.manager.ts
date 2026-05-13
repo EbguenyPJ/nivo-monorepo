@@ -58,6 +58,13 @@ import {
   LayawayPayment,
   CreditAccount,
   CreditTransaction,
+  ExpenseCategory,
+  Expense,
+  TenantIntegration,
+  IntegrationLog,
+  VariantSupplier,
+  PurchaseRequisition,
+  RequisitionItem,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -117,6 +124,13 @@ const TENANT_ENTITIES = [
   LayawayPayment,
   CreditAccount,
   CreditTransaction,
+  ExpenseCategory,
+  Expense,
+  TenantIntegration,
+  IntegrationLog,
+  VariantSupplier,
+  PurchaseRequisition,
+  RequisitionItem,
 ];
 
 @Injectable()

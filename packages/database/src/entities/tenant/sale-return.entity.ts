@@ -12,6 +12,7 @@ import { Employee } from './employee.entity';
 import { Branch } from './branch.entity';
 import { PosSession } from './pos-session.entity';
 import { SaleReturnItem } from './sale-return-item.entity';
+import { CancellationReason } from './cancellation-reason.entity';
 
 /**
  * Master return record.
@@ -64,6 +65,15 @@ export class SaleReturn {
   @Column({ type: 'enum', enum: ['cash', 'card_reversal', 'store_credit'] })
   refund_method: string;
 
+  /** FK to CancellationReason catalog (preferred) */
+  @Column({ type: 'uuid', nullable: true })
+  cancellation_reason_id: string | null;
+
+  @ManyToOne(() => CancellationReason, { nullable: true })
+  @JoinColumn({ name: 'cancellation_reason_id' })
+  cancellation_reason: CancellationReason | null;
+
+  /** Free-text reason (legacy / fallback) */
   @Column({ type: 'text', nullable: true })
   reason: string | null;
 

@@ -65,9 +65,20 @@ export class PlanConfig {
   @Column({ type: 'boolean', default: false })
   mod_ecommerce: boolean; // E-commerce integration (Shopify, WooCommerce)
 
-  // --- Support level ---
+  @Column({ type: 'boolean', default: false })
+  mod_custom_branding: boolean; // Custom logo, brand color and theme per tenant
+
+  // --- Support ---
   @Column({ type: 'varchar', length: 50, default: 'email' })
-  support_level: string; // 'email' | 'chat' | 'dedicated'
+  support_level: string; // 'email' | 'chat' | 'dedicated' (legacy / tier label)
+
+  /** Support channel: 'email' | 'chat' | 'phone' */
+  @Column({ type: 'varchar', length: 20, default: 'email' })
+  support_type: string;
+
+  /** Human-readable schedule, e.g. "Lunes a Viernes 9am–6pm" */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  support_hours: string | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   support_description: string; // "Correo 24-48hrs" | "Chat en vivo" | "Gerente de cuenta asignado"

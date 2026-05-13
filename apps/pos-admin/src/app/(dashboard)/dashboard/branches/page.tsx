@@ -10,7 +10,7 @@ import {
 } from '@nivo/ui';
 import {
   Plus, MapPin, MoreVertical, Pencil, Users, Power, Store,
-  Phone, DollarSign, Monitor,
+  Phone, DollarSign, Monitor, Trash2,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useBranchStore } from '@/store/branchStore';
@@ -56,6 +56,8 @@ export default function BranchesPage() {
   const [codeManual, setCodeManual] = useState(false);
   const [confirmToggle, setConfirmToggle] = useState<Branch | null>(null);
   const [toggling, setToggling] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<Branch | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // ─── Fetch ──────────────────────────────────────────────────
   const fetchBranches = async () => {
@@ -163,6 +165,23 @@ export default function BranchesPage() {
       toast({ title: 'Error', description: error.response?.data?.message || 'Error al cambiar el estado', variant: 'destructive' });
     } finally {
       setToggling(false);
+    }
+  };
+
+  // ─── Delete branch ────────────────────────────────────────────
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/branches/${confirmDelete.id}`);
+      toast({ title: 'Sucursal eliminada', description: `"${confirmDelete.name}" fue eliminada permanentemente.` });
+      setConfirmDelete(null);
+      await fetchBranches();
+      refreshHeaderBranches();
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.response?.data?.message || 'Error al eliminar la sucursal', variant: 'destructive' });
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -274,6 +293,13 @@ export default function BranchesPage() {
                       >
                         <Power className="h-4 w-4 mr-2" />
                         {branch.is_active ? 'Desactivar Sucursal' : 'Reactivar Sucursal'}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => setConfirmDelete(branch)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Eliminar Sucursal
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -475,6 +501,27 @@ export default function BranchesPage() {
               disabled={toggling}
             >
               {toggling ? 'Procesando...' : confirmToggle?.is_active ? 'Desactivar' : 'Reactivar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* ─── Delete Confirmation ─────────────────────────────────── */}
+      <Dialog open={!!confirmDelete} onOpenChange={(open) => !open && setConfirmDelete(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Eliminar Sucursal</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar permanentemente{' '}
+              <span className="font-semibold text-foreground">"{confirmDelete?.name}"</span>?
+              Esta acción no se puede deshacer. Si la sucursal tiene empleados asignados, no podrá eliminarse.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)} disabled={deleting}>
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+              {deleting ? 'Eliminando...' : 'Eliminar Permanentemente'}
             </Button>
           </DialogFooter>
         </DialogContent>

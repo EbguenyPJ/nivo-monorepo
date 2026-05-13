@@ -529,6 +529,7 @@ export default function PosPage() {
       <cashOps.CashOperationsMenuWithState
         sessionId={session?.id || ''}
         employeeId={posEmployee?.id || ''}
+        branchId={session?.branch_id || ''}
       />
 
       {/* ═══ LEFT PANEL (65%) — Catalog ═══ */}
@@ -605,6 +606,7 @@ export default function PosPage() {
           onCashIn={cashOps.openCashIn}
           onCashOut={cashOps.openCashOut}
           onAudit={cashOps.openAudit}
+          onExpense={cashOps.openExpense}
           selectedCustomer={selectedCustomer}
           onCustomerSelect={setSelectedCustomer}
           customerQuery={customerQuery}

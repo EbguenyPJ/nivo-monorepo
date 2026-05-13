@@ -81,6 +81,8 @@ export class TenantsController {
       override_mod_loyalty: boolean | null;
       override_mod_advanced_reports: boolean | null;
       override_mod_ecommerce: boolean | null;
+      override_support_type: string | null;
+      override_support_hours: string | null;
     }>,
   ) {
     return this.tenantsService.update(id, body);

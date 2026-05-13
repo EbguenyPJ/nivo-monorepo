@@ -1,5 +1,7 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { MasterDbModule } from './core/database/master-db.module';
 import { TenantDbModule } from './core/database/tenant-db.module';
 import { AuthModule } from './core/auth/auth.module';
@@ -35,6 +37,11 @@ import { LoyaltyModule } from './modules/tenant/loyalty/loyalty.module';
 import { LayawaysModule } from './modules/tenant/layaways/layaways.module';
 import { CreditAccountsModule } from './modules/tenant/credit-accounts/credit-accounts.module';
 import { DashboardModule } from './modules/tenant/dashboard/dashboard.module';
+import { ExpensesModule } from './modules/tenant/expenses/expenses.module';
+import { TenantIntegrationsModule } from './modules/tenant/tenant-integrations/tenant-integrations.module';
+import { RequisitionsModule } from './modules/tenant/requisitions/requisitions.module';
+import { BillingModule } from './modules/master/billing/billing.module';
+import { ReportsExportModule } from './modules/tenant/reports-export/reports-export.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -43,6 +50,7 @@ import { HealthController } from './health.controller';
       isGlobal: true,
       envFilePath: ['.env', '../../.env'],
     }),
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 20 }]),
     MasterDbModule,
     TenantDbModule,
     AuthModule,
@@ -57,6 +65,7 @@ import { HealthController } from './health.controller';
     SettingsModule,
     IntegrationsModule,
     SupportModule,
+    BillingModule,
     // Tenant modules
     InventoryModule,
     PosModule,
@@ -79,14 +88,19 @@ import { HealthController } from './health.controller';
     LayawaysModule,
     CreditAccountsModule,
     DashboardModule,
+    ExpensesModule,
+    TenantIntegrationsModule,
+    RequisitionsModule,
+    ReportsExportModule,
   ],
   controllers: [HealthController],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(TenantConnectionMiddleware)
-      .exclude('api/v1/auth/(.*)', 'api/v1/tenants/(.*)', 'api/v1/notifications/(.*)', 'api/v1/webhooks/(.*)', 'api/v1/reports/(.*)', 'api/v1/settings/(.*)', 'api/v1/integrations/(.*)', 'api/v1/support/(.*)', 'api/v1/health', 'api/docs(.*)')
+      .exclude('api/v1/auth/(.*)', 'api/v1/tenants/(.*)', 'api/v1/notifications/(.*)', 'api/v1/webhooks/(.*)', 'api/v1/reports/(.*)', 'api/v1/settings/(.*)', 'api/v1/integrations/(.*)', 'api/v1/support/(.*)', 'api/v1/tenant-support/(.*)', 'api/v1/tenant-subscription/(.*)', 'api/v1/billing/(.*)', 'api/v1/health', 'api/docs(.*)', 'api/v1/reports/export/status/(.*)')
       .forRoutes('*');
   }
 }

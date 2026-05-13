@@ -36,6 +36,10 @@ export class Inventory {
   @Column({ type: 'int', default: 5 })
   stock_minimum: number;
 
+  /** Maximum / ideal stock level for this variant at this branch */
+  @Column({ type: 'int', default: 20 })
+  stock_maximum: number;
+
   @UpdateDateColumn()
   updated_at: Date;
 }

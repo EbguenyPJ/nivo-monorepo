@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Button, Badge, Card, CardContent, Input, Label, Textarea,
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -75,6 +76,7 @@ const STEPS = [
 // Page Component
 // ═══════════════════════════════════════════════════════════════
 export default function ProductsPage() {
+  const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -588,7 +590,7 @@ export default function ProductsPage() {
       ) : (
         <div className="space-y-3">
           {[...active, ...inactive].map((product) => (
-            <Card key={product.id} className={cn('transition-all', !product.is_active && 'opacity-50 border-dashed')}>
+            <Card key={product.id} className={cn('transition-all cursor-pointer hover:shadow-sm', !product.is_active && 'opacity-50 border-dashed')} onClick={() => router.push(`/dashboard/products/${product.id}`)}>
               <CardContent className="flex items-center justify-between py-4">
                 <div className="flex items-center gap-4">
                   <div className="h-14 w-14 rounded-lg bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
@@ -614,7 +616,7 @@ export default function ProductsPage() {
                     <p className="text-xs text-muted-foreground">{new Date(product.created_at).toLocaleDateString('es-MX')}</p>
                   </div>
                   <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-44">
                       <DropdownMenuItem onClick={() => handleToggle(product)} className={product.is_active ? 'text-destructive' : 'text-green-600'}><Power className="h-4 w-4 mr-2" />{product.is_active ? 'Desactivar' : 'Reactivar'}</DropdownMenuItem>
                       <DropdownMenuSeparator />

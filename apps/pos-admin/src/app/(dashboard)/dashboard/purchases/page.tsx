@@ -96,6 +96,8 @@ interface AccountPayableRow {
   balance: number;
   due_date: string;
   status: string;
+  overdue_days: number;
+  received_at: string | null;
   created_at: string;
 }
 
@@ -206,6 +208,8 @@ export default function PurchasesPage() {
   const [payables, setPayables] = useState<AccountPayableRow[]>([]);
   const [payablesLoading, setPayablesLoading] = useState(false);
   const [payablesTotal, setPayablesTotal] = useState(0);
+  const [payableStatusFilter, setPayableStatusFilter] = useState('all');
+  const [payableSearch, setPayableSearch] = useState('');
 
   // ─── Dialogs ──────────────────────────────────────────────────
   const [detailOpen, setDetailOpen] = useState(false);
@@ -225,6 +229,9 @@ export default function PurchasesPage() {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentAccount, setPaymentAccount] = useState<AccountPayableRow | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'transfer'>('transfer');
+  const [paymentReference, setPaymentReference] = useState('');
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [paymentProcessing, setPaymentProcessing] = useState(false);
 
   // ─── Fetch KPIs ────────────────────────────────────────────────
@@ -233,12 +240,13 @@ export default function PurchasesPage() {
     try {
       const params: Record<string, string> = {};
       if (supplierFilter !== 'all') params.supplier_id = supplierFilter;
+      if (!isGeneralSelected && selectedBranchId) params.branch_id = selectedBranchId;
       const res = await apiClient.get('/purchasing/orders/kpis', { params });
       setKpis(res.data);
     } catch {
       setKpis(null);
     }
-  }, [supplierFilter]);
+  }, [supplierFilter, selectedBranchId, isGeneralSelected]);
 
   // ─── Fetch Orders ──────────────────────────────────────────────
 
@@ -284,6 +292,9 @@ export default function PurchasesPage() {
     try {
       const params: Record<string, string> = {};
       if (supplierFilter !== 'all') params.supplier_id = supplierFilter;
+      if (!isGeneralSelected && selectedBranchId) params.branch_id = selectedBranchId;
+      if (payableStatusFilter !== 'all') params.status = payableStatusFilter;
+      if (payableSearch.trim()) params.search = payableSearch.trim();
       params.limit = '50';
       const res = await apiClient.get('/purchasing/accounts-payable', { params });
       setPayables(res.data.data || []);
@@ -293,7 +304,7 @@ export default function PurchasesPage() {
     } finally {
       setPayablesLoading(false);
     }
-  }, [supplierFilter]);
+  }, [supplierFilter, selectedBranchId, isGeneralSelected, payableStatusFilter, payableSearch]);
 
   // ─── Effects ───────────────────────────────────────────────────
 
@@ -398,6 +409,9 @@ export default function PurchasesPage() {
   const openPaymentDialog = (ap: AccountPayableRow) => {
     setPaymentAccount(ap);
     setPaymentAmount('');
+    setPaymentMethod('transfer');
+    setPaymentReference('');
+    setPaymentDate(new Date().toISOString().split('T')[0]);
     setPaymentDialogOpen(true);
   };
 
@@ -410,6 +424,9 @@ export default function PurchasesPage() {
       await apiClient.post('/purchasing/accounts-payable/payment', {
         account_id: paymentAccount.id,
         amount,
+        payment_method: paymentMethod,
+        reference: paymentReference || undefined,
+        payment_date: paymentDate || undefined,
       });
       setPaymentDialogOpen(false);
       fetchPayables();
@@ -471,14 +488,27 @@ export default function PurchasesPage() {
           <p className="text-sm text-muted-foreground">Órdenes de compra, proveedores y cuentas por pagar</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={openNewSupplier}>
-            <Users className="h-4 w-4 mr-1.5" />
-            Nuevo Proveedor
-          </Button>
-          <Button size="sm" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-1.5" />
-            Nueva Orden
-          </Button>
+          {mainTab === 'orders' && (
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Nueva Orden
+            </Button>
+          )}
+          {mainTab === 'suppliers' && (
+            <Button size="sm" onClick={openNewSupplier}>
+              <Plus className="h-4 w-4 mr-1.5" />
+              Nuevo Proveedor
+            </Button>
+          )}
+          {mainTab === 'payables' && (
+            <Button size="sm" onClick={() => {
+              const firstUnpaid = payables.find((ap) => ap.status !== 'paid');
+              if (firstUnpaid) openPaymentDialog(firstUnpaid);
+            }} disabled={!payables.some((ap) => ap.status !== 'paid')}>
+              <DollarSign className="h-4 w-4 mr-1.5" />
+              Registrar Pago
+            </Button>
+          )}
         </div>
       </div>
 
@@ -654,20 +684,14 @@ export default function PurchasesPage() {
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base">Catálogo de Proveedores</CardTitle>
-                <div className="flex gap-2">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Buscar proveedor..."
-                      className="pl-9 w-[250px]"
-                      value={supplierSearch}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSupplierSearch(e.target.value)}
-                    />
-                  </div>
-                  <Button size="sm" onClick={openNewSupplier}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Agregar
-                  </Button>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Buscar proveedor..."
+                    className="pl-9 w-[250px]"
+                    value={supplierSearch}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSupplierSearch(e.target.value)}
+                  />
                 </div>
               </div>
             </CardHeader>
@@ -728,58 +752,127 @@ export default function PurchasesPage() {
         </TabsContent>
 
         {/* ─── Payables Tab ───────────────────────────────────── */}
-        <TabsContent value="payables" className="mt-4">
+        <TabsContent value="payables" className="mt-4 space-y-4">
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="relative flex-1 max-w-xs">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar proveedor..."
+                className="pl-9"
+                value={payableSearch}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPayableSearch(e.target.value)}
+              />
+            </div>
+            <Select value={payableStatusFilter} onValueChange={setPayableStatusFilter}>
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                <SelectItem value="pending">Pendientes</SelectItem>
+                <SelectItem value="overdue">Vencidas</SelectItem>
+                <SelectItem value="partial">Abono parcial</SelectItem>
+                <SelectItem value="paid">Liquidadas</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <Card>
             <CardContent className="p-0">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-3 text-left font-medium">Proveedor</th>
-                    <th className="px-4 py-3 text-left font-medium">Orden</th>
-                    <th className="px-4 py-3 text-right font-medium">Monto</th>
-                    <th className="px-4 py-3 text-right font-medium">Pagado</th>
-                    <th className="px-4 py-3 text-right font-medium">Saldo</th>
-                    <th className="px-4 py-3 text-left font-medium">Vencimiento</th>
-                    <th className="px-4 py-3 text-center font-medium">Estado</th>
-                    <th className="px-4 py-3 text-center font-medium">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payablesLoading ? (
-                    Array.from({ length: 3 }).map((_, i) => (
-                      <tr key={i} className="border-b">
-                        {Array.from({ length: 8 }).map((_, j) => (
-                          <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
-                        ))}
-                      </tr>
-                    ))
-                  ) : payables.length === 0 ? (
-                    <tr><td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">No hay cuentas por pagar</td></tr>
-                  ) : (
-                    payables.map((ap) => {
-                      const sc = apStatusConfig[ap.status] || apStatusConfig.pending;
-                      return (
-                        <tr key={ap.id} className="border-b hover:bg-muted/30 transition-colors">
-                          <td className="px-4 py-3 font-medium">{ap.supplier_name}</td>
-                          <td className="px-4 py-3 font-mono">{ap.folio}</td>
-                          <td className="px-4 py-3 text-right font-mono">{formatCurrency(ap.amount)}</td>
-                          <td className="px-4 py-3 text-right font-mono">{formatCurrency(ap.paid_amount)}</td>
-                          <td className="px-4 py-3 text-right font-mono font-bold">{formatCurrency(ap.balance)}</td>
-                          <td className="px-4 py-3 text-muted-foreground">{ap.due_date}</td>
-                          <td className="px-4 py-3 text-center"><Badge variant={sc.variant}>{sc.label}</Badge></td>
-                          <td className="px-4 py-3 text-center">
-                            {ap.status !== 'paid' && (
-                              <Button variant="ghost" size="sm" onClick={() => openPaymentDialog(ap)} title="Registrar abono">
-                                <DollarSign className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/50">
+                      <th className="px-4 py-3 text-left font-medium">Folio OC</th>
+                      <th className="px-4 py-3 text-left font-medium">Proveedor</th>
+                      <th className="px-4 py-3 text-left font-medium">Fecha Compra</th>
+                      <th className="px-4 py-3 text-left font-medium">Fecha Vencimiento</th>
+                      <th className="px-4 py-3 text-right font-medium">Monto Original</th>
+                      <th className="px-4 py-3 text-right font-medium">Saldo Pendiente</th>
+                      <th className="px-4 py-3 text-center font-medium">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payablesLoading ? (
+                      Array.from({ length: 4 }).map((_, i) => (
+                        <tr key={i} className="border-b">
+                          {Array.from({ length: 7 }).map((_, j) => (
+                            <td key={j} className="px-4 py-3"><Skeleton className="h-4 w-20" /></td>
+                          ))}
                         </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+                      ))
+                    ) : payables.length === 0 ? (
+                      <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No hay cuentas por pagar</td></tr>
+                    ) : (
+                      payables.map((ap) => {
+                        const isOverdue = ap.status === 'overdue';
+                        const isPaid = ap.status === 'paid';
+
+                        return (
+                          <tr
+                            key={ap.id}
+                            className={`border-b transition-colors ${
+                              isOverdue
+                                ? 'bg-destructive/5 hover:bg-destructive/10'
+                                : 'hover:bg-muted/30'
+                            }`}
+                          >
+                            <td className="px-4 py-3 font-mono font-medium">{ap.folio}</td>
+                            <td className="px-4 py-3 font-medium">{ap.supplier_name}</td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {ap.received_at ? formatDate(ap.received_at) : ap.created_at ? formatDate(ap.created_at) : '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <span className={isOverdue ? 'text-destructive font-medium' : 'text-muted-foreground'}>
+                                  {ap.due_date}
+                                </span>
+                                {isOverdue && (
+                                  <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                    <AlertTriangle className="h-3 w-3 mr-0.5" />
+                                    {ap.overdue_days}d atraso
+                                  </Badge>
+                                )}
+                                {isPaid && (
+                                  <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                                    <CheckCircle2 className="h-3 w-3 mr-0.5" />
+                                    Liquidada
+                                  </Badge>
+                                )}
+                                {ap.status === 'partial' && (
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                    Abono parcial
+                                  </Badge>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-right font-mono">{formatCurrency(ap.amount)}</td>
+                            <td className={`px-4 py-3 text-right font-mono font-bold ${
+                              isPaid ? 'text-green-600' : isOverdue ? 'text-destructive' : ''
+                            }`}>
+                              {isPaid ? '$0.00' : formatCurrency(ap.balance)}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              {!isPaid && (
+                                <Button
+                                  variant={isOverdue ? 'destructive' : 'outline'}
+                                  size="sm"
+                                  onClick={() => openPaymentDialog(ap)}
+                                  className="gap-1"
+                                >
+                                  <DollarSign className="h-3.5 w-3.5" />
+                                  Pagar
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1035,35 +1128,105 @@ export default function PurchasesPage() {
 
       {/* ═══ Payment Dialog ════════════════════════════════════════ */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Registrar Abono</DialogTitle>
+            <DialogTitle>Registrar Pago</DialogTitle>
             <DialogDescription>
               {paymentAccount && `${paymentAccount.supplier_name} — ${paymentAccount.folio}`}
             </DialogDescription>
           </DialogHeader>
           {paymentAccount && (
             <div className="space-y-4">
-              <div className="flex justify-between text-sm">
-                <span>Saldo pendiente:</span>
-                <span className="font-bold font-mono">{formatCurrency(paymentAccount.balance)}</span>
+              {/* Summary */}
+              <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-muted/50">
+                <div>
+                  <p className="text-xs text-muted-foreground">Monto original</p>
+                  <p className="font-mono font-medium">{formatCurrency(paymentAccount.amount)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Saldo pendiente</p>
+                  <p className="font-mono font-bold text-destructive">{formatCurrency(paymentAccount.balance)}</p>
+                </div>
               </div>
-              <Input
-                type="number"
-                placeholder="Monto del abono"
-                value={paymentAmount}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPaymentAmount(e.target.value)}
-                min={0}
-                max={paymentAccount.balance}
-                step="0.01"
-              />
+
+              {/* Amount */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Monto a pagar *</label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="0.00"
+                    value={paymentAmount}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPaymentAmount(e.target.value)}
+                    min={0}
+                    max={paymentAccount.balance}
+                    step="0.01"
+                    className="flex-1"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPaymentAmount(String(paymentAccount.balance))}
+                    className="whitespace-nowrap"
+                  >
+                    Liquidar total
+                  </Button>
+                </div>
+              </div>
+
+              {/* Payment method */}
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Metodo de pago *</label>
+                <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'cash' | 'transfer')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="transfer">Transferencia Bancaria</SelectItem>
+                    <SelectItem value="cash">Caja Chica</SelectItem>
+                  </SelectContent>
+                </Select>
+                {paymentMethod === 'cash' && (
+                  <p className="text-xs text-amber-500 mt-1 flex items-center gap-1">
+                    <AlertTriangle className="h-3 w-3" />
+                    Se descontara del arqueo de caja de la sesion activa
+                  </p>
+                )}
+              </div>
+
+              {/* Date + Reference */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Fecha de pago</label>
+                  <Input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPaymentDate(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Referencia / Comprobante</label>
+                  <Input
+                    placeholder="No. transferencia..."
+                    value={paymentReference}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPaymentReference(e.target.value)}
+                  />
+                </div>
+              </div>
+
               <DialogFooter className="gap-2">
                 <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancelar</Button>
                 <Button
                   onClick={submitPayment}
                   disabled={paymentProcessing || !paymentAmount || parseFloat(paymentAmount) <= 0}
+                  className="gap-1.5"
                 >
-                  {paymentProcessing ? 'Procesando...' : 'Registrar Pago'}
+                  {paymentProcessing ? 'Procesando...' : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" />
+                      Confirmar Pago
+                    </>
+                  )}
                 </Button>
               </DialogFooter>
             </div>

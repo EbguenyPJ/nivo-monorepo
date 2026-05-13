@@ -96,6 +96,9 @@ const TX_TYPE_LABELS: Record<string, string> = {
   cash_out: 'Retiro',
   refund: 'Reembolso',
   audit: 'Arqueo (Corte X)',
+  supplier_payment: 'Pago a Proveedor',
+  layaway_payment: 'Abono de Apartado',
+  credit_payment: 'Pago a Cuenta',
 };
 
 const TX_TYPE_COLORS: Record<string, string> = {
@@ -104,6 +107,9 @@ const TX_TYPE_COLORS: Record<string, string> = {
   cash_out: 'text-red-400',
   refund: 'text-orange-400',
   audit: 'text-cyan-400',
+  supplier_payment: 'text-amber-400',
+  layaway_payment: 'text-violet-400',
+  credit_payment: 'text-teal-400',
 };
 
 function getDateRange(period: string): { start_date?: string; end_date?: string } {
@@ -851,6 +857,9 @@ function TxIcon({ type }: { type: string }) {
     case 'cash_out': return <ArrowUpFromLine className={`${cls} text-red-400`} />;
     case 'refund': return <RefreshCw className={`${cls} text-orange-400`} />;
     case 'audit': return <Calculator className={`${cls} text-cyan-400`} />;
+    case 'supplier_payment': return <Wallet className={`${cls} text-amber-400`} />;
+    case 'layaway_payment': return <Receipt className={`${cls} text-violet-400`} />;
+    case 'credit_payment': return <CreditCard className={`${cls} text-teal-400`} />;
     default: return <DollarSign className={`${cls} text-muted-foreground`} />;
   }
 }

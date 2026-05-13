@@ -49,7 +49,7 @@ export class CatalogsController {
   }
 
   @Post('cancellation-reasons')
-  createCancellationReason(@Req() req: any, @Body() body: { name: string }) {
+  createCancellationReason(@Req() req: any, @Body() body: { name: string; affects_inventory?: boolean }) {
     return this.catalogsService.createCancellationReason(req.tenantConnection, body);
   }
 
@@ -72,6 +72,22 @@ export class CatalogsController {
   @Patch('units-of-measure/:id')
   updateUnitOfMeasure(@Req() req: any, @Param('id') id: string, @Body() body: any) {
     return this.catalogsService.updateUnitOfMeasure(req.tenantConnection, id, body);
+  }
+
+  // ─── Price Lists ─────────────────────────────────────────────
+  @Get('price-lists')
+  findAllPriceLists(@Req() req: any) {
+    return this.catalogsService.findAllPriceLists(req.tenantConnection);
+  }
+
+  @Post('price-lists')
+  createPriceList(@Req() req: any, @Body() body: { name: string; default_margin_percentage?: number }) {
+    return this.catalogsService.createPriceList(req.tenantConnection, body);
+  }
+
+  @Patch('price-lists/:id')
+  updatePriceList(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    return this.catalogsService.updatePriceList(req.tenantConnection, id, body);
   }
 
   // ─── Colors ──────────────────────────────────────────────────

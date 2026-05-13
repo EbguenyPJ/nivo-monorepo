@@ -5,7 +5,7 @@ import { Button, Input, Badge } from '@nivo/ui';
 import {
   Plus, Minus, Trash2, User, ShoppingBag, Monitor, RefreshCw,
   LogOut, Wifi, WifiOff, AlertTriangle, ArrowDownToLine, ArrowUpFromLine,
-  ClipboardCheck, MoreHorizontal,
+  ClipboardCheck, MoreHorizontal, Wallet,
 } from 'lucide-react';
 import { useCartStore, type CartItem } from '@/store/cartStore';
 import { PriceSelector } from './PriceSelector';
@@ -28,6 +28,7 @@ interface TicketPanelProps {
   onCashIn?: () => void;
   onCashOut?: () => void;
   onAudit?: () => void;
+  onExpense?: () => void;
   selectedCustomer: CustomerResult | null;
   onCustomerSelect: (c: CustomerResult | null) => void;
   customerQuery: string;
@@ -49,6 +50,7 @@ export function TicketPanel({
   onCashIn,
   onCashOut,
   onAudit,
+  onExpense,
   selectedCustomer,
   onCustomerSelect,
   customerQuery,
@@ -113,7 +115,7 @@ export function TicketPanel({
       </div>
 
       {/* Cash Operations Bar */}
-      {(onCashIn || onCashOut || onAudit) && (
+      {(onCashIn || onCashOut || onAudit || onExpense) && (
         <div className="px-3 py-1.5 border-b border-slate-800/60 flex items-center gap-1.5">
           <span className="text-[10px] text-slate-600 mr-1">Caja:</span>
           {onCashIn && (
@@ -144,6 +146,16 @@ export function TicketPanel({
             >
               <ClipboardCheck className="h-3 w-3" />
               Arqueo
+            </button>
+          )}
+          {onExpense && (
+            <button
+              onClick={onExpense}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-all"
+              title="Registrar gasto de caja"
+            >
+              <Wallet className="h-3 w-3" />
+              Gasto
             </button>
           )}
         </div>

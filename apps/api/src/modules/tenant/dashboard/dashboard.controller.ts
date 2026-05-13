@@ -63,6 +63,36 @@ export class DashboardController {
     });
   }
 
+  /** Revenue breakdown by brand — for donut chart */
+  @Get('category-breakdown')
+  getCategoryBreakdown(
+    @Req() req: any,
+    @Query('branch_id') branchId?: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.dashboardService.getCategoryBreakdown(req.tenantConnection, {
+      branch_id: branchId,
+      start_date: startDate,
+      end_date: endDate,
+    });
+  }
+
+  /** Heatmap: sales count grouped by day-of-week × hour */
+  @Get('hourly-heatmap')
+  getHourlyHeatmap(
+    @Req() req: any,
+    @Query('branch_id') branchId?: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.dashboardService.getHourlyHeatmap(req.tenantConnection, {
+      branch_id: branchId,
+      start_date: startDate,
+      end_date: endDate,
+    });
+  }
+
   /** Profitability drill-down report, groupable by brand/collection/seller */
   @Get('profitability-report')
   getProfitabilityReport(

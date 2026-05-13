@@ -3,6 +3,7 @@ import { DataSource, Not, IsNull } from 'typeorm';
 import {
   PaymentMethod, Tax, CancellationReason, UnitOfMeasure,
   Color, SizeGroup, SizeSystem, Size, SizeEquivalency,
+  PriceList,
 } from '@nivo/database';
 
 @Injectable()
@@ -75,14 +76,18 @@ export class CatalogsService {
     return repo.find({ order: { created_at: 'ASC' } });
   }
 
-  async createCancellationReason(connection: DataSource, data: { name: string }) {
+  async createCancellationReason(connection: DataSource, data: { name: string; affects_inventory?: boolean }) {
     const repo = connection.getRepository(CancellationReason);
     await this.checkDuplicateName(repo, data.name);
-    const entity = repo.create({ name: data.name, is_active: true });
+    const entity = repo.create({
+      name: data.name,
+      affects_inventory: data.affects_inventory ?? true,
+      is_active: true,
+    });
     return repo.save(entity);
   }
 
-  async updateCancellationReason(connection: DataSource, id: string, data: Partial<{ name: string; is_active: boolean }>) {
+  async updateCancellationReason(connection: DataSource, id: string, data: Partial<{ name: string; affects_inventory: boolean; is_active: boolean }>) {
     const repo = connection.getRepository(CancellationReason);
     const entity = await repo.findOne({ where: { id } });
     if (!entity) throw new NotFoundException('Motivo de cancelación no encontrado');
@@ -317,6 +322,45 @@ export class CatalogsService {
     if (!size) throw new NotFoundException('Talla no encontrada');
     await repo.remove(size);
     return { deleted: true };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PRICE LISTS
+  // ═══════════════════════════════════════════════════════════════
+  async findAllPriceLists(connection: DataSource) {
+    const repo = connection.getRepository(PriceList);
+    return repo.find({ order: { is_default: 'DESC', created_at: 'ASC' } });
+  }
+
+  async createPriceList(connection: DataSource, data: { name: string; default_margin_percentage?: number }) {
+    const repo = connection.getRepository(PriceList);
+    await this.checkDuplicateName(repo, data.name);
+    const entity = repo.create({
+      name: data.name,
+      default_margin_percentage: data.default_margin_percentage ?? 0,
+      is_default: false,
+      is_active: true,
+    });
+    return repo.save(entity);
+  }
+
+  async updatePriceList(
+    connection: DataSource,
+    id: string,
+    data: Partial<{ name: string; default_margin_percentage: number; is_default: boolean; is_active: boolean }>,
+  ) {
+    const repo = connection.getRepository(PriceList);
+    const entity = await repo.findOne({ where: { id } });
+    if (!entity) throw new NotFoundException('Lista de precios no encontrada');
+    if (data.name && data.name !== entity.name) {
+      await this.checkDuplicateName(repo, data.name, id);
+    }
+    // If setting as default, unset current default first
+    if (data.is_default === true && !entity.is_default) {
+      await repo.update({}, { is_default: false });
+    }
+    Object.assign(entity, data);
+    return repo.save(entity);
   }
 
   // ─── Helpers ──────────────────────────────────────────────────

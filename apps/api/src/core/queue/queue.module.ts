@@ -6,6 +6,8 @@ export const QUEUE_NAMES = {
   TENANT_PROVISIONING: 'tenant-provisioning',
   LOW_STOCK_ALERTS: 'low-stock-alerts',
   REPORT_GENERATION: 'report-generation',
+  INVOICE_GENERATION: 'invoice-generation',
+  REPORTS_EXPORT: 'reports-export',
 } as const;
 
 @Global()
@@ -24,6 +26,8 @@ export const QUEUE_NAMES = {
       { name: QUEUE_NAMES.TENANT_PROVISIONING },
       { name: QUEUE_NAMES.LOW_STOCK_ALERTS },
       { name: QUEUE_NAMES.REPORT_GENERATION },
+      { name: QUEUE_NAMES.INVOICE_GENERATION },
+      { name: QUEUE_NAMES.REPORTS_EXPORT },
     ),
   ],
   exports: [BullModule],

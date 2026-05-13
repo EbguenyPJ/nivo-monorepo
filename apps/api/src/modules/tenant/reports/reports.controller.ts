@@ -72,6 +72,65 @@ export class ReportsController {
     );
   }
 
+  @Get('payment-breakdown')
+  getPaymentBreakdown(
+    @Req() req: Request,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('branch_id') branchId?: string,
+  ) {
+    return this.reportsService.getPaymentBreakdown(
+      (req as any).tenantConnection, startDate, endDate, branchId,
+    );
+  }
+
+  @Get('day-of-week-volume')
+  getDayOfWeekVolume(
+    @Req() req: Request,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('branch_id') branchId?: string,
+  ) {
+    return this.reportsService.getDayOfWeekVolume(
+      (req as any).tenantConnection, startDate, endDate, branchId,
+    );
+  }
+
+  @Get('seller-performance')
+  getSellerPerformance(
+    @Req() req: Request,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('branch_id') branchId?: string,
+  ) {
+    return this.reportsService.getSellerPerformance(
+      (req as any).tenantConnection, startDate, endDate, branchId,
+    );
+  }
+
+  @Get('sell-through')
+  getSellThrough(
+    @Req() req: Request,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.reportsService.getSellThrough(
+      (req as any).tenantConnection, startDate, endDate,
+    );
+  }
+
+  @Get('cash-difference-trend')
+  getCashDifferenceTrend(
+    @Req() req: Request,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+    @Query('branch_id') branchId?: string,
+  ) {
+    return this.reportsService.getCashDifferenceTrend(
+      (req as any).tenantConnection, startDate, endDate, branchId,
+    );
+  }
+
   @Post('export-csv')
   exportCsv(@Req() req: Request) {
     return this.reportsService.enqueueExport((req as any).tenant);

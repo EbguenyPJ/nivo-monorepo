@@ -4,13 +4,14 @@ import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
-import { SupportTicket, TicketMessage, TicketAttachment } from '@nivo/database';
+import { SupportTicket, TicketMessage, TicketAttachment, Tenant } from '@nivo/database';
 import { SupportController } from './support.controller';
+import { TenantSupportController } from './tenant-support.controller';
 import { SupportService } from './support.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SupportTicket, TicketMessage, TicketAttachment]),
+    TypeOrmModule.forFeature([SupportTicket, TicketMessage, TicketAttachment, Tenant]),
     MulterModule.register({
       storage: diskStorage({
         destination: './uploads/support',
@@ -29,7 +30,7 @@ import { SupportService } from './support.service';
       limits: { fileSize: 5 * 1024 * 1024 },
     }),
   ],
-  controllers: [SupportController],
+  controllers: [SupportController, TenantSupportController],
   providers: [SupportService],
 })
 export class SupportModule {}

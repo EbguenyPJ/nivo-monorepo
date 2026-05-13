@@ -19,6 +19,7 @@ import { Employee } from './employee.entity';
  * - audit:     Blind audit (Corte X) — records declared amount mid-shift
  * - layaway_payment: Cash received for layaway installment
  * - credit_payment:  Cash received as debt payment from credit accounts
+ * - supplier_payment: Cash paid to supplier from petty cash (accounts payable)
  */
 @Entity('cash_transactions')
 export class CashTransaction {
@@ -41,7 +42,7 @@ export class CashTransaction {
 
   @Column({
     type: 'enum',
-    enum: ['sale_cash', 'refund', 'cash_in', 'cash_out', 'audit', 'layaway_payment', 'credit_payment'],
+    enum: ['sale_cash', 'refund', 'cash_in', 'cash_out', 'audit', 'layaway_payment', 'credit_payment', 'supplier_payment'],
   })
   type: string;
 

@@ -9,6 +9,8 @@ import {
   Product,
   Inventory,
   Branch,
+  CashTransaction,
+  PosSession,
 } from '@nivo/database';
 
 @Injectable()
@@ -480,7 +482,7 @@ export class PurchasingService {
 
   async listAccountsPayable(
     connection: DataSource,
-    filters: { supplier_id?: string; status?: string; limit?: number; offset?: number },
+    filters: { supplier_id?: string; branch_id?: string; status?: string; search?: string; limit?: number; offset?: number },
   ) {
     const qb = connection.getRepository(AccountPayable)
       .createQueryBuilder('ap')
@@ -488,13 +490,23 @@ export class PurchasingService {
       .leftJoinAndSelect('ap.purchase_order', 'po');
 
     if (filters.supplier_id) qb.andWhere('ap.supplier_id = :sid', { sid: filters.supplier_id });
-    if (filters.status) qb.andWhere('ap.status = :status', { status: filters.status });
+    if (filters.branch_id) qb.andWhere('po.branch_id = :bid', { bid: filters.branch_id });
 
-    // Auto-mark overdue
-    qb.addSelect(
-      `CASE WHEN ap.status = 'pending' AND ap.due_date < CURRENT_DATE THEN 'overdue' ELSE ap.status END`,
-      'computed_status',
-    );
+    // Search by supplier name
+    if (filters.search) {
+      qb.andWhere('LOWER(supplier.name) LIKE LOWER(:search)', { search: `%${filters.search}%` });
+    }
+
+    // Filter by computed status (overdue = pending + past due)
+    if (filters.status === 'overdue') {
+      qb.andWhere("ap.status IN ('pending', 'partial')");
+      qb.andWhere('ap.due_date < CURRENT_DATE');
+    } else if (filters.status === 'pending') {
+      qb.andWhere("ap.status = 'pending'");
+      qb.andWhere('ap.due_date >= CURRENT_DATE');
+    } else if (filters.status && filters.status !== 'all') {
+      qb.andWhere('ap.status = :status', { status: filters.status });
+    }
 
     qb.orderBy('ap.due_date', 'ASC');
 
@@ -503,10 +515,18 @@ export class PurchasingService {
     if (filters.offset) qb.skip(filters.offset);
 
     const records = await qb.getMany();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
     return {
       data: records.map((ap) => {
-        const isOverdue = ap.status === 'pending' && new Date(ap.due_date) < new Date();
+        const dueDate = new Date(ap.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        const isOverdue = (ap.status === 'pending' || ap.status === 'partial') && dueDate < today;
+        const overdueDays = isOverdue
+          ? Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
+
         return {
           id: ap.id,
           supplier_name: ap.supplier?.name || '',
@@ -518,6 +538,8 @@ export class PurchasingService {
           balance: Number(ap.amount) - Number(ap.paid_amount),
           due_date: ap.due_date,
           status: isOverdue ? 'overdue' : ap.status,
+          overdue_days: overdueDays,
+          received_at: ap.purchase_order?.received_at || null,
           created_at: ap.created_at,
         };
       }),
@@ -527,57 +549,98 @@ export class PurchasingService {
 
   async registerPayment(
     connection: DataSource,
-    data: { account_id: string; amount: number; notes?: string },
+    data: {
+      account_id: string;
+      amount: number;
+      payment_method: 'cash' | 'transfer';
+      reference?: string;
+      payment_date?: string;
+      employee_id: string;
+      pos_session_id?: string;
+    },
   ) {
-    const repo = connection.getRepository(AccountPayable);
-    const ap = await repo.findOne({ where: { id: data.account_id } });
-    if (!ap) throw new NotFoundException('Cuenta por pagar no encontrada');
+    return connection.transaction(async (manager) => {
+      const repo = manager.getRepository(AccountPayable);
+      const ap = await repo.findOne({
+        where: { id: data.account_id },
+        relations: ['supplier', 'purchase_order'],
+      });
+      if (!ap) throw new NotFoundException('Cuenta por pagar no encontrada');
 
-    if (data.amount <= 0) throw new BadRequestException('El monto debe ser mayor a 0');
+      if (data.amount <= 0) throw new BadRequestException('El monto debe ser mayor a 0');
 
-    const balance = Number(ap.amount) - Number(ap.paid_amount);
-    if (data.amount > balance) {
-      throw new BadRequestException(`El monto excede el saldo pendiente ($${balance.toFixed(2)})`);
-    }
+      const balance = Number(ap.amount) - Number(ap.paid_amount);
+      if (data.amount > balance + 0.01) {
+        throw new BadRequestException(`El monto excede el saldo pendiente ($${balance.toFixed(2)})`);
+      }
 
-    ap.paid_amount = Number(ap.paid_amount) + data.amount;
-    if (ap.notes && data.notes) {
-      ap.notes = `${ap.notes}\n${data.notes}`;
-    } else if (data.notes) {
-      ap.notes = data.notes;
-    }
+      const paymentAmount = Math.min(data.amount, balance);
 
-    const newBalance = Number(ap.amount) - ap.paid_amount;
-    if (newBalance <= 0) {
-      ap.status = 'paid';
-    } else {
-      ap.status = 'partial';
-    }
+      // Build payment log entry
+      const now = data.payment_date || new Date().toISOString().split('T')[0];
+      const methodLabel = data.payment_method === 'cash' ? 'Caja Chica' : 'Transferencia';
+      const logEntry = `[${now}] Pago $${paymentAmount.toFixed(2)} — ${methodLabel}${data.reference ? ` — Ref: ${data.reference}` : ''}`;
 
-    return repo.save(ap);
+      ap.paid_amount = Number(ap.paid_amount) + paymentAmount;
+      ap.notes = ap.notes ? `${ap.notes}\n${logEntry}` : logEntry;
+
+      const newBalance = Number(ap.amount) - ap.paid_amount;
+      ap.status = newBalance <= 0.01 ? 'paid' : 'partial';
+
+      await repo.save(ap);
+
+      // If payment from petty cash → create CashTransaction to affect register
+      if (data.payment_method === 'cash' && data.pos_session_id) {
+        const session = await manager.findOne(PosSession, {
+          where: { id: data.pos_session_id, status: 'open' },
+        });
+
+        if (session) {
+          const cashTx = manager.create(CashTransaction, {
+            session_id: session.id,
+            employee_id: data.employee_id,
+            type: 'supplier_payment',
+            amount: -paymentAmount, // Negative = cash leaving the register
+            description: `Pago a ${ap.supplier?.name || 'proveedor'} — ${ap.purchase_order ? `OC-${String(ap.purchase_order.folio_number).padStart(4, '0')}` : ''}${data.reference ? ` — Ref: ${data.reference}` : ''}`,
+          });
+          await manager.save(cashTx);
+        }
+      }
+
+      return {
+        id: ap.id,
+        status: ap.status,
+        paid_amount: ap.paid_amount,
+        balance: newBalance > 0 ? newBalance : 0,
+      };
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════
   //  KPIs
   // ═══════════════════════════════════════════════════════════════════
 
-  async getKpis(connection: DataSource, filters?: { supplier_id?: string }) {
+  async getKpis(connection: DataSource, filters?: { supplier_id?: string; branch_id?: string }) {
     const apRepo = connection.getRepository(AccountPayable);
     const poRepo = connection.getRepository(PurchaseOrder);
 
     // Total por pagar
     const totalPayableQb = apRepo.createQueryBuilder('ap')
+      .innerJoin('ap.purchase_order', 'po')
       .select('COALESCE(SUM(ap.amount - ap.paid_amount), 0)', 'total')
       .where("ap.status IN ('pending', 'partial', 'overdue')");
     if (filters?.supplier_id) totalPayableQb.andWhere('ap.supplier_id = :sid', { sid: filters.supplier_id });
+    if (filters?.branch_id) totalPayableQb.andWhere('po.branch_id = :bid', { bid: filters.branch_id });
     const totalPayable = await totalPayableQb.getRawOne();
 
     // Órdenes atrasadas (overdue accounts)
     const overdueQb = apRepo.createQueryBuilder('ap')
+      .innerJoin('ap.purchase_order', 'po')
       .select('COUNT(*)', 'count')
       .where("ap.status IN ('pending', 'partial')")
       .andWhere('ap.due_date < CURRENT_DATE');
     if (filters?.supplier_id) overdueQb.andWhere('ap.supplier_id = :sid', { sid: filters.supplier_id });
+    if (filters?.branch_id) overdueQb.andWhere('po.branch_id = :bid', { bid: filters.branch_id });
     const overdue = await overdueQb.getRawOne();
 
     // Órdenes pendientes de recibir
@@ -585,6 +648,7 @@ export class PurchasingService {
       .select('COUNT(*)', 'count')
       .where("po.status IN ('ordered', 'partial')");
     if (filters?.supplier_id) pendingOrdersQb.andWhere('po.supplier_id = :sid', { sid: filters.supplier_id });
+    if (filters?.branch_id) pendingOrdersQb.andWhere('po.branch_id = :bid', { bid: filters.branch_id });
     const pendingOrders = await pendingOrdersQb.getRawOne();
 
     // Total compras del mes
@@ -596,6 +660,7 @@ export class PurchasingService {
       .where("po.status IN ('received', 'partial')")
       .andWhere('po.received_at >= :start', { start: monthStart.toISOString() });
     if (filters?.supplier_id) monthPurchasesQb.andWhere('po.supplier_id = :sid', { sid: filters.supplier_id });
+    if (filters?.branch_id) monthPurchasesQb.andWhere('po.branch_id = :bid', { bid: filters.branch_id });
     const monthPurchases = await monthPurchasesQb.getRawOne();
 
     return {

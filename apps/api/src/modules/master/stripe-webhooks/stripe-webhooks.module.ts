@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { StripeWebhooksController } from './stripe-webhooks.controller';
 import { StripeWebhooksService } from './stripe-webhooks.service';
 import { SubscriptionsModule } from '../subscriptions/subscriptions.module';
+import { BillingModule } from '../billing/billing.module';
 
 @Module({
-  imports: [SubscriptionsModule],
+  imports: [SubscriptionsModule, BillingModule],
   controllers: [StripeWebhooksController],
   providers: [StripeWebhooksService],
 })

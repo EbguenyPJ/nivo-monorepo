@@ -10,7 +10,7 @@ import {
 } from '@nivo/ui';
 import {
   ArrowLeft, Save, Loader2, Check, X, AlertTriangle, CreditCard,
-  ArrowLeftRight, FileText, Heart, BarChart3, ShoppingCart, RotateCcw, Key,
+  ArrowLeftRight, FileText, Heart, BarChart3, ShoppingCart, RotateCcw, Key, Headphones,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 
@@ -34,6 +34,8 @@ interface TenantDetail {
   override_mod_loyalty: boolean | null;
   override_mod_advanced_reports: boolean | null;
   override_mod_ecommerce: boolean | null;
+  override_support_type: string | null;
+  override_support_hours: string | null;
   // Fiscal
   rfc: string | null;
   razon_social: string | null;
@@ -137,6 +139,16 @@ export default function TenantEditPage() {
   });
   const [savingModules, setSavingModules] = useState(false);
 
+  // Support overrides
+  const [supportForm, setSupportForm] = useState<{
+    override_support_type: string | null;
+    override_support_hours: string;
+  }>({
+    override_support_type: null,
+    override_support_hours: '',
+  });
+  const [savingSupport, setSavingSupport] = useState(false);
+
   // Credentials
   const [credentialsForm, setCredentialsForm] = useState({ email: '', password: '' });
   const [savingCredentials, setSavingCredentials] = useState(false);
@@ -177,6 +189,12 @@ export default function TenantEditPage() {
         override_mod_loyalty: t.override_mod_loyalty,
         override_mod_advanced_reports: t.override_mod_advanced_reports,
         override_mod_ecommerce: t.override_mod_ecommerce,
+      });
+
+      // Populate support overrides
+      setSupportForm({
+        override_support_type: t.override_support_type,
+        override_support_hours: t.override_support_hours || '',
       });
 
       const activePlans = (plansRes.data.data || []).filter((p: PlanOption) => p.is_active);
@@ -310,6 +328,22 @@ export default function TenantEditPage() {
       toast({ title: 'Error', description: error.response?.data?.message || 'No se pudo guardar.', variant: 'destructive' });
     } finally {
       setSavingModules(false);
+    }
+  };
+
+  const handleSaveSupport = async () => {
+    if (!tenant) return;
+    setSavingSupport(true);
+    try {
+      await apiClient.patch(`/tenants/${tenant.id}`, {
+        override_support_type: supportForm.override_support_type,
+        override_support_hours: supportForm.override_support_hours || null,
+      });
+      toast({ title: 'Guardado', description: 'Soporte actualizado correctamente.' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.response?.data?.message || 'No se pudo guardar.', variant: 'destructive' });
+    } finally {
+      setSavingSupport(false);
     }
   };
 
@@ -904,6 +938,73 @@ export default function TenantEditPage() {
                 >
                   {savingModules ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   Guardar Módulos
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Soporte */}
+            <Card className="bg-card border-border">
+              <CardContent className="p-6 space-y-5">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                    <Headphones className="h-4 w-4 text-blue-400" />
+                  </div>
+                  <h3 className="font-semibold text-foreground">Soporte Personalizado</h3>
+                </div>
+                <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-4">
+                  <p className="text-sm text-blue-300">
+                    Sobrescribe el canal y horario de soporte del plan para este tenant. Deja en <strong>Automático</strong> para heredar del plan.
+                  </p>
+                </div>
+
+                {/* support_type override */}
+                <div className="space-y-2">
+                  <Label>Canal de soporte</Label>
+                  <div className="flex items-center rounded-lg border border-border bg-muted/50 p-0.5 gap-0.5 w-fit">
+                    {[
+                      { value: null, label: 'Auto' },
+                      { value: 'email', label: 'Correo' },
+                      { value: 'chat', label: 'Chat' },
+                      { value: 'phone', label: 'Llamada' },
+                    ].map((opt) => (
+                      <button
+                        key={String(opt.value)}
+                        type="button"
+                        onClick={() => setSupportForm((prev) => ({ ...prev, override_support_type: opt.value }))}
+                        className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all ${
+                          supportForm.override_support_type === opt.value
+                            ? 'bg-card text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  {supportForm.override_support_type === null && (
+                    <p className="text-xs text-muted-foreground">Usando canal del plan actual.</p>
+                  )}
+                </div>
+
+                {/* support_hours override */}
+                <div className="space-y-2">
+                  <Label htmlFor="override_support_hours">Horario de soporte</Label>
+                  <Input
+                    id="override_support_hours"
+                    placeholder="Ej: Lunes a Viernes 9am–6pm (vacío = usar del plan)"
+                    value={supportForm.override_support_hours}
+                    onChange={(e) => setSupportForm((prev) => ({ ...prev, override_support_hours: e.target.value }))}
+                  />
+                  <p className="text-xs text-muted-foreground">Deja vacío para heredar el horario del plan.</p>
+                </div>
+
+                <Button
+                  onClick={handleSaveSupport}
+                  disabled={savingSupport}
+                  className="gap-2 bg-gradient-to-r from-purple-500 to-fuchsia-600 hover:from-purple-600 hover:to-fuchsia-700 border-0"
+                >
+                  {savingSupport ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                  Guardar Soporte
                 </Button>
               </CardContent>
             </Card>

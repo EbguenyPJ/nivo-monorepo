@@ -1,17 +1,18 @@
 'use client';
 
-import { useState } from 'react';
-import { Button, Input, toast } from '@nivo/ui';
-import { ArrowDownToLine, ArrowUpFromLine, ClipboardCheck, X, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Button, Input, Select, SelectTrigger, SelectValue, SelectContent, SelectItem, toast } from '@nivo/ui';
+import { ArrowDownToLine, ArrowUpFromLine, ClipboardCheck, X, Loader2, Wallet } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────
 
-type OperationType = 'cash_in' | 'cash_out' | 'audit' | null;
+type OperationType = 'cash_in' | 'cash_out' | 'audit' | 'expense' | null;
 
 interface CashOperationsMenuProps {
   sessionId: string;
   employeeId: string;
+  branchId?: string;
   onComplete?: () => void;
 }
 
@@ -260,15 +261,17 @@ export function useCashOperation() {
     openCashIn: () => setOperation('cash_in'),
     openCashOut: () => setOperation('cash_out'),
     openAudit: () => setOperation('audit'),
+    openExpense: () => setOperation('expense'),
     close: () => setOperation(null),
     CashOperationsMenuWithState: ({
-      sessionId, employeeId, onComplete,
+      sessionId, employeeId, branchId, onComplete,
     }: Omit<CashOperationsMenuProps, 'operation'>) => {
       if (!operation) return null;
       return (
         <CashOperationsMenuInternal
           sessionId={sessionId}
           employeeId={employeeId}
+          branchId={branchId}
           operation={operation}
           onComplete={() => { setOperation(null); onComplete?.(); }}
           onClose={() => setOperation(null)}
@@ -280,12 +283,25 @@ export function useCashOperation() {
 
 // Internal version with operation prop
 function CashOperationsMenuInternal({
-  sessionId, employeeId, operation, onComplete, onClose,
+  sessionId, employeeId, branchId, operation, onComplete, onClose,
 }: CashOperationsMenuProps & { operation: OperationType; onClose: () => void }) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [denomCounts, setDenomCounts] = useState<Record<number, number>>({});
+
+  // Expense-specific state
+  const [expenseCategories, setExpenseCategories] = useState<{ id: string; name: string }[]>([]);
+  const [expenseCategoryId, setExpenseCategoryId] = useState('');
+
+  useEffect(() => {
+    if (operation === 'expense') {
+      apiClient.get('/expenses/categories').then((res) => {
+        const active = (res.data || []).filter((c: any) => c.is_active);
+        setExpenseCategories(active);
+      }).catch(() => setExpenseCategories([]));
+    }
+  }, [operation]);
 
   const denomTotal = MXN_DENOMINATIONS.reduce(
     (sum, d) => sum + d.value * (denomCounts[d.value] || 0), 0,
@@ -341,6 +357,26 @@ function CashOperationsMenuInternal({
     } finally { setLoading(false); }
   };
 
+  const handleExpense = async () => {
+    const amt = parseFloat(amount);
+    if (!amt || amt <= 0 || !expenseCategoryId || !description.trim()) return;
+    setLoading(true);
+    try {
+      await apiClient.post('/expenses/pos', {
+        branch_id: branchId,
+        category_id: expenseCategoryId,
+        amount: amt,
+        description: description.trim(),
+        pos_session_id: sessionId,
+        employee_id: employeeId,
+      });
+      toast({ title: 'Gasto registrado', description: `$${amt.toFixed(2)} descontado de la caja.` });
+      onComplete?.();
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || 'Error', variant: 'destructive' });
+    } finally { setLoading(false); }
+  };
+
   if (!operation) return null;
 
   return (
@@ -353,10 +389,12 @@ function CashOperationsMenuInternal({
               {operation === 'cash_in' && <ArrowDownToLine className="h-5 w-5 text-emerald-400" />}
               {operation === 'cash_out' && <ArrowUpFromLine className="h-5 w-5 text-red-400" />}
               {operation === 'audit' && <ClipboardCheck className="h-5 w-5 text-cyan-400" />}
+              {operation === 'expense' && <Wallet className="h-5 w-5 text-amber-400" />}
               <h2 className="text-lg font-bold text-white">
                 {operation === 'cash_in' && 'Entrada de Efectivo'}
                 {operation === 'cash_out' && 'Retiro de Valores'}
                 {operation === 'audit' && 'Arqueo de Caja (Corte X)'}
+                {operation === 'expense' && 'Registrar Gasto de Caja'}
               </h2>
             </div>
             <button onClick={onClose} disabled={loading} className="p-2 rounded-full bg-slate-800/50 text-slate-400 hover:text-white transition-all">
@@ -386,6 +424,60 @@ function CashOperationsMenuInternal({
                 </div>
                 <Button className="w-full h-12 text-base font-bold bg-cyan-600 hover:bg-cyan-500" disabled={denomTotal <= 0 || loading} onClick={handleAudit}>
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Registrar Arqueo'}
+                </Button>
+              </>
+            ) : operation === 'expense' ? (
+              <>
+                <p className="text-xs text-slate-500 text-center">
+                  Este gasto se descontara del efectivo en caja.
+                </p>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Categoria <span className="text-red-400">*</span></label>
+                  <Select value={expenseCategoryId} onValueChange={setExpenseCategoryId}>
+                    <SelectTrigger className="bg-slate-800/50 border-slate-700/50 text-white">
+                      <SelectValue placeholder="Selecciona una categoria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {expenseCategories.map((c) => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Descripcion <span className="text-red-400">*</span></label>
+                  <Input
+                    placeholder="Ej: Compra de bolsas para empaque"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="bg-slate-800/50 border-slate-700/50 text-white placeholder:text-slate-600"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-300">Monto <span className="text-red-400">*</span></label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    className="text-2xl h-14 text-center font-mono bg-slate-800/50 border-slate-700/50 text-white"
+                    autoFocus
+                  />
+                </div>
+                <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+                  <p className="text-xs text-amber-300">
+                    <Wallet className="inline h-3 w-3 mr-1" />
+                    Este monto se restara del efectivo esperado en tu corte de caja.
+                  </p>
+                </div>
+                <Button
+                  className="w-full h-12 text-base font-bold bg-amber-600 hover:bg-amber-500 shadow-lg shadow-amber-500/20"
+                  disabled={!parseFloat(amount) || parseFloat(amount) <= 0 || !expenseCategoryId || !description.trim() || loading}
+                  onClick={handleExpense}
+                >
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Registrar Gasto'}
                 </Button>
               </>
             ) : (

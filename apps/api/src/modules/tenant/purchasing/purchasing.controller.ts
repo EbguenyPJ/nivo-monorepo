@@ -71,8 +71,12 @@ export class PurchasingController {
   }
 
   @Get('orders/kpis')
-  getKpis(@Req() req: Request, @Query('supplier_id') supplierId?: string) {
-    return this.purchasingService.getKpis(req.tenantConnection!, { supplier_id: supplierId });
+  getKpis(
+    @Req() req: Request,
+    @Query('supplier_id') supplierId?: string,
+    @Query('branch_id') branchId?: string,
+  ) {
+    return this.purchasingService.getKpis(req.tenantConnection!, { supplier_id: supplierId, branch_id: branchId });
   }
 
   @Post('orders/create')
@@ -119,13 +123,17 @@ export class PurchasingController {
   listAccountsPayable(
     @Req() req: Request,
     @Query('supplier_id') supplierId?: string,
+    @Query('branch_id') branchId?: string,
     @Query('status') status?: string,
+    @Query('search') search?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
     return this.purchasingService.listAccountsPayable(req.tenantConnection!, {
       supplier_id: supplierId,
+      branch_id: branchId,
       status,
+      search,
       limit: limit ? parseInt(limit) : undefined,
       offset: offset ? parseInt(offset) : undefined,
     });
@@ -133,6 +141,9 @@ export class PurchasingController {
 
   @Post('accounts-payable/payment')
   registerPayment(@Req() req: Request, @Body() body: any) {
-    return this.purchasingService.registerPayment(req.tenantConnection!, body);
+    return this.purchasingService.registerPayment(req.tenantConnection!, {
+      ...body,
+      employee_id: body.employee_id || (req.user as any)?.sub,
+    });
   }
 }

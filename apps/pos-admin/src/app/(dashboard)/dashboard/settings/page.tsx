@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
   Input, Label, Badge, Switch,
@@ -12,7 +12,11 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import { useBranchStore, GENERAL_BRANCH_ID } from '@/store/branchStore';
 import { apiClient } from '@/lib/api';
-import { Save, Loader2, Info, Plus, Pencil, Trash2, DollarSign, RotateCcw, Globe, MapPin } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  Save, Loader2, Info, Plus, Pencil, Trash2, DollarSign, RotateCcw, Globe, MapPin,
+  Upload, Lock, Palette, Sparkles, ImageIcon, X,
+} from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────
 interface TenantSettingData {
@@ -34,6 +38,26 @@ interface PriceListData {
   created_at: string;
 }
 
+// ─── Hex → HSL helper (also in layout.tsx for injection) ─────
+function hexToHSL(hex: string): { h: number; s: number; l: number } {
+  const clean = hex.replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return { h: 217, s: 91, l: 60 };
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const d = max - min;
+  const l = (max + min) / 2;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let h = 0;
+  if (d !== 0) {
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  return { h: Math.round(h * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
 // ═══════════════════════════════════════════════════════════════
 // Settings Page
 // ═══════════════════════════════════════════════════════════════
@@ -52,6 +76,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="operacion">Operación</TabsTrigger>
           <TabsTrigger value="finanzas">Finanzas y Precios</TabsTrigger>
+          <TabsTrigger value="apariencia">Apariencia</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="account">Cuenta</TabsTrigger>
         </TabsList>
@@ -64,6 +89,11 @@ export default function SettingsPage() {
         {/* ─── Tab: Finanzas y Precios ────────────────────────── */}
         <TabsContent value="finanzas">
           <FinanzasTab />
+        </TabsContent>
+
+        {/* ─── Tab: Apariencia ────────────────────────────────── */}
+        <TabsContent value="apariencia">
+          <AppearanceTab />
         </TabsContent>
 
         {/* ─── Tab: General ───────────────────────────────────── */}
@@ -95,27 +125,6 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle>Marca y Personalización</CardTitle>
-              <CardDescription>
-                Configura el logo y colores de tu marca para el POS y tienda en línea.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="logo">Logo URL</Label>
-                <Input id="logo" placeholder="https://ejemplo.com/logo.png" />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="primary-color">Color primario</Label>
-                <Input id="primary-color" type="color" defaultValue="#3b82f6" className="h-10 w-20" />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                La personalización de marca estará disponible próximamente.
-              </p>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         {/* ─── Tab: Cuenta ────────────────────────────────────── */}
@@ -552,6 +561,369 @@ function OperationSettingsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Appearance Tab — Branding & Custom Colors
+// ═══════════════════════════════════════════════════════════════
+function AppearanceTab() {
+  const router = useRouter();
+
+  const [loading, setLoading]     = useState(true);
+  const [saving, setSaving]       = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Editable state
+  const [primaryColor, setPrimaryColor] = useState('#3B82F6');
+  const [logoUrl, setLogoUrl]           = useState('');
+  const [faviconUrl, setFaviconUrl]     = useState('');
+
+  // Originals (dirty check)
+  const [origColor, setOrigColor]     = useState('#3B82F6');
+  const [origLogo, setOrigLogo]       = useState('');
+  const [origFavicon, setOrigFavicon] = useState('');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      try {
+        const [settingsRes, subRes] = await Promise.all([
+          apiClient.get('/tenant-settings'),
+          apiClient.get('/tenant-subscription/me'),
+        ]);
+        const settings: TenantSettingData[] = settingsRes.data;
+        const getVal = (key: string, def = '') => settings.find((s) => s.key === key)?.value ?? def;
+
+        const color   = getVal('branding.primary_color', '#3B82F6');
+        const logo    = getVal('branding.logo_url', '');
+        const favicon = getVal('branding.favicon_url', '');
+
+        setPrimaryColor(color);  setOrigColor(color);
+        setLogoUrl(logo);        setOrigLogo(logo);
+        setFaviconUrl(favicon);  setOrigFavicon(favicon);
+
+        setHasAccess(subRes.data?.effective?.mod_custom_branding ?? false);
+      } catch {
+        toast({ title: 'Error al cargar apariencia', variant: 'destructive' });
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []);
+
+  const dirty = primaryColor !== origColor || logoUrl !== origLogo || faviconUrl !== origFavicon;
+
+  // ── Logo upload ─────────────────────────────────────────────
+  const handleFileUpload = async (file: File) => {
+    if (!file.type.match(/^image\/(png|jpeg|svg\+xml|webp)$/)) {
+      toast({ title: 'Formato no permitido', description: 'Usa PNG, JPG, SVG o WebP (máx 2MB)', variant: 'destructive' });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: 'Archivo muy grande', description: 'El logo no puede superar 2MB', variant: 'destructive' });
+      return;
+    }
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await apiClient.post('/uploads/logo', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setLogoUrl(res.data.url);
+    } catch (err: any) {
+      toast({ title: 'Error al subir logo', description: err.response?.data?.message || 'Intenta de nuevo', variant: 'destructive' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFileUpload(file);
+  };
+
+  // ── Save ────────────────────────────────────────────────────
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await apiClient.patch('/tenant-settings', {
+        settings: [
+          { key: 'branding.primary_color', value: primaryColor },
+          { key: 'branding.logo_url',      value: logoUrl },
+          { key: 'branding.favicon_url',   value: faviconUrl },
+        ],
+        propagation: 'default_only',
+      });
+
+      // Apply color live
+      const { h, s, l } = hexToHSL(primaryColor);
+      document.documentElement.style.setProperty('--color-primary-h', String(h));
+      document.documentElement.style.setProperty('--color-primary-s', `${s}%`);
+      document.documentElement.style.setProperty('--color-primary-l', `${l}%`);
+
+      setOrigColor(primaryColor);
+      setOrigLogo(logoUrl);
+      setOrigFavicon(faviconUrl);
+      toast({ title: 'Apariencia guardada', description: 'Los cambios se aplican de inmediato.' });
+    } catch (err: any) {
+      toast({ title: 'Error al guardar', description: err.response?.data?.message || 'Intenta de nuevo', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Derived preview hsl ──────────────────────────────────────
+  const previewHsl = `hsl(${hexToHSL(primaryColor).h},${hexToHSL(primaryColor).s}%,${hexToHSL(primaryColor).l}%)`;
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* ── Locked overlay when plan doesn't include branding ── */}
+      {!hasAccess && (
+        <div className="relative rounded-xl border border-amber-500/20 bg-amber-500/5 px-6 py-8 flex flex-col items-center gap-4 text-center">
+          <div className="h-12 w-12 rounded-full bg-amber-500/15 flex items-center justify-center">
+            <Lock className="h-6 w-6 text-amber-400" />
+          </div>
+          <div>
+            <h3 className="font-semibold text-lg">Personaliza Nivo con los colores de tu marca</h3>
+            <p className="text-sm text-muted-foreground mt-1 max-w-sm mx-auto">
+              Sube tu logo, define tu color principal y haz que el sistema refleje tu identidad visual. Disponible en Plan Pro o superior.
+            </p>
+          </div>
+          <Button
+            className="gap-2"
+            onClick={() => router.push('/dashboard/subscription')}
+          >
+            <Sparkles className="h-4 w-4" />
+            Ver planes y mejorar
+          </Button>
+        </div>
+      )}
+
+      {/* ── Logo ─────────────────────────────────────────────── */}
+      <Card className={!hasAccess ? 'opacity-50 pointer-events-none' : ''}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ImageIcon className="h-5 w-5" />
+            Logo de la Marca
+          </CardTitle>
+          <CardDescription>
+            Aparece en la barra lateral, tickets de venta y correos. PNG, JPG, SVG o WebP — máx 2MB.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row gap-6 items-start">
+            {/* Drop zone */}
+            <div
+              className={cn(
+                'relative flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed w-full sm:w-56 h-40 cursor-pointer transition-colors',
+                isDragging ? 'border-primary bg-primary/5' : 'border-white/10 hover:border-white/25 bg-white/[0.02]',
+                uploading && 'pointer-events-none opacity-70',
+              )}
+              onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={onDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); }}
+              />
+              {uploading ? (
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              ) : logoUrl ? (
+                <img
+                  src={logoUrl.startsWith('/') ? `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1').replace('/api/v1', '')}${logoUrl}` : logoUrl}
+                  alt="Logo"
+                  className="h-24 w-full object-contain px-4"
+                />
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <p className="text-xs text-muted-foreground text-center px-4">
+                    Arrastra o haz clic para subir
+                  </p>
+                </>
+              )}
+            </div>
+
+            {/* Instructions + clear */}
+            <div className="flex-1 space-y-3">
+              <div className="space-y-1">
+                <p className="text-sm font-medium">Recomendaciones</p>
+                <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                  <li>Fondo transparente (PNG o SVG)</li>
+                  <li>Proporción cuadrada o logo horizontal</li>
+                  <li>Resolución mínima 200×200 px</li>
+                </ul>
+              </div>
+              {logoUrl && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={() => setLogoUrl('')}
+                >
+                  <X className="h-3.5 w-3.5" />
+                  Eliminar logo
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Color primario ───────────────────────────────────── */}
+      <Card className={!hasAccess ? 'opacity-50 pointer-events-none' : ''}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            Color Principal
+          </CardTitle>
+          <CardDescription>
+            Se aplica a botones, badges, acentos y el fondo del ícono del sidebar.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col md:flex-row gap-8">
+            {/* Picker */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={primaryColor}
+                  onChange={(e) => setPrimaryColor(e.target.value)}
+                  className="h-10 w-16 cursor-pointer rounded-lg border border-white/10 bg-transparent p-0.5"
+                />
+                <Input
+                  value={primaryColor}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (/^#[0-9a-fA-F]{0,6}$/.test(v)) setPrimaryColor(v);
+                  }}
+                  className="w-32 font-mono text-sm"
+                  maxLength={7}
+                />
+              </div>
+              {/* Quick swatches */}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444',
+                  '#F59E0B', '#10B981', '#06B6D4', '#6366F1',
+                ].map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setPrimaryColor(c)}
+                    className={cn(
+                      'h-7 w-7 rounded-md border-2 transition-transform hover:scale-110',
+                      primaryColor.toLowerCase() === c.toLowerCase() ? 'border-white scale-110' : 'border-transparent',
+                    )}
+                    style={{ backgroundColor: c }}
+                    title={c}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Live preview — "Mini Nivo" */}
+            <div className="flex-1">
+              <p className="text-xs text-muted-foreground mb-3 font-medium uppercase tracking-wider">Vista previa en vivo</p>
+              <div className="rounded-xl border border-white/10 bg-zinc-900 p-4 space-y-3 max-w-xs">
+                {/* Fake sidebar accent */}
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: previewHsl }}>
+                    <span className="text-white text-xs font-bold">N</span>
+                  </div>
+                  <span className="text-sm font-semibold text-white">Nivo POS</span>
+                </div>
+                <Separator className="bg-white/10" />
+                {/* Fake KPI card */}
+                <div className="rounded-lg p-3" style={{ background: `${previewHsl}22` }}>
+                  <p className="text-[10px] text-zinc-400 uppercase tracking-wider">Ventas hoy</p>
+                  <p className="text-lg font-bold text-white">$12,450</p>
+                  <div className="inline-flex items-center gap-1 mt-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{ backgroundColor: `${previewHsl}33`, color: previewHsl }}>
+                    +8% vs ayer
+                  </div>
+                </div>
+                {/* Fake button */}
+                <button
+                  className="w-full rounded-lg py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: previewHsl }}
+                >
+                  Nueva Venta
+                </button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Favicon URL (optional) ───────────────────────────── */}
+      <Card className={!hasAccess ? 'opacity-50 pointer-events-none' : ''}>
+        <CardHeader>
+          <CardTitle className="text-sm font-medium">Favicon (opcional)</CardTitle>
+          <CardDescription className="text-xs">
+            URL de un ícono 32×32 o 64×64 px para la pestaña del navegador. Déjalo vacío para usar el favicon de Nivo.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center gap-3 max-w-md">
+            {faviconUrl && (
+              <img
+                src={faviconUrl.startsWith('/') ? `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1').replace('/api/v1', '')}${faviconUrl}` : faviconUrl}
+                alt="Favicon preview"
+                className="h-8 w-8 rounded object-contain border border-white/10 bg-white/5"
+                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+              />
+            )}
+            <Input
+              placeholder="https://tu-dominio.com/favicon.ico"
+              value={faviconUrl}
+              onChange={(e) => setFaviconUrl(e.target.value)}
+              className="flex-1"
+            />
+            {faviconUrl && (
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => setFaviconUrl('')}>
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Save button ──────────────────────────────────────── */}
+      {hasAccess && dirty && (
+        <div className="sticky bottom-4 flex justify-end">
+          <Button onClick={handleSave} disabled={saving} className="gap-2 shadow-lg" size="lg">
+            {saving ? (
+              <><Loader2 className="h-4 w-4 animate-spin" />Guardando...</>
+            ) : (
+              <><Save className="h-4 w-4" />Guardar Apariencia</>
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

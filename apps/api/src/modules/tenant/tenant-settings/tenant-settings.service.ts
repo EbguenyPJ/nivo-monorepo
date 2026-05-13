@@ -58,6 +58,31 @@ export const DEFAULT_TENANT_SETTINGS: Partial<TenantSetting>[] = [
     label: 'Mensaje de pie de ticket',
     group: 'ticket',
   },
+  // ── Apariencia / Branding ──────────────────────────────────────
+  {
+    key: 'branding.primary_color',
+    value: '#3B82F6',
+    label: 'Color principal de marca (hex)',
+    group: 'apariencia',
+  },
+  {
+    key: 'branding.logo_url',
+    value: '',
+    label: 'URL del logotipo',
+    group: 'apariencia',
+  },
+  {
+    key: 'branding.favicon_url',
+    value: '',
+    label: 'URL del favicon',
+    group: 'apariencia',
+  },
+  {
+    key: 'branding.theme_mode',
+    value: 'dark',
+    label: 'Modo de tema (dark | light | system)',
+    group: 'apariencia',
+  },
   {
     key: 'inventario.low_stock_threshold',
     value: '5',

@@ -171,11 +171,13 @@ export default function SalesHistoryPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   // Return flow
-  const [returnStep, setReturnStep] = useState(0); // 0 = closed, 1 = select items, 2 = disposition, 3 = refund method
+  const [returnStep, setReturnStep] = useState(0); // 0 = closed, 1 = select items, 2 = cancellation reason, 3 = refund method
   const [returnItems, setReturnItems] = useState<ReturnItemSelection[]>([]);
   const [refundMethod, setRefundMethod] = useState<'cash' | 'card_reversal' | 'store_credit'>('cash');
   const [returnReason, setReturnReason] = useState('');
   const [returnProcessing, setReturnProcessing] = useState(false);
+  const [cancellationReasons, setCancellationReasons] = useState<{ id: string; name: string; affects_inventory: boolean }[]>([]);
+  const [selectedReasonId, setSelectedReasonId] = useState<string>('');
 
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
@@ -212,6 +214,13 @@ export default function SalesHistoryPage() {
   useEffect(() => {
     if (page > 0) fetchSales(page);
   }, [page]);
+
+  // Fetch cancellation reasons catalog (for return flow)
+  useEffect(() => {
+    apiClient.get('/catalogs/cancellation-reasons')
+      .then((res) => setCancellationReasons((res.data || []).filter((r: any) => r.is_active)))
+      .catch(() => setCancellationReasons([]));
+  }, []);
 
   // Debounced search
   const [searchTimer, setSearchTimer] = useState<NodeJS.Timeout | null>(null);
@@ -276,6 +285,7 @@ export default function SalesHistoryPage() {
     setReturnItems(items);
     setRefundMethod(detail.payment_method === 'cash' ? 'cash' : 'card_reversal');
     setReturnReason('');
+    setSelectedReasonId('');
     setReturnStep(1);
   };
 
@@ -307,13 +317,13 @@ export default function SalesHistoryPage() {
         employee_id: '', // Will be overridden by JWT user in backend
         branch_id: detail.branch_id,
         refund_method: refundMethod,
+        cancellation_reason_id: selectedReasonId || undefined,
         reason: returnReason || null,
         items: selectedReturnItems.map((i) => ({
           sale_item_id: i.sale_item_id,
           variant_id: i.variant_id,
           quantity: i.quantity,
           unit_price: i.unit_price,
-          disposition: i.disposition,
         })),
       });
 
@@ -537,6 +547,9 @@ export default function SalesHistoryPage() {
                 updateDisposition={updateReturnItemDisposition}
                 processing={returnProcessing}
                 onSubmit={submitReturn}
+                cancellationReasons={cancellationReasons}
+                selectedReasonId={selectedReasonId}
+                setSelectedReasonId={setSelectedReasonId}
               />
             )
           ) : (
@@ -770,6 +783,7 @@ function ReturnFlow({
   detail, step, setStep, items, selectedItems, returnTotal,
   refundMethod, setRefundMethod, returnReason, setReturnReason,
   updateQty, updateDisposition, processing, onSubmit,
+  cancellationReasons, selectedReasonId, setSelectedReasonId,
 }: {
   detail: SaleDetail;
   step: number;
@@ -785,7 +799,11 @@ function ReturnFlow({
   updateDisposition: (idx: number, d: 'floor' | 'shrinkage') => void;
   processing: boolean;
   onSubmit: () => void;
+  cancellationReasons: { id: string; name: string; affects_inventory: boolean }[];
+  selectedReasonId: string;
+  setSelectedReasonId: (id: string) => void;
 }) {
+  const selectedReason = cancellationReasons.find((r) => r.id === selectedReasonId);
   return (
     <>
       <DialogHeader>
@@ -795,7 +813,7 @@ function ReturnFlow({
         </DialogTitle>
         <DialogDescription>
           {step === 1 && 'Paso 1 de 3 — Selecciona los artículos a devolver'}
-          {step === 2 && 'Paso 2 de 3 — Define el destino de cada artículo'}
+          {step === 2 && 'Paso 2 de 3 — Motivo de la devolución'}
           {step === 3 && 'Paso 3 de 3 — Método de reembolso'}
         </DialogDescription>
       </DialogHeader>
@@ -850,48 +868,75 @@ function ReturnFlow({
         </div>
       )}
 
-      {/* Step 2: Disposition */}
+      {/* Step 2: Cancellation Reason */}
       {step === 2 && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Por cada artículo, indica si regresa al piso de ventas o va a merma.
+            Selecciona el motivo de la devolución. Esto determina si los artículos regresan al inventario o van a merma.
           </p>
-          {items.filter((i) => i.quantity > 0).map((item) => {
-            const idx = items.indexOf(item);
-            return (
-              <div key={item.sale_item_id} className="border rounded-lg p-3 space-y-2">
-                <div className="flex items-center gap-3">
-                  <ItemThumbnail imageUrl={item.image_url} name={item.product_name} size="md" />
-                  <p className="font-medium text-sm">{item.product_name} × {item.quantity}</p>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={item.disposition === 'floor' ? 'default' : 'outline'}
-                    size="sm"
-                    className="gap-1.5 h-10"
-                    onClick={() => updateDisposition(idx, 'floor')}
-                  >
-                    <Store className="h-4 w-4" />
-                    Piso de Ventas
-                  </Button>
-                  <Button
-                    variant={item.disposition === 'shrinkage' ? 'destructive' : 'outline'}
-                    size="sm"
-                    className="gap-1.5 h-10"
-                    onClick={() => updateDisposition(idx, 'shrinkage')}
-                  >
-                    <PackageX className="h-4 w-4" />
-                    Merma
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {item.disposition === 'floor'
-                    ? 'El artículo regresará al inventario de la sucursal.'
-                    : 'El artículo NO regresará al inventario. Se registrará como merma.'}
-                </p>
+
+          {/* Reason selector */}
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Motivo de devolución</p>
+            <Select value={selectedReasonId} onValueChange={setSelectedReasonId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecciona un motivo..." />
+              </SelectTrigger>
+              <SelectContent>
+                {cancellationReasons.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    <div className="flex items-center gap-2">
+                      <span>{r.name}</span>
+                      <Badge variant={r.affects_inventory ? 'default' : 'destructive'} className="text-[10px] px-1.5 py-0">
+                        {r.affects_inventory ? 'Regresa stock' : 'Merma'}
+                      </Badge>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Effect indicator */}
+          {selectedReason && (
+            <div className={`flex items-start gap-2 p-3 rounded-lg border text-sm ${
+              selectedReason.affects_inventory
+                ? 'bg-emerald-500/10 border-emerald-500/30'
+                : 'bg-red-500/10 border-red-500/30'
+            }`}>
+              {selectedReason.affects_inventory ? (
+                <>
+                  <Store className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-emerald-600 dark:text-emerald-400">Los artículos regresan al inventario</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Los {selectedItems.length} artículos se sumarán al stock disponible de la sucursal.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <PackageX className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="font-medium text-red-600 dark:text-red-400">Los artículos van a merma</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Los {selectedItems.length} artículos NO regresarán al stock. Se registrarán como pérdida.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Summary of items being returned */}
+          <div className="space-y-1.5">
+            {selectedItems.map((item) => (
+              <div key={item.sale_item_id} className="flex items-center gap-2 text-sm text-muted-foreground">
+                <ItemThumbnail imageUrl={item.image_url} name={item.product_name} size="sm" />
+                <span className="flex-1 truncate">{item.quantity}× {item.product_name}</span>
               </div>
-            );
-          })}
+            ))}
+          </div>
         </div>
       )}
 
@@ -959,6 +1004,12 @@ function ReturnFlow({
               </div>
               <p className="text-xs text-muted-foreground">
                 Vía: {REFUND_METHOD_LABELS[refundMethod]}
+                {selectedReason && ` · Motivo: ${selectedReason.name}`}
+                {selectedReason && (
+                  <Badge variant={selectedReason.affects_inventory ? 'default' : 'destructive'} className="ml-1.5 text-[10px] px-1.5 py-0">
+                    {selectedReason.affects_inventory ? 'Regresa stock' : 'Merma'}
+                  </Badge>
+                )}
               </p>
             </CardContent>
           </Card>
@@ -978,7 +1029,7 @@ function ReturnFlow({
         {step < 3 ? (
           <Button
             onClick={() => setStep(step + 1)}
-            disabled={step === 1 && selectedItems.length === 0}
+            disabled={(step === 1 && selectedItems.length === 0) || (step === 2 && !selectedReasonId)}
             className="gap-1.5"
           >
             Siguiente

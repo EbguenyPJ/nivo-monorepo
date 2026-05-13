@@ -29,6 +29,7 @@ export interface TicketConfig {
   settings: {
     auto_print_receipt: boolean;
     show_logo: boolean;
+    logo_url: string;
     show_branch_address: boolean;
     business_name: string;
     rfc: string;
@@ -64,6 +65,10 @@ function generateReceiptHTML(sale: SaleReceiptData, config: TicketConfig | null,
   const address = config?.branch?.address || '';
   const city = config?.branch?.city || '';
   const phone = config?.branch?.phone || '';
+  const showLogo = config?.settings?.show_logo !== false;
+  const rawLogoUrl = config?.settings?.logo_url || '';
+  const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1').replace('/api/v1', '');
+  const logoAbsUrl = rawLogoUrl && rawLogoUrl.startsWith('/') ? `${apiBase}${rawLogoUrl}` : rawLogoUrl;
 
   const subtotal = sale.total;
   // IVA desglose (precio ya incluye IVA, se calcula inverso)
@@ -147,6 +152,7 @@ function generateReceiptHTML(sale: SaleReceiptData, config: TicketConfig | null,
     .footer { font-size: 9px; color: #444; margin-top: 6px; text-align: center; }
     .barcode { margin-top: 6px; text-align: center; }
     .barcode-text { font-size: 8px; color: #666; letter-spacing: 1px; }
+    .logo-img { max-width: 60mm; max-height: 20mm; object-fit: contain; margin-bottom: 4px; }
     @media print {
       body { width: auto; margin: 0; padding: 2mm; }
       @page { margin: 0; size: 80mm auto; }
@@ -156,6 +162,7 @@ function generateReceiptHTML(sale: SaleReceiptData, config: TicketConfig | null,
 <body>
   <!-- Header -->
   <div class="center">
+    ${showLogo && logoAbsUrl ? `<img src="${logoAbsUrl}" class="logo-img" alt="Logo" />` : ''}
     <div class="business-name">${businessName}</div>
     <div class="branch-name">${branchName}</div>
     ${showAddress && address ? `<div class="meta">${address}${city ? `, ${city}` : ''}</div>` : ''}
@@ -281,6 +288,7 @@ export function SaleSuccessModal({ open, sale, ticketConfig, employeeName, onClo
   const city = ticketConfig?.branch?.city || '';
   const phone = ticketConfig?.branch?.phone || '';
   const branchFooter = ticketConfig?.branch?.ticket_footer || '';
+  const showLogo = ticketConfig?.settings?.show_logo !== false;
 
   const taxRate = 0.16;
   const subtotalSinIVA = sale.total / (1 + taxRate);
@@ -371,6 +379,15 @@ export function SaleSuccessModal({ open, sale, ticketConfig, employeeName, onClo
                   <div className="bg-[#f5f5f0] text-black px-4 py-3 font-mono text-[11px] leading-relaxed shadow-lg">
                     {/* Header */}
                     <div className="text-center mb-2">
+                      {showLogo && ticketConfig?.settings?.logo_url && (
+                        <img
+                          src={ticketConfig.settings.logo_url.startsWith('/')
+                            ? `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1').replace('/api/v1', '')}${ticketConfig.settings.logo_url}`
+                            : ticketConfig.settings.logo_url}
+                          alt="Logo"
+                          className="h-10 max-w-[120px] object-contain mx-auto mb-1"
+                        />
+                      )}
                       <p className="text-sm font-bold tracking-wide">{businessName}</p>
                       <p className="text-[10px]">{branchName}</p>
                       {showAddress && address && (

@@ -76,6 +76,18 @@ export class Tenant {
   @Column({ type: 'boolean', nullable: true })
   override_mod_ecommerce: boolean | null;
 
+  @Column({ type: 'boolean', nullable: true })
+  override_mod_custom_branding: boolean | null;
+
+  // --- Support overrides (null = use plan defaults) ---
+  /** Override support channel: 'email' | 'chat' | 'phone' */
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  override_support_type: string | null;
+
+  /** Override support schedule, e.g. "Lunes a Viernes 9am–6pm" */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  override_support_hours: string | null;
+
   @Column({ type: 'boolean', default: true })
   is_active: boolean;
 

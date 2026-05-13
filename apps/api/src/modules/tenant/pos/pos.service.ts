@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import { PosSession, Sale, SaleItem, SalePayment, SaleReturn, SaleReturnItem, Inventory, Product, ProductVariant, Employee, CashRegister, CashTransaction, CollectionProduct, PaymentMethod, Branch, TenantSetting } from '@nivo/database';
+import { PosSession, Sale, SaleItem, SalePayment, SaleReturn, SaleReturnItem, Inventory, Product, ProductVariant, Employee, CashRegister, CashTransaction, CollectionProduct, PaymentMethod, Branch, TenantSetting, CancellationReason } from '@nivo/database';
 import * as bcrypt from 'bcrypt';
 import { CollectionsService } from '../collections/collections.service';
 import { PricingService } from '../pricing/pricing.service';
 import { TenantSettingsService } from '../tenant-settings/tenant-settings.service';
+import { RequisitionsService } from '../requisitions/requisitions.service';
 
 @Injectable()
 export class PosService {
@@ -12,6 +13,7 @@ export class PosService {
     private readonly collectionsService: CollectionsService,
     private readonly pricingService: PricingService,
     private readonly tenantSettingsService: TenantSettingsService,
+    private readonly requisitionsService: RequisitionsService,
   ) {}
 
   // ─── POS Catalog (single call for frontend) ──────────────────
@@ -875,13 +877,14 @@ export class PosService {
    * Returns branch info + ticket-related tenant settings for receipt printing.
    */
   async getTicketConfig(connection: DataSource, branchId: string) {
-    const [branch, settings] = await Promise.all([
+    const [branch, ticketSettings, brandingSettings] = await Promise.all([
       connection.getRepository(Branch).findOne({ where: { id: branchId } }),
       this.tenantSettingsService.findAll(connection, 'ticket'),
+      this.tenantSettingsService.findAll(connection, 'apariencia'),
     ]);
 
     const settingsMap: Record<string, string> = {};
-    for (const s of settings) {
+    for (const s of [...ticketSettings, ...brandingSettings]) {
       settingsMap[s.key] = s.value;
     }
 
@@ -899,6 +902,7 @@ export class PosService {
       settings: {
         auto_print_receipt: settingsMap['ticket.auto_print_receipt'] === 'true',
         show_logo: settingsMap['ticket.show_logo'] !== 'false',
+        logo_url: settingsMap['branding.logo_url'] || '',
         show_branch_address: settingsMap['ticket.show_branch_address'] !== 'false',
         business_name: settingsMap['ticket.business_name'] || '',
         rfc: settingsMap['ticket.rfc'] || '',
@@ -1029,6 +1033,14 @@ export class PosService {
         });
         await manager.save(cashTx);
       }
+
+      // ── Async: evaluate stock for auto-requisition ──
+      const soldVariantIds = data.items.map((i: any) => i.variant_id);
+      setImmediate(() => {
+        this.requisitionsService
+          .evaluateStockAfterSale(connection, data.branch_id, soldVariantIds)
+          .catch(() => {});
+      });
 
       return savedSale;
     });
@@ -1220,19 +1232,37 @@ export class PosService {
       branch_id: string;
       pos_session_id?: string;
       refund_method: 'cash' | 'card_reversal' | 'store_credit';
+      cancellation_reason_id?: string;
       reason?: string;
       items: {
         sale_item_id: string;
         variant_id: string;
         quantity: number;
         unit_price: number;
-        disposition: 'floor' | 'shrinkage';
+        disposition?: 'floor' | 'shrinkage';
       }[];
     },
   ) {
     return connection.transaction(async (manager) => {
       // Use JWT user if no employee_id provided
       const employeeId = data.employee_id || user.sub;
+
+      // Resolve cancellation reason → determines inventory behavior
+      let cancellationReason: CancellationReason | null = null;
+      if (data.cancellation_reason_id) {
+        cancellationReason = await manager.findOne(CancellationReason, {
+          where: { id: data.cancellation_reason_id },
+        });
+        if (!cancellationReason) {
+          throw new BadRequestException('Motivo de cancelación no encontrado');
+        }
+      }
+
+      // If cancellation reason has affects_inventory, all items go to floor;
+      // if affects_inventory = false, all items go to shrinkage.
+      // Per-item disposition still supported as override when no catalog reason is selected.
+      const reasonDeterminesDisposition = cancellationReason !== null;
+      const defaultDisposition = cancellationReason?.affects_inventory ? 'floor' : 'shrinkage';
 
       // Validate original sale
       const sale = await manager.findOne(Sale, {
@@ -1245,12 +1275,7 @@ export class PosService {
       }
 
       // Load existing returns to check for double-return fraud
-      const existingReturns = await manager.find(SaleReturnItem, {
-        where: { sale_return: { sale_id: data.sale_id } } as any,
-      });
-      // Build map of already-returned quantities
       const alreadyReturned: Record<string, number> = {};
-      // Query return items more reliably
       const existingReturnRecords = await manager
         .getRepository(SaleReturn)
         .find({ where: { sale_id: data.sale_id }, relations: ['items'] });
@@ -1290,12 +1315,18 @@ export class PosService {
         pos_session_id: data.pos_session_id || null,
         refund_amount: refundTotal,
         refund_method: data.refund_method,
-        reason: data.reason || null,
+        cancellation_reason_id: cancellationReason?.id || null,
+        reason: data.reason || cancellationReason?.name || null,
       });
       const savedReturn = await manager.save(saleReturn);
 
       // Create return items + handle inventory
       for (const item of data.items) {
+        // Determine disposition: catalog reason overrides per-item value
+        const disposition = reasonDeterminesDisposition
+          ? defaultDisposition
+          : (item.disposition || 'floor');
+
         const returnItem = manager.create(SaleReturnItem, {
           sale_return_id: savedReturn.id,
           sale_item_id: item.sale_item_id,
@@ -1303,12 +1334,12 @@ export class PosService {
           quantity: item.quantity,
           unit_price: item.unit_price,
           subtotal: parseFloat((item.quantity * item.unit_price).toFixed(2)),
-          disposition: item.disposition,
+          disposition,
         });
         await manager.save(returnItem);
 
         // Restore inventory only if going back to sales floor
-        if (item.disposition === 'floor') {
+        if (disposition === 'floor') {
           const inventory = await manager.findOne(Inventory, {
             where: { variant_id: item.variant_id, branch_id: data.branch_id },
           });

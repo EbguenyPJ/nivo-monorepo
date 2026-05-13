@@ -192,6 +192,25 @@ export class InventoryService {
     return repo.save(product);
   }
 
+  // ─── Update Variant ─────────────────────────────────────────────
+  async updateVariant(connection: DataSource, productId: string, variantId: string, data: any) {
+    const repo = connection.getRepository(ProductVariant);
+    const variant = await repo.findOne({ where: { id: variantId, product_id: productId } });
+    if (!variant) throw new NotFoundException('Variante no encontrada');
+
+    Object.assign(variant, {
+      ...(data.sku !== undefined && { sku: data.sku }),
+      ...(data.barcode !== undefined && { barcode: data.barcode }),
+      ...(data.cost !== undefined && { cost: data.cost }),
+      ...(data.price_override !== undefined && { price_override: data.price_override }),
+      ...(data.images !== undefined && { images: data.images }),
+      ...(data.attributes !== undefined && { attributes: data.attributes }),
+      ...(data.is_active !== undefined && { is_active: data.is_active }),
+    });
+
+    return repo.save(variant);
+  }
+
   // ─── Toggle Product Status ──────────────────────────────────────
   async toggleProductStatus(connection: DataSource, id: string) {
     const repo = connection.getRepository(Product);

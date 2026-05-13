@@ -12,6 +12,7 @@ import { Supplier } from './supplier.entity';
 import { Branch } from './branch.entity';
 import { Employee } from './employee.entity';
 import { PurchaseOrderItem } from './purchase-order-item.entity';
+import { PurchaseRequisition } from './purchase-requisition.entity';
 
 @Entity('purchase_orders')
 export class PurchaseOrder {
@@ -78,6 +79,14 @@ export class PurchaseOrder {
 
   @Column({ type: 'text', nullable: true })
   discrepancy_notes: string | null;
+
+  /** If this PO was auto-generated from a requisition */
+  @Column({ type: 'uuid', nullable: true })
+  requisition_id: string | null;
+
+  @ManyToOne(() => PurchaseRequisition, { nullable: true })
+  @JoinColumn({ name: 'requisition_id' })
+  requisition: PurchaseRequisition | null;
 
   @OneToMany(() => PurchaseOrderItem, (item) => item.purchase_order, { cascade: true })
   items: PurchaseOrderItem[];

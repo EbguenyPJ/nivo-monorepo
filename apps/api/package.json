@@ -40,7 +40,12 @@
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.0",
     "stripe": "^17.5.0",
-    "typeorm": "^0.3.20"
+    "typeorm": "^0.3.20",
+    "@aws-sdk/client-s3": "^3.717.0",
+    "@aws-sdk/s3-request-presigner": "^3.717.0",
+    "@nestjs/throttler": "^6.4.0",
+    "exceljs": "^4.4.0",
+    "puppeteer-core": "^23.11.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.0",

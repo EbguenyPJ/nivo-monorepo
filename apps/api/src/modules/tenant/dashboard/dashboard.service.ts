@@ -6,6 +6,8 @@ import {
   Employee,
 } from '@nivo/database';
 
+type Filters = { branch_id?: string; start_date?: string; end_date?: string };
+
 @Injectable()
 export class DashboardService {
 
@@ -465,5 +467,61 @@ export class DashboardService {
     });
 
     return { items, total, page, limit, pages: Math.ceil(total / limit) };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  CATEGORY BREAKDOWN — revenue by brand (for donut chart)
+  // ═══════════════════════════════════════════════════════════════════
+
+  async getCategoryBreakdown(connection: DataSource, filters: Filters) {
+    const qb = connection.createQueryBuilder()
+      .select("COALESCE(b.name, 'Sin marca')", 'name')
+      .addSelect('SUM(si.subtotal)', 'revenue')
+      .addSelect('SUM(si.quantity)', 'units')
+      .from(SaleItem, 'si')
+      .innerJoin(Sale, 's', 's.id = si.sale_id')
+      .innerJoin(ProductVariant, 'pv', 'pv.id = si.variant_id')
+      .innerJoin(Product, 'p', 'p.id = pv.product_id')
+      .leftJoin(Brand, 'b', 'b.id = p.brand_id')
+      .where('s.status = :status', { status: 'completed' });
+
+    if (filters.branch_id) qb.andWhere('s.branch_id = :bid', { bid: filters.branch_id });
+    if (filters.start_date) qb.andWhere('s.created_at >= :start', { start: filters.start_date });
+    if (filters.end_date) qb.andWhere('s.created_at <= :end', { end: filters.end_date });
+
+    qb.groupBy("COALESCE(b.name, 'Sin marca')")
+      .orderBy('SUM(si.subtotal)', 'DESC')
+      .limit(8);
+
+    const rows = await qb.getRawMany();
+    return rows.map((r) => ({
+      name: r.name as string,
+      revenue: parseFloat(r.revenue) || 0,
+      units: parseInt(r.units) || 0,
+    }));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  HOURLY HEATMAP — sales count by day-of-week × hour
+  // ═══════════════════════════════════════════════════════════════════
+
+  async getHourlyHeatmap(connection: DataSource, filters: Filters) {
+    const params: any[] = [];
+    let idx = 1;
+    let sql = `
+      SELECT
+        EXTRACT(DOW FROM s.created_at)::int AS day,
+        EXTRACT(HOUR FROM s.created_at)::int AS hour,
+        COUNT(*)::int AS count
+      FROM sales s
+      WHERE s.status = 'completed'
+    `;
+    if (filters.branch_id) { sql += ` AND s.branch_id = $${idx++}`; params.push(filters.branch_id); }
+    if (filters.start_date) { sql += ` AND s.created_at >= $${idx++}`; params.push(filters.start_date); }
+    if (filters.end_date)   { sql += ` AND s.created_at <= $${idx++}`; params.push(filters.end_date); }
+    sql += ' GROUP BY day, hour ORDER BY day, hour';
+
+    const rows = await connection.query(sql, params);
+    return rows.map((r: any) => ({ day: Number(r.day), hour: Number(r.hour), count: Number(r.count) }));
   }
 }

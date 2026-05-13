@@ -8,3 +8,6 @@ export { Integration } from './integration.entity';
 export { SupportTicket } from './support-ticket.entity';
 export { TicketMessage } from './ticket-message.entity';
 export { TicketAttachment } from './ticket-attachment.entity';
+export { TenantBillingProfile } from './tenant-billing-profile.entity';
+export { BillingInvoice } from './billing-invoice.entity';
+export type { CfdiStatus } from './billing-invoice.entity';

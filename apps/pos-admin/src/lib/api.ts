@@ -26,6 +26,12 @@ const BRANCH_EXCLUDED_PATHS = [
   '/layaways',
   '/credit-accounts',
   '/dashboard',
+  '/expenses',
+  '/tenant-integrations',
+  '/tenant-support',
+  '/requisitions',
+  '/tenant-subscription',
+  '/billing',
 ];
 
 function shouldExcludeBranchParam(url: string | undefined): boolean {

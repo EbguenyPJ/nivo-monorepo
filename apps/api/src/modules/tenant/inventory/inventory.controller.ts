@@ -52,6 +52,17 @@ export class InventoryController {
     return this.inventoryService.softDeleteProduct(req.tenantConnection!, id);
   }
 
+  /** Update a single variant (sku, barcode, cost, price_override, images, attributes) */
+  @Put(':productId/variants/:variantId')
+  updateVariant(
+    @Req() req: Request,
+    @Param('productId') productId: string,
+    @Param('variantId') variantId: string,
+    @Body() body: any,
+  ) {
+    return this.inventoryService.updateVariant(req.tenantConnection!, productId, variantId, body);
+  }
+
   @Post('inventory/adjustments')
   adjustInventory(@Req() req: Request, @Body() body: any) {
     return this.inventoryService.adjustInventory(req.tenantConnection!, body);

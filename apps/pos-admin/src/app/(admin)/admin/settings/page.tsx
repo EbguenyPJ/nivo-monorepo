@@ -46,6 +46,7 @@ import {
   MessageCircle,
   Crown,
   X,
+  Palette,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 
@@ -72,7 +73,10 @@ interface Plan {
   mod_loyalty: boolean;
   mod_advanced_reports: boolean;
   mod_ecommerce: boolean;
+  mod_custom_branding: boolean;
   support_level: string;
+  support_type: string;
+  support_hours: string | null;
   support_description: string;
 }
 
@@ -94,7 +98,10 @@ interface PlanFormData {
   mod_loyalty: boolean;
   mod_advanced_reports: boolean;
   mod_ecommerce: boolean;
+  mod_custom_branding: boolean;
   support_level: string;
+  support_type: string;
+  support_hours: string;
   support_description: string;
 }
 
@@ -133,6 +140,7 @@ const MODULE_CONFIG = [
   { key: 'mod_loyalty' as const, label: 'Lealtad', icon: Heart },
   { key: 'mod_advanced_reports' as const, label: 'Reportes', icon: TrendingUp },
   { key: 'mod_ecommerce' as const, label: 'E-commerce', icon: ShoppingCart },
+  { key: 'mod_custom_branding' as const, label: 'Branding', icon: Palette },
 ];
 
 const SUPPORT_LABELS: Record<string, { label: string; color: string }> = {
@@ -153,6 +161,7 @@ const COMPARISON_MODULE_ROWS = [
   { key: 'mod_loyalty', label: 'Programa de Lealtad' },
   { key: 'mod_advanced_reports', label: 'Reportes Avanzados' },
   { key: 'mod_ecommerce', label: 'Integración E-commerce' },
+  { key: 'mod_custom_branding', label: 'Branding Personalizado' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -202,7 +211,10 @@ function emptyFormData(): PlanFormData {
     mod_loyalty: false,
     mod_advanced_reports: false,
     mod_ecommerce: false,
+    mod_custom_branding: false,
     support_level: 'email',
+    support_type: 'email',
+    support_hours: '',
     support_description: '',
   };
 }
@@ -226,7 +238,10 @@ function planToFormData(plan: Plan): PlanFormData {
     mod_loyalty: plan.mod_loyalty,
     mod_advanced_reports: plan.mod_advanced_reports,
     mod_ecommerce: plan.mod_ecommerce,
+    mod_custom_branding: plan.mod_custom_branding ?? false,
     support_level: plan.support_level,
+    support_type: plan.support_type ?? 'email',
+    support_hours: plan.support_hours ?? '',
     support_description: plan.support_description,
   };
 }
@@ -772,7 +787,7 @@ export default function SettingsPage() {
                         />
                       </div>
 
-                      {/* Support level */}
+                      {/* Support level (tier label) */}
                       <div className="space-y-1.5">
                         <Label htmlFor="support_level">Nivel de soporte</Label>
                         <select
@@ -785,6 +800,34 @@ export default function SettingsPage() {
                           <option value="chat">Chat</option>
                           <option value="dedicated">Dedicado</option>
                         </select>
+                      </div>
+
+                      {/* Support type (channel) */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="support_type">Canal de soporte</Label>
+                        <select
+                          id="support_type"
+                          value={formData.support_type}
+                          onChange={(e) => updateFormField('support_type', e.target.value)}
+                          className="flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                        >
+                          <option value="email">Correo electrónico</option>
+                          <option value="chat">Chat en vivo</option>
+                          <option value="phone">Llamada telefónica</option>
+                        </select>
+                        <p className="text-xs text-muted-foreground">Canal con el que el cliente recibirá soporte</p>
+                      </div>
+
+                      {/* Support hours */}
+                      <div className="space-y-1.5">
+                        <Label htmlFor="support_hours">Horario de soporte</Label>
+                        <Input
+                          id="support_hours"
+                          placeholder="Lunes a Viernes 9am–6pm"
+                          value={formData.support_hours}
+                          onChange={(e) => updateFormField('support_hours', e.target.value)}
+                        />
+                        <p className="text-xs text-muted-foreground">Horario en el que el soporte está disponible</p>
                       </div>
 
                       {/* Support description */}
@@ -948,6 +991,19 @@ export default function SettingsPage() {
                           checked={formData.mod_ecommerce}
                           onChange={(val) => updateFormField('mod_ecommerce', val)}
                           label="Integración E-commerce"
+                        />
+                      </div>
+
+                      {/* mod_custom_branding */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Palette className="h-4 w-4 text-muted-foreground" />
+                          <Label>Branding Personalizado</Label>
+                        </div>
+                        <ToggleSwitch
+                          checked={formData.mod_custom_branding}
+                          onChange={(val) => updateFormField('mod_custom_branding', val)}
+                          label="Branding Personalizado"
                         />
                       </div>
                     </CardContent>

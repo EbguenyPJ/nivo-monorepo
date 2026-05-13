@@ -166,7 +166,11 @@ export default function EmployeesPage() {
         const q = searchQuery.toLowerCase();
         if (!emp.name.toLowerCase().includes(q) && !emp.email.toLowerCase().includes(q)) return false;
       }
-      if (filterBranch !== 'all' && emp.branch_id !== filterBranch) return false;
+      if (filterBranch !== 'all') {
+        const hasHomeBranch = emp.branch_id === filterBranch;
+        const hasAssignment = emp.branch_assignments.some((a) => a.branch_id === filterBranch);
+        if (!hasHomeBranch && !hasAssignment) return false;
+      }
       if (filterRole !== 'all') {
         const roleSlug = emp.roleEntity?.slug || emp.role;
         if (roleSlug !== filterRole) return false;

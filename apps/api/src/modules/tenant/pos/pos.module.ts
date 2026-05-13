@@ -5,9 +5,10 @@ import { PosService } from './pos.service';
 import { CollectionsModule } from '../collections/collections.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { TenantSettingsModule } from '../tenant-settings/tenant-settings.module';
+import { RequisitionsModule } from '../requisitions/requisitions.module';
 
 @Module({
-  imports: [CollectionsModule, PricingModule, TenantSettingsModule],
+  imports: [CollectionsModule, PricingModule, TenantSettingsModule, RequisitionsModule],
   controllers: [PosController, SalesSyncController],
   providers: [PosService],
 })

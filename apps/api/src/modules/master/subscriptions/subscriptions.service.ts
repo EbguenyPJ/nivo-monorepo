@@ -38,4 +38,10 @@ export class SubscriptionsService {
       return this.subscriptionRepo.save(subscription);
     }
   }
+
+  async findByStripeId(stripeSubscriptionId: string): Promise<Subscription | null> {
+    return this.subscriptionRepo.findOne({
+      where: { stripe_subscription_id: stripeSubscriptionId },
+    });
+  }
 }

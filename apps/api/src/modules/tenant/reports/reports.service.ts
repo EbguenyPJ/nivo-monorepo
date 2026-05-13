@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { DataSource } from 'typeorm';
-import { Sale, Branch, Employee } from '@nivo/database';
+import { Sale, Branch, Employee, SaleItem, ProductVariant, PosSession, Inventory } from '@nivo/database';
 
 @Injectable()
 export class ReportsService {
@@ -169,6 +169,201 @@ export class ReportsService {
         };
       }),
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  PAYMENT METHOD BREAKDOWN — for donut chart in Sales report
+  // ═══════════════════════════════════════════════════════════════════
+
+  async getPaymentBreakdown(
+    connection: DataSource,
+    startDate?: string,
+    endDate?: string,
+    branchId?: string,
+  ) {
+    const qb = connection.getRepository(Sale)
+      .createQueryBuilder('s')
+      .select('s.payment_method', 'method')
+      .addSelect('COUNT(s.id)', 'count')
+      .addSelect('SUM(s.total_amount)', 'total')
+      .where('s.status = :status', { status: 'completed' })
+      .groupBy('s.payment_method')
+      .orderBy('SUM(s.total_amount)', 'DESC');
+
+    if (branchId)   qb.andWhere('s.branch_id = :branchId', { branchId });
+    if (startDate)  qb.andWhere('s.created_at >= :startDate', { startDate });
+    if (endDate)    qb.andWhere('s.created_at <= :endDate', { endDate });
+
+    const rows = await qb.getRawMany();
+    const LABELS: Record<string, string> = { cash: 'Efectivo', card: 'Tarjeta', mixed: 'Mixto', online: 'En línea' };
+    return rows.map((r) => ({
+      method: r.method as string,
+      label: LABELS[r.method] ?? r.method,
+      count: parseInt(r.count) || 0,
+      total: parseFloat(r.total) || 0,
+    }));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  DAY-OF-WEEK VOLUME — ticket count per day of week
+  // ═══════════════════════════════════════════════════════════════════
+
+  async getDayOfWeekVolume(
+    connection: DataSource,
+    startDate?: string,
+    endDate?: string,
+    branchId?: string,
+  ) {
+    const params: any[] = [];
+    let idx = 1;
+    let sql = `
+      SELECT EXTRACT(DOW FROM created_at)::int AS dow, COUNT(*)::int AS count
+      FROM sales
+      WHERE status = 'completed'
+    `;
+    if (branchId)  { sql += ` AND branch_id = $${idx++}`;      params.push(branchId); }
+    if (startDate) { sql += ` AND created_at >= $${idx++}`;    params.push(startDate); }
+    if (endDate)   { sql += ` AND created_at <= $${idx++}`;    params.push(endDate); }
+    sql += ' GROUP BY dow ORDER BY dow';
+
+    const rows: any[] = await connection.query(sql, params);
+    const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    // Ensure all 7 days present
+    const map = new Map(rows.map((r) => [Number(r.dow), Number(r.count)]));
+    return Array.from({ length: 7 }, (_, i) => ({
+      dow: i,
+      day_name: DAY_NAMES[i],
+      count: map.get(i) ?? 0,
+    }));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  SELLER PERFORMANCE — leaderboard with avg ticket + UPT
+  // ═══════════════════════════════════════════════════════════════════
+
+  async getSellerPerformance(
+    connection: DataSource,
+    startDate?: string,
+    endDate?: string,
+    branchId?: string,
+  ) {
+    const params: any[] = [];
+    let idx = 1;
+    let sql = `
+      SELECT
+        e.id AS employee_id,
+        e.name AS employee_name,
+        COUNT(DISTINCT s.id)::int AS sale_count,
+        COALESCE(SUM(s.total_amount), 0) AS revenue,
+        COALESCE(SUM(si.quantity), 0)::int AS units_sold
+      FROM sales s
+      JOIN employees e ON e.id = s.employee_id
+      LEFT JOIN sale_items si ON si.sale_id = s.id
+      WHERE s.status = 'completed'
+    `;
+    if (branchId)  { sql += ` AND s.branch_id = $${idx++}`;   params.push(branchId); }
+    if (startDate) { sql += ` AND s.created_at >= $${idx++}`; params.push(startDate); }
+    if (endDate)   { sql += ` AND s.created_at <= $${idx++}`; params.push(endDate); }
+    sql += ' GROUP BY e.id, e.name ORDER BY revenue DESC';
+
+    const rows: any[] = await connection.query(sql, params);
+    return rows.map((r) => {
+      const saleCount = Number(r.sale_count) || 1;
+      const revenue   = parseFloat(r.revenue) || 0;
+      const units     = Number(r.units_sold) || 0;
+      return {
+        employee_id:   r.employee_id,
+        employee_name: r.employee_name,
+        sale_count: saleCount,
+        revenue,
+        avg_ticket: Math.round((revenue / saleCount) * 100) / 100,
+        upt: Math.round((units / saleCount) * 10) / 10,
+        units_sold: units,
+      };
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  SELL-THROUGH RATE — sold units / (sold + available) per branch
+  // ═══════════════════════════════════════════════════════════════════
+
+  async getSellThrough(
+    connection: DataSource,
+    startDate?: string,
+    endDate?: string,
+  ) {
+    // Units sold per branch in period
+    const soldParams: any[] = [];
+    let idx = 1;
+    let soldSql = `
+      SELECT s.branch_id, COALESCE(SUM(si.quantity), 0)::int AS sold_units
+      FROM sales s
+      JOIN sale_items si ON si.sale_id = s.id
+      WHERE s.status = 'completed'
+    `;
+    if (startDate) { soldSql += ` AND s.created_at >= $${idx++}`; soldParams.push(startDate); }
+    if (endDate)   { soldSql += ` AND s.created_at <= $${idx++}`; soldParams.push(endDate); }
+    soldSql += ' GROUP BY s.branch_id';
+
+    const soldRows: any[] = await connection.query(soldSql, soldParams);
+    const soldMap = new Map(soldRows.map((r) => [r.branch_id, Number(r.sold_units)]));
+
+    // Current available stock per branch
+    const stockQb = connection.getRepository(Inventory)
+      .createQueryBuilder('inv')
+      .select('inv.branch_id', 'branch_id')
+      .addSelect('COALESCE(SUM(inv.stock_available), 0)', 'stock');
+    const stockRows = await stockQb.groupBy('inv.branch_id').getRawMany();
+    const stockMap = new Map(stockRows.map((r) => [r.branch_id, parseFloat(r.stock) || 0]));
+
+    // All active branches
+    const branches = await connection.getRepository(Branch).find({ where: { is_active: true }, order: { name: 'ASC' } });
+
+    return branches.map((b) => {
+      const sold  = soldMap.get(b.id)  ?? 0;
+      const stock = stockMap.get(b.id) ?? 0;
+      const total = sold + stock;
+      return {
+        branch_id:   b.id,
+        branch_name: b.name,
+        sold_units:  sold,
+        stock_units: Math.round(stock),
+        rate: total > 0 ? Math.round((sold / total) * 1000) / 10 : 0,
+      };
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  CASH DIFFERENCE TREND — POS session differences over time
+  // ═══════════════════════════════════════════════════════════════════
+
+  async getCashDifferenceTrend(
+    connection: DataSource,
+    startDate?: string,
+    endDate?: string,
+    branchId?: string,
+  ) {
+    const params: any[] = [];
+    let idx = 1;
+    let sql = `
+      SELECT
+        DATE(ps.closed_at) AS date,
+        COALESCE(SUM(ps.difference), 0) AS total_difference,
+        COUNT(*)::int AS session_count
+      FROM pos_sessions ps
+      WHERE ps.status = 'closed' AND ps.closed_at IS NOT NULL
+    `;
+    if (branchId)  { sql += ` AND ps.branch_id = $${idx++}`;   params.push(branchId); }
+    if (startDate) { sql += ` AND ps.closed_at >= $${idx++}`;  params.push(startDate); }
+    if (endDate)   { sql += ` AND ps.closed_at <= $${idx++}`;  params.push(endDate); }
+    sql += ' GROUP BY DATE(ps.closed_at) ORDER BY DATE(ps.closed_at)';
+
+    const rows: any[] = await connection.query(sql, params);
+    return rows.map((r) => ({
+      date:             r.date,
+      difference:       parseFloat(r.total_difference) || 0,
+      session_count:    Number(r.session_count),
+    }));
   }
 
   async enqueueExport(tenant: any) {

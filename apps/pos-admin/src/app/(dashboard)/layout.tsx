@@ -13,7 +13,6 @@ import {
   Tag,
   Warehouse,
   ArrowLeftRight,
-  PackagePlus,
   Users,
   Heart,
   Wallet,
@@ -40,6 +39,9 @@ import {
   Globe,
   Truck,
   ClipboardCheck,
+  Send,
+  Loader2,
+  MessageSquare,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@nivo/ui';
@@ -74,14 +76,6 @@ const sidebarGroups: SidebarGroup[] = [
     ],
   },
   {
-    label: 'Ventas',
-    items: [
-      { href: '/dashboard/sales', icon: Receipt, label: 'Historial de Ventas' },
-      { href: '/dashboard/cash-register', icon: Calculator, label: 'Arqueos y Cortes' },
-      { href: '/dashboard/layaways', icon: ClipboardList, label: 'Apartados', visibleIn: 'branch' },
-    ],
-  },
-  {
     label: 'Catálogo',
     items: [
       { href: '/dashboard/products', icon: Package, label: 'Modelos de Zapatos' },
@@ -90,53 +84,46 @@ const sidebarGroups: SidebarGroup[] = [
     ],
   },
   {
-    label: 'Inventario',
+    label: 'Ventas y Clientes',
     items: [
+      { href: '/dashboard/sales', icon: Receipt, label: 'Historial de Ventas' },
+      { href: '/dashboard/layaways', icon: ClipboardList, label: 'Apartados', visibleIn: 'branch' },
+      { href: '/dashboard/accounts', icon: DollarSign, label: 'Cuentas por Cobrar' },
+      { href: '/dashboard/customers', icon: Users, label: 'Directorio' },
+      { href: '/dashboard/loyalty', icon: Heart, label: 'Programa de Lealtad' },
+    ],
+  },
+  {
+    label: 'Inventario y Logística',
+    items: [
+      { href: '/dashboard/purchases', icon: Truck, label: 'Compras' },
+      { href: '/dashboard/requisitions', icon: ClipboardList, label: 'Requisiciones' },
       { href: '/dashboard/storage-locations', icon: MapPin, label: 'Ubicaciones' },
       { href: '/dashboard/inventory', icon: Warehouse, label: 'Stock por Sucursal' },
       { href: '/dashboard/transfers', icon: ArrowLeftRight, label: 'Traspasos', badgeKey: 'transfers_incoming' },
-      { href: '/dashboard/stock-movements', icon: PackagePlus, label: 'Entradas y Salidas' },
       { href: '/dashboard/audits', icon: ClipboardCheck, label: 'Auditorías de Stock' },
     ],
   },
   {
-    label: 'Compras',
+    label: 'Finanzas y Análisis',
     items: [
-      { href: '/dashboard/purchases', icon: Truck, label: 'Órdenes de Compra' },
-    ],
-  },
-  {
-    label: 'Clientes',
-    items: [
-      { href: '/dashboard/customers', icon: Users, label: 'Directorio' },
-      { href: '/dashboard/loyalty', icon: Heart, label: 'Programa de Lealtad' },
-      { href: '/dashboard/accounts', icon: Receipt, label: 'Cuentas por Cobrar' },
-    ],
-  },
-  {
-    label: 'Administración',
-    items: [
+      { href: '/dashboard/cash-register', icon: Calculator, label: 'Arqueos y Cortes' },
       { href: '/dashboard/expenses', icon: Wallet, label: 'Control de Gastos' },
-      { href: '/dashboard/employees', icon: UserCog, label: 'Equipo y Seguridad' },
-      { href: '/dashboard/branches', icon: MapPin, label: 'Sucursales' },
-    ],
-  },
-  {
-    label: 'Análisis',
-    items: [
       { href: '/dashboard/reports', icon: BarChart3, label: 'Reportes de Ventas' },
       { href: '/dashboard/profitability', icon: DollarSign, label: 'Rentabilidad' },
       { href: '/dashboard/analytics', icon: TrendingUp, label: 'Rendimiento' },
     ],
   },
   {
-    label: 'Sistema',
+    label: 'Negocio y Plataforma',
     items: [
+      { href: '/dashboard/branches', icon: MapPin, label: 'Sucursales' },
+      { href: '/dashboard/employees', icon: UserCog, label: 'Equipo y Seguridad' },
       { href: '/dashboard/settings', icon: Settings, label: 'Configuración' },
-      { href: '/dashboard/settings/catalogs', icon: Sliders, label: 'Catálogos' },
+      { href: '/dashboard/settings/catalogs', icon: Sliders, label: 'Parámetros del Sistema' },
       { href: '/dashboard/integrations', icon: Plug, label: 'Integraciones' },
-      { href: '/dashboard/subscription', icon: CreditCard, label: 'Mi Suscripción' },
       { href: '/dashboard/support', icon: HelpCircle, label: 'Soporte Nivo' },
+      { href: '/dashboard/subscription', icon: CreditCard, label: 'Mi Suscripción' },
     ],
   },
 ];
@@ -168,11 +155,31 @@ const quickActions = [
 // Component
 // ---------------------------------------------------------------------------
 
+// ── Hex → HSL components ─────────────────────────────────────────
+function hexToHSL(hex: string): { h: number; s: number; l: number } {
+  const clean = hex.replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return { h: 217, s: 91, l: 60 };
+  const r = parseInt(clean.slice(0, 2), 16) / 255;
+  const g = parseInt(clean.slice(2, 4), 16) / 255;
+  const b = parseInt(clean.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l: Math.round(l * 100) };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h = 0;
+  if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return { h: Math.round((h / 6) * 360), s: Math.round(s * 100), l: Math.round(l * 100) };
+}
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated, userType, tenant, user, isImpersonating, _savedImpersonatedTenantId, logout, exitImpersonation } = useAuthStore();
   const [mounted, setMounted] = useState(false);
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string>('');
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     const initial: Record<string, boolean> = {};
     sidebarGroups.forEach((g) => { initial[g.label] = g.label !== 'Principal'; });
@@ -186,6 +193,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [branchSelectorOpen, setBranchSelectorOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [helpSubject, setHelpSubject] = useState('');
+  const [helpMessage, setHelpMessage] = useState('');
+  const [helpSending, setHelpSending] = useState(false);
   const { branches: branchesList, selectedBranchId, selectedBranchName: selectedBranch, isGeneralSelected, fetchBranches, selectBranch, selectGeneral } = useBranchStore();
 
   // Refs for outside click
@@ -193,6 +204,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const notificationsRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
   const branchRef = useRef<HTMLDivElement>(null);
+  const helpRef = useRef<HTMLDivElement>(null);
   const omnisearchInputRef = useRef<HTMLInputElement>(null);
 
   // ---- Mount + Theme ----
@@ -203,6 +215,39 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       document.documentElement.classList.remove('tenant-light', 'tenant-dark');
     };
   }, []);
+
+  // ---- Brand color + logo injection ----
+  useEffect(() => {
+    if (!mounted || !isAuthenticated) return;
+    apiClient.get('/tenant-settings').then((res) => {
+      const settings: { key: string; value: string }[] = res.data ?? [];
+      const get = (k: string) => settings.find((s) => s.key === k)?.value ?? '';
+
+      const hex = get('branding.primary_color');
+      if (hex && /^#[0-9a-fA-F]{6}$/.test(hex)) {
+        const { h, s, l } = hexToHSL(hex);
+        const root = document.documentElement;
+        root.style.setProperty('--color-primary-h', String(h));
+        root.style.setProperty('--color-primary-s', `${s}%`);
+        root.style.setProperty('--color-primary-l', `${l}%`);
+      }
+
+      const logo = get('branding.logo_url');
+      if (logo) {
+        const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1').replace('/api/v1', '');
+        setBrandLogoUrl(logo.startsWith('/') ? `${apiBase}${logo}` : logo);
+      }
+
+      const favicon = get('branding.favicon_url');
+      if (favicon) {
+        const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1').replace('/api/v1', '');
+        const faviconHref = favicon.startsWith('/') ? `${apiBase}${favicon}` : favicon;
+        let link = document.querySelector<HTMLLinkElement>('link[rel~="icon"]');
+        if (!link) { link = document.createElement('link'); link.rel = 'icon'; document.head.appendChild(link); }
+        link.href = faviconHref;
+      }
+    }).catch(() => {});
+  }, [mounted, isAuthenticated]);
 
   // ---- Auth guard ----
   useEffect(() => {
@@ -247,6 +292,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setNotificationsOpen(false);
         setProfileOpen(false);
         setBranchSelectorOpen(false);
+        setHelpOpen(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -267,6 +313,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (notificationsRef.current && !notificationsRef.current.contains(e.target as Node)) setNotificationsOpen(false);
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setProfileOpen(false);
       if (branchRef.current && !branchRef.current.contains(e.target as Node)) setBranchSelectorOpen(false);
+      if (helpRef.current && !helpRef.current.contains(e.target as Node)) setHelpOpen(false);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -341,9 +388,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           {/* Brand */}
           <Link href="/dashboard" className="block px-5 py-5 shrink-0 hover:bg-white/[0.02] transition-colors">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-lg bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))] flex items-center justify-center shadow-lg">
-                <ShoppingCart className="h-5 w-5 text-white" />
-              </div>
+              {brandLogoUrl ? (
+                /* Custom tenant logo */
+                <div className="h-9 w-9 rounded-lg overflow-hidden shrink-0 bg-white/[0.06] flex items-center justify-center shadow-lg">
+                  <img src={brandLogoUrl} alt={tenant?.name ?? 'Logo'} className="h-full w-full object-contain p-0.5" />
+                </div>
+              ) : (
+                /* Default icon */
+                <div className="h-9 w-9 rounded-lg bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))] flex items-center justify-center shadow-lg shrink-0">
+                  <ShoppingCart className="h-5 w-5 text-white" />
+                </div>
+              )}
               <div className="min-w-0">
                 <h1 className="text-base font-bold text-[hsl(var(--sidebar-foreground))] tracking-tight truncate">
                   {tenant?.name || 'Nivo'}
@@ -593,14 +648,74 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </div>
 
-            {/* Help */}
-            <button
-              onClick={() => router.push('/dashboard/support')}
-              className="h-9 w-9 rounded-lg border border-border bg-card hover:bg-muted flex items-center justify-center transition-colors"
-              title="Soporte y ayuda"
-            >
-              <HelpCircle className="h-4 w-4 text-foreground" />
-            </button>
+            {/* Help Widget */}
+            <div ref={helpRef} className="relative">
+              <button
+                onClick={() => { setHelpOpen(!helpOpen); setQuickActionsOpen(false); setNotificationsOpen(false); setProfileOpen(false); }}
+                className="h-9 w-9 rounded-lg border border-border bg-card hover:bg-muted flex items-center justify-center transition-colors"
+                title="Soporte y ayuda"
+              >
+                <HelpCircle className="h-4 w-4 text-foreground" />
+              </button>
+              {helpOpen && (
+                <div className="absolute top-full right-0 mt-2 w-80 rounded-xl border border-border bg-popover/95 backdrop-blur-xl shadow-xl z-50">
+                  <div className="p-4 border-b border-border">
+                    <p className="text-sm font-semibold text-foreground">Soporte Rápido</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Envía un ticket sin salir de tu página</p>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <input
+                      className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      placeholder="Asunto del ticket..."
+                      value={helpSubject}
+                      onChange={(e) => setHelpSubject(e.target.value)}
+                    />
+                    <textarea
+                      className="w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
+                      placeholder="Describe brevemente tu problema..."
+                      rows={3}
+                      value={helpMessage}
+                      onChange={(e) => setHelpMessage(e.target.value)}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={!helpSubject.trim() || !helpMessage.trim() || helpSending}
+                        onClick={async () => {
+                          if (!helpSubject.trim() || !helpMessage.trim()) return;
+                          setHelpSending(true);
+                          try {
+                            await apiClient.post('/tenant-support/tickets', {
+                              subject: helpSubject.trim(),
+                              message: helpMessage.trim(),
+                              category: 'general',
+                              priority: 'medium',
+                            });
+                            setHelpSubject('');
+                            setHelpMessage('');
+                            setHelpOpen(false);
+                          } catch {
+                            // silently fail — user can try again
+                          } finally {
+                            setHelpSending(false);
+                          }
+                        }}
+                        className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {helpSending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+                        Enviar
+                      </button>
+                      <button
+                        onClick={() => { setHelpOpen(false); router.push('/dashboard/support'); }}
+                        className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-foreground hover:bg-muted transition-colors"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        Mis Tickets
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Profile Avatar */}
             <div ref={profileRef} className="relative">
