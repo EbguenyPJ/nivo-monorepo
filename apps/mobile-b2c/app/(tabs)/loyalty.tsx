@@ -2,7 +2,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { View, Text, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import * as Brightness from 'expo-brightness';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from 'expo-vector-icons';
 import QRCode from 'react-native-qrcode-svg';
 import Animated, { FadeInDown, FadeIn, useSharedValue, useAnimatedStyle, withRepeat, withTiming } from 'react-native-reanimated';
 import { useLoyaltyProfile } from '@/lib/queries';

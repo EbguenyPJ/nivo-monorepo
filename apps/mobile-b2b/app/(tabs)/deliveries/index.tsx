@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from 'expo-vector-icons';
 import { router } from 'expo-router';
 import { useDeliveryOrders } from '../../../src/hooks/use-deliveries';
 import { OrderStatus } from '@nivo/types';

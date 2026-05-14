@@ -1,6 +1,6 @@
 import { Tabs, router } from 'expo-router';
 import { View, Text, TouchableOpacity } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from 'expo-vector-icons';
 import { useCartStore } from '@/lib/cart-store';
 
 function CartBadge() {

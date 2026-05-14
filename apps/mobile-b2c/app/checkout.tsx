@@ -3,7 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from 'expo-vector-icons';
 import * as Location from 'expo-location';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { useStripe } from '@stripe/stripe-react-native';
