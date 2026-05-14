@@ -142,19 +142,19 @@ export class DailyBriefingService {
       SELECT
         b.name AS branch_name,
         e.name AS employee_name,
-        ps.cash_expected AS expected,
-        ps.cash_actual AS actual,
-        (ps.cash_actual - ps.cash_expected) AS difference
+        ps.expected_amount AS expected,
+        ps.closing_amount AS actual,
+        (ps.closing_amount - ps.expected_amount) AS difference
       FROM pos_sessions ps
       INNER JOIN branches b ON b.id = ps.branch_id
       INNER JOIN employees e ON e.id = ps.employee_id
       WHERE ps.closed_at IS NOT NULL
         AND ps.closed_at >= $1
         AND ps.closed_at <= $2
-        AND ps.cash_actual IS NOT NULL
-        AND ps.cash_expected IS NOT NULL
-        AND ABS(ps.cash_actual - ps.cash_expected) > 1
-      ORDER BY ABS(ps.cash_actual - ps.cash_expected) DESC
+        AND ps.closing_amount IS NOT NULL
+        AND ps.expected_amount IS NOT NULL
+        AND ABS(ps.closing_amount - ps.expected_amount) > 1
+      ORDER BY ABS(ps.closing_amount - ps.expected_amount) DESC
       LIMIT 10
     `, [start, end]);
 

@@ -20,7 +20,7 @@ export class StripeWebhooksService {
     private readonly billingTasksQueue: Queue,
   ) {
     this.stripe = new Stripe(this.config.get('STRIPE_SECRET_KEY', ''), {
-      apiVersion: '2024-12-18.acacia',
+      apiVersion: '2025-02-24.acacia',
     });
   }
 

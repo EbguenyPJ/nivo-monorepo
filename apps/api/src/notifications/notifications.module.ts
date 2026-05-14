@@ -23,19 +23,16 @@ import { NotificationsProcessor, NOTIFICATIONS_QUEUE } from './processors/notifi
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
         transport: {
-          host: config.get('MAIL_HOST', config.get('SMTP_HOST', 'smtp.gmail.com')),
-          port: Number(config.get('MAIL_PORT', config.get('SMTP_PORT', 587))),
+          host: config.get<string>('MAIL_HOST') ?? config.get<string>('SMTP_HOST') ?? 'smtp.gmail.com',
+          port: Number(config.get<string>('MAIL_PORT') ?? config.get<string>('SMTP_PORT') ?? '587'),
           secure: false,
           auth: {
-            user: config.get('MAIL_USER', config.get('SMTP_USER', '')),
-            pass: config.get('MAIL_PASS', config.get('SMTP_PASS', '')),
+            user: config.get<string>('MAIL_USER') ?? config.get<string>('SMTP_USER') ?? '',
+            pass: config.get<string>('MAIL_PASS') ?? config.get<string>('SMTP_PASS') ?? '',
           },
         },
         defaults: {
-          from: config.get(
-            'MAIL_FROM',
-            config.get('SMTP_FROM', '"Nivo Demo" <nivo.demo2@gmail.com>'),
-          ),
+          from: config.get<string>('MAIL_FROM') ?? config.get<string>('SMTP_FROM') ?? '"Nivo Demo" <nivo.demo2@gmail.com>',
         },
       }),
     }),

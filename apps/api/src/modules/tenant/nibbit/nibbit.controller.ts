@@ -1,9 +1,22 @@
 import { Controller, Post, Body, Req, UseGuards, HttpCode } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { IsArray, IsIn, IsString, ValidateNested } from 'class-validator';
+import { Type } from 'class-transformer';
 import { NibbitService, ChatMessage } from './nibbit.service';
 
+class ChatMessageDto {
+  @IsIn(['user', 'assistant'])
+  role: 'user' | 'assistant';
+
+  @IsString()
+  content: string;
+}
+
 class NibbitChatDto {
-  messages: ChatMessage[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ChatMessageDto)
+  messages: ChatMessageDto[];
 }
 
 @Controller('nibbit')

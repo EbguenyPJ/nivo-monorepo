@@ -40,10 +40,7 @@ export class CashTransaction {
   @JoinColumn({ name: 'employee_id' })
   employee: Employee;
 
-  @Column({
-    type: 'enum',
-    enum: ['sale_cash', 'refund', 'cash_in', 'cash_out', 'audit', 'layaway_payment', 'credit_payment', 'supplier_payment'],
-  })
+  @Column({ type: 'varchar' })
   type: string;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })

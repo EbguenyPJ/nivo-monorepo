@@ -19,8 +19,8 @@ export class FileStorageService {
   private client: any;
 
   constructor(private readonly config: ConfigService) {
-    this.bucket = config.get('REPORTS_S3_BUCKET', config.get('S3_BUCKET', ''));
-    this.region = config.get('REPORTS_S3_REGION', config.get('S3_REGION', 'us-east-1'));
+    this.bucket = config.get<string>('REPORTS_S3_BUCKET') ?? config.get<string>('S3_BUCKET') ?? '';
+    this.region = config.get<string>('REPORTS_S3_REGION') ?? config.get<string>('S3_REGION') ?? 'us-east-1';
     this.useS3 = !!(
       this.bucket &&
       (config.get('REPORTS_S3_ACCESS_KEY') || config.get('S3_ACCESS_KEY'))

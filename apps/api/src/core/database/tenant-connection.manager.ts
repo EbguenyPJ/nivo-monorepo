@@ -155,7 +155,7 @@ export class TenantConnectionManager implements OnModuleDestroy {
       password: this.config.get('TENANT_DB_PASSWORD', 'nivo_secret_2024'),
       database: databaseName,
       entities: TENANT_ENTITIES,
-      synchronize: this.config.get('NODE_ENV') === 'development',
+      synchronize: false,
       logging: false,
     });
 
