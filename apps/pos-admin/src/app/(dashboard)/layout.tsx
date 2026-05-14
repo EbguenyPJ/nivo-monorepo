@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { DailyBriefingModal } from '@/components/ai/DailyBriefingModal';
+import { NibbitChat } from '@/components/ai/NibbitChat';
 import {
   LayoutDashboard,
   Receipt,
@@ -846,6 +848,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       )}
+
+      {/* AI Components */}
+      <DailyBriefingModal />
+      <NibbitChat />
     </div>
   );
 }

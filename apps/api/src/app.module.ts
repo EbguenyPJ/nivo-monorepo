@@ -51,6 +51,8 @@ import { NivoNotificationsModule } from './notifications/notifications.module';
 import { NivoReportsModule } from './reports/reports.module';
 import { NivoMailerModule } from './modules/tenant/mailer/mailer.module';
 import { LogisticsModule } from './modules/tenant/logistics/logistics.module';
+import { DailyBriefingModule } from './modules/tenant/daily-briefing/daily-briefing.module';
+import { NibbitModule } from './modules/tenant/nibbit/nibbit.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -111,6 +113,8 @@ import { HealthController } from './health.controller';
     NivoReportsModule,
     NivoMailerModule,
     LogisticsModule,
+    DailyBriefingModule,
+    NibbitModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

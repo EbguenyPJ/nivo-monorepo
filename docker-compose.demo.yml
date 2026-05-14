@@ -1,0 +1,38 @@
+# Nivo Demo — Isolated simulation environment
+# Usage: docker compose -f docker-compose.demo.yml up -d
+services:
+  nivo-demo-postgres:
+    image: postgres:16-alpine
+    container_name: nivo-demo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nivo_admin
+      POSTGRES_PASSWORD: nivo_secret_2024
+      POSTGRES_DB: nivo_master_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - nivo-demo-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nivo_admin -d nivo_master_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nivo-demo-redis:
+    image: redis:7-alpine
+    container_name: nivo-demo-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - nivo-demo-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  nivo-demo-pg-data:
+  nivo-demo-redis-data:
