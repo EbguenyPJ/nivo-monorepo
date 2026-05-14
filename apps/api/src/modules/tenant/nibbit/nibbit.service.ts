@@ -86,7 +86,7 @@ export class NibbitService {
     }];
 
     const model = this.genAI.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: this.config.get('GEMINI_MODEL', 'gemini-2.0-flash'),
       systemInstruction: systemPrompt,
       tools,
     });
@@ -101,7 +101,7 @@ export class NibbitService {
 
     const toolCallLog: { name: string; input: any; result: any }[] = [];
 
-    let response = await chat.sendMessage(lastMessage);
+    let response = await this.sendWithRetry(() => chat.sendMessage(lastMessage));
     let candidate = response.response.candidates?.[0];
 
     while (candidate) {
@@ -130,15 +130,17 @@ export class NibbitService {
           result: JSON.parse(resultStr),
         });
 
+        const parsed = JSON.parse(resultStr);
+        const responseObj = Array.isArray(parsed) ? { items: parsed } : parsed;
         functionResponses.push({
           functionResponse: {
             name: fc.name,
-            response: JSON.parse(resultStr),
+            response: responseObj,
           },
         });
       }
 
-      response = await chat.sendMessage(functionResponses);
+      response = await this.sendWithRetry(() => chat.sendMessage(functionResponses));
       candidate = response.response.candidates?.[0];
     }
 
@@ -151,5 +153,20 @@ export class NibbitService {
       reply: reply || 'No pude generar una respuesta. Intenta reformular tu pregunta.',
       tool_calls: toolCallLog.length > 0 ? toolCallLog : undefined,
     };
+  }
+
+  private async sendWithRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await fn();
+      } catch (err: any) {
+        const isRetryable = err.message?.includes('503') || err.message?.includes('429');
+        if (!isRetryable || i === maxRetries - 1) throw err;
+        const delay = Math.pow(2, i) * 1000 + Math.random() * 500;
+        this.logger.warn(`Gemini API retry ${i + 1}/${maxRetries} after ${Math.round(delay)}ms`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+    throw new Error('Unreachable');
   }
 }
