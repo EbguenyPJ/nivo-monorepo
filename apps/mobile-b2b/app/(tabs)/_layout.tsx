@@ -1,5 +1,5 @@
 import { Tabs, Redirect } from 'expo-router';
-import { Ionicons } from 'expo-vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../src/stores/auth.store';
 import { HeaderLogout } from '../../src/components/header-logout';
 

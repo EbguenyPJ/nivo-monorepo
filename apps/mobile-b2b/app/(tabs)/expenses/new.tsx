@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from 'expo-vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { router, Stack } from 'expo-router';
 import { useUploadExpense, useExpenseCategories } from '../../../src/hooks/use-expenses';
 import { useAuthStore } from '../../../src/stores/auth.store';

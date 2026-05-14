@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from 'expo-vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useActiveAudits, useScanBarcode, useSubmitAudit, type BatchScanEntry } from '../../../src/hooks/use-audit';
 
 export default function ScannerScreen() {

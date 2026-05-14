@@ -1,4 +1,4 @@
-import { Ionicons } from 'expo-vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useAuthStore } from '../../../src/stores/auth.store';

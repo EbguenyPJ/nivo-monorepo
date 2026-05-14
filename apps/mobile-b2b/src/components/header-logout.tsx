@@ -1,5 +1,5 @@
 import { TouchableOpacity, Alert } from 'react-native';
-import { Ionicons } from 'expo-vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuthStore } from '../stores/auth.store';
 import { queryClient } from '../api/query-client';

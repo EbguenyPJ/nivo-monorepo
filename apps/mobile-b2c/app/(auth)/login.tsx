@@ -3,7 +3,7 @@ import {
   View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { Link, router } from 'expo-router';
-import { Ionicons } from 'expo-vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/lib/auth-store';
 
