@@ -71,6 +71,9 @@ export class PurchaseRequisition {
   @Column({ type: 'timestamp', nullable: true })
   approved_at: Date | null;
 
+  @Column({ type: 'boolean', default: false })
+  created_by_ai: boolean;
+
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 

@@ -33,6 +33,6 @@ import { DistributionService } from './services/distribution.service';
     S3Service,
     DistributionService,
   ],
-  exports: [ReportsGateway, S3Service],
+  exports: [ReportsGateway, S3Service, PdfGeneratorService],
 })
 export class ReportsExportModule {}

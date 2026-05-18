@@ -2,11 +2,20 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { GoogleGenerativeAI, SchemaType, Content, Part } from '@google/generative-ai';
 import { DataSource } from 'typeorm';
-import { NIBBIT_TOOLS, executeTool } from './nibbit.tools';
+import { NIBBIT_TOOLS, executeTool, ToolExecutionContext } from './nibbit.tools';
+import { RequisitionsService } from '../requisitions/requisitions.service';
+import { PdfGeneratorService } from '../reports-export/services/pdf-generator.service';
+import { S3Service } from '../reports-export/services/s3.service';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
+}
+
+export interface NibbitAction {
+  type: 'requisition_draft' | 'email_drafts';
+  label: string;
+  payload: Record<string, any>;
 }
 
 const SYSTEM_PROMPT = `Eres Nibbit, el asistente inteligente de Nivo — una plataforma POS para zapaterías en México.
@@ -25,6 +34,12 @@ CONTEXTO:
 - Fecha actual: {{CURRENT_DATE}}
 - Negocio: {{TENANT_NAME}}
 - Tipo de negocio: Zapatería / Calzado
+
+HERRAMIENTAS DE ACCIÓN:
+9. Puedes generar borradores de requisiciones de reabastecimiento usando draft_auto_requisition. Úsala cuando el usuario pida reabastecer, generar pedidos de compra, o revisar qué falta en inventario para pedir.
+10. Puedes redactar correos a proveedores usando draft_supplier_emails. Úsala cuando el usuario pida enviar o redactar correos después de aprobar una requisición. Necesitas el ID de una requisición aprobada.
+11. Las herramientas de acción NUNCA ejecutan operaciones finales. Solo preparan borradores que el usuario debe revisar y confirmar manualmente.
+12. Si el usuario pide reabastecer pero no especifica sucursal, pregunta primero cuál sucursal quiere evaluar.
 
 Eres conciso. Respondes directo al punto. Si puedes resolver con una herramienta, úsala inmediatamente sin pedir confirmación.`;
 
@@ -57,7 +72,12 @@ export class NibbitService {
   private readonly logger = new Logger(NibbitService.name);
   private genAI: GoogleGenerativeAI;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly requisitionsService: RequisitionsService,
+    private readonly pdfGeneratorService: PdfGeneratorService,
+    private readonly s3Service: S3Service,
+  ) {
     this.genAI = new GoogleGenerativeAI(
       this.config.get('GEMINI_API_KEY', ''),
     );
@@ -67,7 +87,9 @@ export class NibbitService {
     connection: DataSource,
     messages: ChatMessage[],
     tenantName: string,
-  ): Promise<{ reply: string; tool_calls?: { name: string; input: any; result: any }[] }> {
+    tenantId?: string,
+    databaseName?: string,
+  ): Promise<{ reply: string; tool_calls?: { name: string; input: any; result: any }[]; actions?: NibbitAction[] }> {
     const now = new Date();
     const systemPrompt = SYSTEM_PROMPT
       .replace('{{CURRENT_DATE}}', now.toISOString().split('T')[0])
@@ -101,6 +123,16 @@ export class NibbitService {
 
     const toolCallLog: { name: string; input: any; result: any }[] = [];
 
+    const toolCtx: ToolExecutionContext = {
+      requisitionsService: this.requisitionsService,
+      pdfGeneratorService: this.pdfGeneratorService,
+      s3Service: this.s3Service,
+      genAI: this.genAI,
+      tenantId: tenantId || '',
+      tenantName,
+      databaseName: databaseName || '',
+    };
+
     let response = await this.sendWithRetry(() => chat.sendMessage(lastMessage));
     let candidate = response.response.candidates?.[0];
 
@@ -119,7 +151,7 @@ export class NibbitService {
 
         let resultStr: string;
         try {
-          resultStr = await executeTool(connection, fc.name, fc.args || {});
+          resultStr = await executeTool(connection, fc.name, fc.args || {}, toolCtx);
         } catch (err: any) {
           resultStr = JSON.stringify({ error: err.message });
         }
@@ -149,9 +181,17 @@ export class NibbitService {
     ) || [];
     const reply = textParts.map((p: any) => p.text).join('\n');
 
+    const actions: NibbitAction[] = [];
+    for (const tc of toolCallLog) {
+      if (tc.result?.__nibbit_action) {
+        actions.push(tc.result.__nibbit_action as NibbitAction);
+      }
+    }
+
     return {
       reply: reply || 'No pude generar una respuesta. Intenta reformular tu pregunta.',
       tool_calls: toolCallLog.length > 0 ? toolCallLog : undefined,
+      actions: actions.length > 0 ? actions : undefined,
     };
   }
 

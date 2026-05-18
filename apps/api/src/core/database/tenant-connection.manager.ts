@@ -36,6 +36,7 @@ import {
   BranchSettingOverride,
   StorageLocation,
   InventoryLocation,
+  CustomerAuth,
   CustomerAddress,
   CashRegister,
   CashTransaction,
@@ -65,6 +66,7 @@ import {
   VariantSupplier,
   PurchaseRequisition,
   RequisitionItem,
+  EmailDraft,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -102,6 +104,7 @@ const TENANT_ENTITIES = [
   BranchSettingOverride,
   StorageLocation,
   InventoryLocation,
+  CustomerAuth,
   CustomerAddress,
   CashRegister,
   CashTransaction,
@@ -131,6 +134,7 @@ const TENANT_ENTITIES = [
   VariantSupplier,
   PurchaseRequisition,
   RequisitionItem,
+  EmailDraft,
 ];
 
 @Injectable()

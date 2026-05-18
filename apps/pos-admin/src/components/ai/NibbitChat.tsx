@@ -1,8 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, FormEvent } from 'react';
-import { MessageSquare, X, Send, Loader2, Bot, User, Sparkles, Minimize2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { MessageSquare, X, Send, Loader2, Bot, User, Sparkles, Minimize2, FileText, Mail } from 'lucide-react';
 import { apiClient } from '@/lib/api';
+import { EmailDraftsModal } from './EmailDraftsModal';
+
+interface NibbitAction {
+  type: 'requisition_draft' | 'email_drafts';
+  label: string;
+  payload: Record<string, any>;
+}
 
 interface Message {
   id: string;
@@ -10,6 +18,7 @@ interface Message {
   content: string;
   loading?: boolean;
   toolCalls?: { name: string; input: any }[];
+  actions?: NibbitAction[];
 }
 
 function generateId() {
@@ -122,13 +131,17 @@ const TOOL_LABELS: Record<string, string> = {
   search_product_catalog: 'Buscando en catálogo',
   get_sales_by_hour: 'Analizando horarios',
   get_branch_comparison: 'Comparando sucursales',
+  draft_auto_requisition: 'Generando requisición automática',
+  draft_supplier_emails: 'Redactando correos a proveedores',
 };
 
 export function NibbitChat() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
+  const [emailModalDraftIds, setEmailModalDraftIds] = useState<string[] | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -167,7 +180,7 @@ export function NibbitChat() {
       setMessages(prev =>
         prev.map(m =>
           m.id === loadingMsg.id
-            ? { ...m, content: data.reply, loading: false, toolCalls: data.tool_calls }
+            ? { ...m, content: data.reply, loading: false, toolCalls: data.tool_calls, actions: data.actions }
             : m,
         ),
       );
@@ -281,6 +294,31 @@ export function NibbitChat() {
                         </div>
                       )}
                       <MarkdownContent content={msg.content} />
+                      {msg.actions && msg.actions.length > 0 && (
+                        <div className="flex flex-col gap-1.5 mt-3">
+                          {msg.actions.map((action, i) => (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                if (action.type === 'requisition_draft') {
+                                  router.push(`/dashboard/requisitions?draft_id=${action.payload.requisition_id}`);
+                                  setOpen(false);
+                                } else if (action.type === 'email_drafts') {
+                                  setEmailModalDraftIds(action.payload.draft_ids || []);
+                                }
+                              }}
+                              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-500/15 border border-blue-500/25 text-blue-300 text-xs font-medium hover:bg-blue-500/25 hover:text-blue-200 transition-all"
+                            >
+                              {action.type === 'requisition_draft' ? (
+                                <FileText className="h-3.5 w-3.5" />
+                              ) : (
+                                <Mail className="h-3.5 w-3.5" />
+                              )}
+                              {action.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -319,6 +357,12 @@ export function NibbitChat() {
             </p>
           </form>
         </div>
+      )}
+      {emailModalDraftIds && (
+        <EmailDraftsModal
+          draftIds={emailModalDraftIds}
+          onClose={() => setEmailModalDraftIds(null)}
+        />
       )}
     </>
   );

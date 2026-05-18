@@ -4,6 +4,7 @@ import {
   Supplier,
   PurchaseOrder,
   PurchaseOrderItem,
+  PurchaseRequisition,
   AccountPayable,
   ProductVariant,
   Product,
@@ -11,6 +12,7 @@ import {
   Branch,
   CashTransaction,
   PosSession,
+  TenantSetting,
 } from '@nivo/database';
 
 @Injectable()
@@ -668,6 +670,62 @@ export class PurchasingService {
       overdue_count: parseInt(overdue?.count || '0'),
       pending_orders: parseInt(pendingOrders?.count || '0'),
       month_purchases: parseFloat(monthPurchases?.total || '0'),
+    };
+  }
+
+  async getOrderPrintData(connection: DataSource, orderId: string) {
+    const po = await connection.getRepository(PurchaseOrder).findOne({
+      where: { id: orderId },
+      relations: ['supplier', 'branch', 'items'],
+    });
+    if (!po) throw new NotFoundException('Orden de compra no encontrada');
+
+    const items = await Promise.all(
+      (po.items || []).map(async (item) => {
+        const variant = await connection.getRepository(ProductVariant)
+          .createQueryBuilder('v')
+          .leftJoinAndSelect('v.product', 'product')
+          .where('v.id = :id', { id: item.variant_id })
+          .getOne();
+        return {
+          sku: variant?.sku || '',
+          product_name: variant?.product?.name || '',
+          attributes: variant?.attributes || null,
+          ordered_quantity: item.ordered_quantity,
+          unit_cost: Number(item.unit_cost),
+        };
+      }),
+    );
+
+    const settingsRepo = connection.getRepository(TenantSetting);
+    const businessNameSetting = await settingsRepo.findOne({ where: { key: 'business_name' } });
+    const primaryColorSetting = await settingsRepo.findOne({ where: { key: 'primary_color' } });
+
+    let requisitionFolio: string | null = null;
+    if (po.requisition_id) {
+      const req = await connection.getRepository(PurchaseRequisition).findOne({
+        where: { id: po.requisition_id },
+      });
+      if (req) requisitionFolio = req.folio;
+    }
+
+    return {
+      folio: po.folio,
+      supplier: {
+        name: po.supplier?.name || '',
+        email: po.supplier?.email || null,
+        tax_id: po.supplier?.tax_id || null,
+        phone: po.supplier?.phone || null,
+      },
+      branch: { name: po.branch?.name || '' },
+      items,
+      total_cost: Number(po.total_cost),
+      created_at: po.created_at,
+      expected_date: po.expected_date,
+      notes: po.notes,
+      business_name: businessNameSetting?.value || 'Nivo',
+      primary_color: primaryColorSetting?.value || '#3B82F6',
+      requisition_folio: requisitionFolio,
     };
   }
 }

@@ -62,6 +62,7 @@ export { VariantSupplier } from './variant-supplier.entity';
 export { PurchaseRequisition } from './purchase-requisition.entity';
 export { RequisitionItem } from './requisition-item.entity';
 export { CustomerAuth } from './customer-auth.entity';
+export { EmailDraft } from './email-draft.entity';
 export { Order } from './order.entity';
 export { OrderItem } from './order-item.entity';
 export { DeliveryProof } from './delivery-proof.entity';
