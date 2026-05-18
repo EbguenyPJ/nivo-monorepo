@@ -146,4 +146,9 @@ export class PurchasingController {
       employee_id: body.employee_id || (req.user as any)?.sub,
     });
   }
+
+  @Get('orders/:id/print')
+  async getOrderPrintData(@Req() req: Request, @Param('id') id: string) {
+    return this.purchasingService.getOrderPrintData(req.tenantConnection!, id);
+  }
 }

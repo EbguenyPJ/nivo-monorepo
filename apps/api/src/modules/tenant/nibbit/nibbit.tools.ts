@@ -1,13 +1,32 @@
 import { DataSource } from 'typeorm';
+import { Logger } from '@nestjs/common';
 import {
   Sale, SaleItem, ProductVariant, Product, Brand, Category,
   Inventory, Expense, CashTransaction, PosSession,
+  PurchaseRequisition, PurchaseOrder, PurchaseOrderItem,
+  Supplier, EmailDraft, VariantSupplier,
 } from '@nivo/database';
+import type { RequisitionsService } from '../requisitions/requisitions.service';
+import type { PdfGeneratorService } from '../reports-export/services/pdf-generator.service';
+import type { S3Service } from '../reports-export/services/s3.service';
+import type { GoogleGenerativeAI } from '@google/generative-ai';
+
+const logger = new Logger('NibbitTools');
 
 export interface ToolDefinition {
   name: string;
   description: string;
   input_schema: Record<string, any>;
+}
+
+export interface ToolExecutionContext {
+  requisitionsService: RequisitionsService;
+  pdfGeneratorService: PdfGeneratorService;
+  s3Service: S3Service;
+  genAI: GoogleGenerativeAI;
+  tenantId: string;
+  tenantName: string;
+  databaseName: string;
 }
 
 export const NIBBIT_TOOLS: ToolDefinition[] = [
@@ -141,12 +160,38 @@ export const NIBBIT_TOOLS: ToolDefinition[] = [
       required: ['start_date', 'end_date'],
     },
   },
+  // ═══════════════════════════════════════════════════════════════════
+  // MUTATION TOOLS (require ToolExecutionContext)
+  // ═══════════════════════════════════════════════════════════════════
+  {
+    name: 'draft_auto_requisition',
+    description: 'Genera automáticamente un borrador de requisición de reabastecimiento para una sucursal. Escanea el inventario buscando productos con stock por debajo del mínimo y crea un borrador con las cantidades sugeridas. El usuario debe revisar y aprobar el borrador antes de que se generen órdenes de compra. Usa esta herramienta cuando el usuario pida generar pedidos de reabastecimiento o reabastecer inventario.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        branch_id: { type: 'string', description: 'ID de la sucursal para evaluar inventario' },
+      },
+      required: ['branch_id'],
+    },
+  },
+  {
+    name: 'draft_supplier_emails',
+    description: 'Genera borradores de correos electrónicos para los proveedores de una requisición aprobada. Para cada orden de compra generada, redacta un correo formal con los detalles del pedido y genera el PDF adjunto. Los correos NO se envían automáticamente — el usuario debe revisarlos y confirmar el envío. Usa esta herramienta cuando el usuario pida redactar o enviar correos a proveedores después de aprobar una requisición.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        requisition_id: { type: 'string', description: 'ID de la requisición aprobada' },
+      },
+      required: ['requisition_id'],
+    },
+  },
 ];
 
 export async function executeTool(
   conn: DataSource,
   toolName: string,
   input: Record<string, any>,
+  ctx?: ToolExecutionContext,
 ): Promise<string> {
   switch (toolName) {
     case 'get_sales_summary':
@@ -169,6 +214,12 @@ export async function executeTool(
       return JSON.stringify(await getSalesByHour(conn, input));
     case 'get_branch_comparison':
       return JSON.stringify(await getBranchComparison(conn, input));
+    case 'draft_auto_requisition':
+      if (!ctx) return JSON.stringify({ error: 'Contexto de ejecución no disponible para herramientas de mutación' });
+      return JSON.stringify(await draftAutoRequisition(conn, input, ctx));
+    case 'draft_supplier_emails':
+      if (!ctx) return JSON.stringify({ error: 'Contexto de ejecución no disponible para herramientas de mutación' });
+      return JSON.stringify(await draftSupplierEmails(conn, input, ctx));
     default:
       return JSON.stringify({ error: `Tool "${toolName}" not found` });
   }
@@ -473,4 +524,171 @@ async function getBranchComparison(conn: DataSource, input: Record<string, any>)
     GROUP BY b.id, b.name
     ORDER BY total_revenue DESC
   `, [input.start_date, input.end_date]);
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// MUTATION TOOLS
+// ═══════════════════════════════════════════════════════════════════
+
+async function draftAutoRequisition(
+  conn: DataSource,
+  input: Record<string, any>,
+  ctx: ToolExecutionContext,
+) {
+  const result = await ctx.requisitionsService.generateDraftFromStock(conn, input.branch_id);
+
+  if (!result.draft_id) {
+    return { message: result.message, item_count: 0 };
+  }
+
+  const reqRepo = conn.getRepository(PurchaseRequisition);
+  await reqRepo.update(result.draft_id, { created_by_ai: true });
+
+  const draft = await ctx.requisitionsService.getRequisitionDetail(conn, result.draft_id);
+
+  const brandCounts: Record<string, number> = {};
+  for (const item of draft.items || []) {
+    const brand = (item as any).variant?.product?.brand?.name || 'Sin marca';
+    brandCounts[brand] = (brandCounts[brand] || 0) + 1;
+  }
+
+  return {
+    requisition_id: result.draft_id,
+    folio: draft.folio,
+    item_count: draft.total_items,
+    total_estimated_cost: draft.total_estimated_cost,
+    brand_summary: brandCounts,
+    __nibbit_action: {
+      type: 'requisition_draft',
+      label: 'Abrir Borrador de Requisición',
+      payload: { requisition_id: result.draft_id, folio: draft.folio },
+    },
+  };
+}
+
+async function draftSupplierEmails(
+  conn: DataSource,
+  input: Record<string, any>,
+  ctx: ToolExecutionContext,
+) {
+  const reqRepo = conn.getRepository(PurchaseRequisition);
+  const requisition = await reqRepo.findOne({
+    where: { id: input.requisition_id },
+    relations: ['branch'],
+  });
+
+  if (!requisition) {
+    return { error: 'Requisición no encontrada' };
+  }
+  if (requisition.status !== 'approved') {
+    return { error: 'La requisición debe estar aprobada para generar correos. Estado actual: ' + requisition.status };
+  }
+
+  const poRepo = conn.getRepository(PurchaseOrder);
+  const purchaseOrders = await poRepo.find({
+    where: { requisition_id: requisition.id },
+    relations: ['supplier', 'items', 'items.variant', 'items.variant.product'],
+  });
+
+  if (purchaseOrders.length === 0) {
+    return { error: 'No se encontraron órdenes de compra para esta requisición' };
+  }
+
+  const draftRepo = conn.getRepository(EmailDraft);
+  const createdDrafts: { id: string; supplier_name: string; to_email: string }[] = [];
+
+  for (const po of purchaseOrders) {
+    if (!po.supplier?.email) {
+      logger.warn(`PO ${po.folio}: proveedor sin correo, omitido`);
+      continue;
+    }
+
+    let pdfUrl: string | null = null;
+    try {
+      const pdfBuffer = await ctx.pdfGeneratorService.generate(
+        ctx.tenantId,
+        ctx.databaseName,
+        'purchase-order' as any,
+        { po_id: po.id },
+      );
+      const key = `temp-reports/${ctx.tenantId}/po-${po.folio}-${Date.now()}.pdf`;
+      const uploaded = await ctx.s3Service.upload(key, pdfBuffer, 'application/pdf');
+      pdfUrl = uploaded.url;
+    } catch (err: any) {
+      logger.error(`Error generando PDF para PO ${po.folio}: ${err.message}`);
+    }
+
+    const itemsList = (po.items || []).map((item) => {
+      const name = item.variant?.product?.name || 'Producto';
+      const sku = item.variant?.sku || '';
+      const attrs = item.variant?.attributes ? JSON.stringify(item.variant.attributes) : '';
+      return `- ${name} ${attrs} (SKU: ${sku}) × ${item.ordered_quantity} unidades a $${Number(item.unit_cost).toFixed(2)} c/u`;
+    }).join('\n');
+
+    const emailPrompt = `Redacta un correo electrónico formal y profesional en español para solicitar mercancía a un proveedor de calzado. El correo debe ser conciso y directo.
+
+Datos del pedido:
+- Proveedor: ${po.supplier.name}
+- Folio de Orden de Compra: ${po.folio}
+- Requisición origen: ${requisition.folio}
+- Sucursal destino: ${requisition.branch?.name || 'Principal'}
+- Negocio: ${ctx.tenantName}
+
+Artículos solicitados:
+${itemsList}
+
+Total estimado: $${Number(po.total_cost).toFixed(2)}
+
+Instrucciones:
+- Saludo cordial al contacto del proveedor
+- Referencia al folio de la orden de compra
+- Lista clara de artículos con cantidades
+- Solicitar confirmación de disponibilidad y tiempos de entrega
+- Cierre profesional
+
+Devuelve SOLO el body del correo en HTML simple (usa <p>, <ul>, <li>, <strong>). NO incluyas subject ni metadatos.`;
+
+    let bodyHtml = '';
+    try {
+      const model = ctx.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const result = await model.generateContent(emailPrompt);
+      bodyHtml = result.response.text();
+    } catch (err: any) {
+      logger.error(`Error generando email draft para PO ${po.folio}: ${err.message}`);
+      bodyHtml = `<p>Estimado equipo de ${po.supplier.name},</p>
+<p>Por medio del presente, le enviamos la Orden de Compra <strong>${po.folio}</strong> correspondiente a la requisición ${requisition.folio}.</p>
+<p>Agradecemos confirmar disponibilidad y tiempos de entrega.</p>
+<p>Saludos cordiales,<br>${ctx.tenantName}</p>`;
+    }
+
+    const subject = `Orden de Compra ${po.folio} — ${ctx.tenantName}`;
+
+    const draft = draftRepo.create({
+      purchase_order_id: po.id,
+      supplier_id: po.supplier_id,
+      requisition_id: requisition.id,
+      to_email: po.supplier.email,
+      subject,
+      body_html: bodyHtml,
+      pdf_url: pdfUrl,
+      status: 'pending',
+    });
+    const saved = await draftRepo.save(draft);
+
+    createdDrafts.push({
+      id: saved.id,
+      supplier_name: po.supplier.name,
+      to_email: po.supplier.email,
+    });
+  }
+
+  return {
+    draft_count: createdDrafts.length,
+    drafts: createdDrafts,
+    __nibbit_action: {
+      type: 'email_drafts',
+      label: 'Revisar Correos a Proveedores',
+      payload: { draft_ids: createdDrafts.map((d) => d.id) },
+    },
+  };
 }
