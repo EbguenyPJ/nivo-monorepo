@@ -8,7 +8,8 @@
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
     "db:migrate": "turbo run db:migrate --filter=@nivo/api",
-    "db:seed": "turbo run db:seed --filter=@nivo/api"
+    "db:seed": "turbo run db:seed --filter=@nivo/api",
+    "db:simulate-master": "turbo run db:simulate-master --filter=@nivo/api"
   },
   "devDependencies": {
     "turbo": "^2.4.0",

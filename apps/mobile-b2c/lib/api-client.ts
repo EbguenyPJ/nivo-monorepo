@@ -1,7 +1,19 @@
 import * as SecureStore from 'expo-secure-store';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
-const TENANT = process.env.EXPO_PUBLIC_TENANT_SUBDOMAIN ?? 'demo';
+function getDevApiBase(): string {
+  const debuggerHost = Constants.expoConfig?.hostUri ?? Constants.experienceUrl ?? '';
+  const lanIp = debuggerHost.split(':')[0];
+  if (lanIp && lanIp !== 'localhost') {
+    return `http://${lanIp}:3000/api/v1`;
+  }
+  const host = Platform.OS === 'android' ? '10.0.2.2' : 'localhost';
+  return `http://${host}:3000/api/v1`;
+}
+
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? (__DEV__ ? getDevApiBase() : 'https://api.nivo.com/api/v1');
+const TENANT = process.env.EXPO_PUBLIC_TENANT_SUBDOMAIN ?? '3hermanos';
 
 async function getToken(): Promise<string | null> {
   return SecureStore.getItemAsync('auth_token');
@@ -14,7 +26,7 @@ async function request<T>(
   const token = await getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-tenant-subdomain': TENANT,
+    'x-tenant-id': TENANT,
     ...(options.headers as Record<string, string>),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -55,7 +67,7 @@ export const api = {
   upload: async <T>(path: string, formData: FormData): Promise<T> => {
     const token = await getToken();
     const headers: Record<string, string> = {
-      'x-tenant-subdomain': TENANT,
+      'x-tenant-id': TENANT,
     };
     if (token) headers['Authorization'] = `Bearer ${token}`;
 

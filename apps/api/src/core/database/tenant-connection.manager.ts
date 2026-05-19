@@ -67,6 +67,12 @@ import {
   PurchaseRequisition,
   RequisitionItem,
   EmailDraft,
+  Order,
+  OrderItem,
+  OrderTracking,
+  DeliveryProof,
+  PreSale,
+  PreSaleItem,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -135,6 +141,12 @@ const TENANT_ENTITIES = [
   PurchaseRequisition,
   RequisitionItem,
   EmailDraft,
+  Order,
+  OrderItem,
+  OrderTracking,
+  DeliveryProof,
+  PreSale,
+  PreSaleItem,
 ];
 
 @Injectable()
