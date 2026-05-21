@@ -222,8 +222,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!mounted || !isAuthenticated) return;
     apiClient.get('/tenant-settings').then((res) => {
-      const settings: { key: string; value: string }[] = res.data ?? [];
-      const get = (k: string) => settings.find((s) => s.key === k)?.value ?? '';
+      const settings: { key: string; value: string; group: string | null }[] = res.data ?? [];
+      const get = (k: string) => {
+        const dotIdx = k.indexOf('.');
+        if (dotIdx !== -1) {
+          const group = k.slice(0, dotIdx);
+          const key = k.slice(dotIdx + 1);
+          return settings.find((s) => s.key === key && s.group === group)?.value ?? settings.find((s) => s.key === k)?.value ?? '';
+        }
+        return settings.find((s) => s.key === k)?.value ?? '';
+      };
 
       const hex = get('branding.primary_color');
       if (hex && /^#[0-9a-fA-F]{6}$/.test(hex)) {
@@ -723,10 +731,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div ref={profileRef} className="relative">
               <button
                 onClick={() => { setProfileOpen(!profileOpen); setQuickActionsOpen(false); setNotificationsOpen(false); }}
-                className="h-9 w-9 rounded-full bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/20 hover:bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/30 flex items-center justify-center text-xs font-bold text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))] transition-colors ring-2 ring-transparent hover:ring-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/20"
+                className="h-9 w-9 rounded-full bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/20 hover:bg-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/30 flex items-center justify-center text-xs font-bold text-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))] transition-colors ring-2 ring-transparent hover:ring-[hsl(var(--color-primary-h),var(--color-primary-s),var(--color-primary-l))]/20 overflow-hidden"
                 title="Mi perfil"
               >
-                {userInitials}
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.name || 'Avatar'} className="h-full w-full object-cover" />
+                ) : (
+                  userInitials
+                )}
               </button>
               {profileOpen && (
                 <div className="absolute top-full right-0 mt-2 w-56 rounded-xl border border-border bg-popover/95 backdrop-blur-xl shadow-xl z-50">

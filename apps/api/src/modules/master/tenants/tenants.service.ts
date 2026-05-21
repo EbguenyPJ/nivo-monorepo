@@ -49,6 +49,26 @@ export class TenantsService {
     return map;
   }
 
+  async listMobileAvailable(): Promise<{ id: string; name: string; subdomain: string; logo_url: string | null; plan: string }[]> {
+    const tenants = await this.tenantRepo.find({
+      where: { is_active: true },
+      order: { name: 'ASC' },
+    });
+    const plans = await this.planConfigRepo.find();
+    const planMap = new Map(plans.map(p => [p.plan_name, p]));
+
+    const result: { id: string; name: string; subdomain: string; logo_url: string | null; plan: string }[] = [];
+    for (const t of tenants) {
+      const sub = await this.subscriptionRepo.findOne({ where: { tenant_id: t.id }, order: { created_at: 'DESC' } });
+      if (!sub) continue;
+      const planCfg = planMap.get(sub.plan_name);
+      const hasMobile = t.override_mod_mobile ?? planCfg?.mod_mobile ?? false;
+      if (!hasMobile) continue;
+      result.push({ id: t.id, name: t.name, subdomain: t.subdomain, logo_url: t.logo_url, plan: sub.plan_name });
+    }
+    return result;
+  }
+
   async create(data: { name: string; subdomain: string; owner_email: string; owner_password: string; plan_name?: string }) {
     const existing = await this.tenantRepo.findOne({ where: { subdomain: data.subdomain } });
     if (existing) throw new ConflictException('Subdomain already taken');

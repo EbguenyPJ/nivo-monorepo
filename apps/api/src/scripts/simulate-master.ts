@@ -109,8 +109,8 @@ const addDays = (d: Date, days: number) => new Date(d.getTime() + days * 8640000
 const addHours = (d: Date, hours: number) => new Date(d.getTime() + hours * 3600000);
 const daysBetween = (a: Date, b: Date) => Math.floor((b.getTime() - a.getTime()) / 86400000);
 
-const TODAY = new Date('2026-05-18T23:59:59');
-const LIVE_CUTOFF = new Date('2026-05-15T00:00:00');
+const TODAY = new Date('2026-05-20T23:59:59');
+const LIVE_CUTOFF = new Date('2026-05-17T00:00:00');
 
 const LIVE_EMAIL_RECIPIENT = 'nivo.demo2@gmail.com';
 const LIVE_WHATSAPP_RECIPIENT = '+522228124824';
@@ -254,16 +254,16 @@ const FIRST_NAMES = ['Ana', 'Carlos', 'María', 'José', 'Lupita', 'Diego', 'Fer
 const LAST_NAMES = ['García', 'Rodríguez', 'Martínez', 'López', 'Hernández', 'González', 'Pérez', 'Sánchez', 'Ramírez', 'Torres', 'Flores', 'Díaz', 'Vázquez', 'Morales', 'Reyes', 'Cruz', 'Ortiz', 'Gutiérrez', 'Mendoza', 'Castillo'];
 
 const SHOE_BRANDS = [
-  { name: 'Nike', logo: 'https://ui-avatars.com/api/?name=NK&background=111&color=fff&size=128&bold=true' },
-  { name: 'Adidas', logo: 'https://ui-avatars.com/api/?name=AD&background=000&color=fff&size=128&bold=true' },
-  { name: 'Timberland', logo: 'https://ui-avatars.com/api/?name=TB&background=C28B1A&color=fff&size=128&bold=true' },
-  { name: 'Puma', logo: 'https://ui-avatars.com/api/?name=PM&background=E5243A&color=fff&size=128&bold=true' },
-  { name: 'New Balance', logo: 'https://ui-avatars.com/api/?name=NB&background=CF0A2C&color=fff&size=128&bold=true' },
-  { name: 'Converse', logo: 'https://ui-avatars.com/api/?name=CV&background=1C1C1C&color=fff&size=128&bold=true' },
-  { name: 'Vans', logo: 'https://ui-avatars.com/api/?name=VN&background=C41230&color=fff&size=128&bold=true' },
-  { name: 'Skechers', logo: 'https://ui-avatars.com/api/?name=SK&background=003DA5&color=fff&size=128&bold=true' },
-  { name: 'Reebok', logo: 'https://ui-avatars.com/api/?name=RB&background=E41317&color=fff&size=128&bold=true' },
-  { name: 'Caterpillar', logo: 'https://ui-avatars.com/api/?name=CAT&background=FFCC00&color=000&size=128&bold=true' },
+  { name: 'Nike', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Nike&backgroundColor=111111&textColor=ffffff&fontSize=40' },
+  { name: 'Adidas', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Adidas&backgroundColor=000000&textColor=ffffff&fontSize=40' },
+  { name: 'Timberland', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Timberland&backgroundColor=C28B1A&textColor=ffffff&fontSize=40' },
+  { name: 'Puma', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Puma&backgroundColor=E5243A&textColor=ffffff&fontSize=40' },
+  { name: 'New Balance', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=NewBalance&backgroundColor=CF0A2C&textColor=ffffff&fontSize=40' },
+  { name: 'Converse', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Converse&backgroundColor=1C1C1C&textColor=ffffff&fontSize=40' },
+  { name: 'Vans', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Vans&backgroundColor=C41230&textColor=ffffff&fontSize=40' },
+  { name: 'Skechers', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Skechers&backgroundColor=003DA5&textColor=ffffff&fontSize=40' },
+  { name: 'Reebok', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Reebok&backgroundColor=E41317&textColor=ffffff&fontSize=40' },
+  { name: 'Caterpillar', logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Caterpillar&backgroundColor=FFCC00&textColor=000000&fontSize=40' },
 ];
 
 const SHOE_PRODUCTS: { name: string; brand: string; base_price: number; cost: number; category: string }[] = [
@@ -346,8 +346,9 @@ const TENANT_PROFILES = [
     subdomain: 'elpaso',
     created_at: new Date('2025-12-01'),
     plan: 'corporativo',
-    logo: 'https://ui-avatars.com/api/?name=EP&background=1E3A5F&color=fff&size=256&bold=true&format=svg',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=ElPaso&backgroundColor=1E3A5F&textColor=ffffff&fontSize=42&fontWeight=600',
     primary_color: '#1E3A5F',
+    accent_color: '#3B82F6',
     branches: [
       { name: 'Sucursal Centro', code: 'EP-CTR', ...MEXICO_CITIES[0] },
       { name: 'Sucursal Angelópolis', code: 'EP-ANG', city: 'Puebla', state: 'Puebla', zip: '72810', lat: 19.0089, lng: -98.2254 },
@@ -365,8 +366,9 @@ const TENANT_PROFILES = [
     subdomain: 'nova',
     created_at: new Date('2026-02-01'),
     plan: 'profesional',
-    logo: 'https://ui-avatars.com/api/?name=NV&background=6C3CE1&color=fff&size=256&bold=true&format=svg',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Nova&backgroundColor=6C3CE1&textColor=ffffff&fontSize=42&fontWeight=600',
     primary_color: '#6C3CE1',
+    accent_color: '#A78BFA',
     branches: [
       { name: 'Nova Reforma', code: 'NV-REF', ...MEXICO_CITIES[1] },
       { name: 'Nova Santa Fe', code: 'NV-STF', city: 'CDMX', state: 'Ciudad de México', zip: '05348', lat: 19.3590, lng: -99.2722 },
@@ -379,8 +381,9 @@ const TENANT_PROFILES = [
     subdomain: 'footparadise',
     created_at: new Date('2026-03-01'),
     plan: 'basico',
-    logo: 'https://ui-avatars.com/api/?name=FP&background=DC2626&color=fff&size=256&bold=true&format=svg',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=FootParadise&backgroundColor=DC2626&textColor=ffffff&fontSize=42&fontWeight=600',
     primary_color: '#DC2626',
+    accent_color: '#F87171',
     branches: [
       { name: 'FP Galerías', code: 'FP-GAL', ...MEXICO_CITIES[2] },
     ],
@@ -393,8 +396,9 @@ const TENANT_PROFILES = [
     subdomain: 'sneakerhub',
     created_at: new Date('2026-01-15'),
     plan: 'profesional',
-    logo: 'https://ui-avatars.com/api/?name=SH&background=059669&color=fff&size=256&bold=true&format=svg',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=SneakerHub&backgroundColor=059669&textColor=ffffff&fontSize=42&fontWeight=600',
     primary_color: '#059669',
+    accent_color: '#34D399',
     branches: [
       { name: 'Hub Monterrey', code: 'SH-MTY', ...MEXICO_CITIES[3] },
       { name: 'Hub Querétaro', code: 'SH-QRO', ...MEXICO_CITIES[4] },
@@ -463,8 +467,8 @@ async function seedMaster(ds: DataSource) {
   const plans = [
     { plan_name: 'prueba', display_name: 'Prueba Gratis', monthly_price: 0, annual_price: 0, max_branches: 1, max_users: 2, sort_order: 0, is_active: true },
     { plan_name: 'basico', display_name: 'Básico', monthly_price: 499, annual_price: 4990, max_branches: 1, max_users: 3, sort_order: 1, is_active: true, mod_transfers: false },
-    { plan_name: 'profesional', display_name: 'Profesional', monthly_price: 999, annual_price: 9990, max_branches: 3, max_users: 10, sort_order: 2, is_active: true, mod_transfers: true, mod_loyalty: true, mod_advanced_reports: true },
-    { plan_name: 'corporativo', display_name: 'Corporativo', monthly_price: 2499, annual_price: 24990, max_branches: 0, max_users: 0, sort_order: 3, is_active: true, mod_transfers: true, mod_invoicing: true, mod_loyalty: true, mod_advanced_reports: true, mod_ecommerce: true, mod_custom_branding: true },
+    { plan_name: 'profesional', display_name: 'Profesional', monthly_price: 999, annual_price: 9990, max_branches: 3, max_users: 10, sort_order: 2, is_active: true, mod_transfers: true, mod_loyalty: true, mod_advanced_reports: true, mod_mobile: true },
+    { plan_name: 'corporativo', display_name: 'Corporativo', monthly_price: 2499, annual_price: 24990, max_branches: 0, max_users: 0, sort_order: 3, is_active: true, mod_transfers: true, mod_invoicing: true, mod_loyalty: true, mod_advanced_reports: true, mod_ecommerce: true, mod_custom_branding: true, mod_mobile: true, mod_nibbit: true },
   ];
   for (const p of plans) {
     const exists = await planRepo.findOne({ where: { plan_name: p.plan_name } });
@@ -518,7 +522,7 @@ async function seedMaster(ds: DataSource) {
         subdomain: tp.subdomain,
         database_name: `nivo_tenant_${tp.subdomain}`,
         logo_url: tp.logo,
-        theme_settings: { primary_color: tp.primary_color },
+        theme_settings: { primary_color: tp.primary_color, accent_color: (tp as any).accent_color || tp.primary_color },
         is_active: tp.profile !== 'churn',
         rfc: `RFC${tp.subdomain.toUpperCase()}260101XX${rand(0, 9)}`,
         razon_social: `${tp.name} S.A. de C.V.`,
@@ -680,6 +684,7 @@ async function createTenantDb(dbName: string): Promise<DataSource> {
       `ALTER TABLE purchase_requisitions ADD COLUMN IF NOT EXISTS created_by_ai BOOLEAN DEFAULT false`,
       `ALTER TABLE purchase_requisitions ADD COLUMN IF NOT EXISTS emails_drafted BOOLEAN DEFAULT false`,
       `ALTER TABLE purchase_requisitions ADD COLUMN IF NOT EXISTS emails_sent BOOLEAN DEFAULT false`,
+      `ALTER TABLE employees ADD COLUMN IF NOT EXISTS avatar_url VARCHAR`,
       `CREATE TABLE IF NOT EXISTS email_drafts (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         purchase_order_id UUID REFERENCES purchase_orders(id),
@@ -731,7 +736,14 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
   ];
   for (const s of tenantSettings) {
     const exists = await tsRepo.findOne({ where: { key: s.key } });
-    if (!exists) await tsRepo.save(tsRepo.create(s));
+    if (exists) {
+      exists.value = s.value;
+      exists.label = s.label;
+      exists.group = s.group;
+      await tsRepo.save(exists);
+    } else {
+      await tsRepo.save(tsRepo.create(s));
+    }
   }
   count('tenant_settings', tenantSettings.length);
 
@@ -817,25 +829,72 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
   const breRepo = ds.getRepository(BranchRoleEmployee);
   const employees: Employee[] = [];
 
+  // Standardized employees per tenant:
+  // - admin@nivo.com (admin, assigned to all branches, owner of first branch)
+  // - manager@nivo.com (manager, assigned to all branches)
+  // - empleado1@nivo.com (cashier, PIN 123456, assigned to all branches)
+  // - empleado2@nivo.com (cashier, PIN 654321, assigned to all branches)
+  // - empleado3@nivo.com ... (extra cashiers for larger branches)
+
+  const AVATAR_STYLES = ['adventurer', 'avataaars', 'bottts', 'fun-emoji', 'lorelei', 'micah', 'miniavs', 'notionists', 'personas', 'pixel-art'];
+
+  const fixedEmployees = [
+    { email: 'admin@nivo.com', pin: '111111', name: 'Administrador General', role: 'admin' as const, avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=admin-${tp.subdomain}&backgroundColor=b6e3f4` },
+    { email: 'manager@nivo.com', pin: '222222', name: 'Gerente General', role: 'manager' as const, avatar: `https://api.dicebear.com/9.x/avataaars/svg?seed=manager-${tp.subdomain}&backgroundColor=c0aede` },
+    { email: 'empleado1@nivo.com', pin: '123456', name: 'Cajero Uno', role: 'cashier' as const, avatar: `https://api.dicebear.com/9.x/fun-emoji/svg?seed=emp1-${tp.subdomain}` },
+    { email: 'empleado2@nivo.com', pin: '654321', name: 'Cajero Dos', role: 'cashier' as const, avatar: `https://api.dicebear.com/9.x/fun-emoji/svg?seed=emp2-${tp.subdomain}` },
+  ];
+
+  for (const fe of fixedEmployees) {
+    let emp = await empRepo.findOne({ where: { email: fe.email } });
+    if (!emp) {
+      emp = empRepo.create({
+        name: fe.name, email: fe.email,
+        password_hash: await bcrypt.hash('Nivo123!', 10),
+        phone: `+52 ${rand(200, 999)} ${rand(100, 999)} ${rand(1000, 9999)}`,
+        pin_hash: await bcrypt.hash(fe.pin, 10),
+        avatar_url: fe.avatar,
+        role: fe.role as any,
+        role_id: roles[fe.role].id,
+        branch_id: branchIds[0],
+        is_owner: fe.role === 'admin',
+        is_active: true,
+        created_at: tp.created_at,
+      });
+      await empRepo.save(emp);
+    }
+    employees.push(emp);
+    count('employees');
+    for (const bid of branchIds) {
+      await breRepo.save(breRepo.create({ employee_id: emp.id, branch_id: bid, role_id: roles[fe.role].id })).catch(() => {});
+      count('branch_role_employees');
+    }
+  }
+
+  // Extra cashiers for larger tenants (first branch gets more)
+  let extraEmpCounter = 3;
   for (let bi = 0; bi < branchIds.length; bi++) {
     const bid = branchIds[bi];
-    const empCount = bi === 0 ? 5 : 3;
-    for (let ei = 0; ei < empCount; ei++) {
+    const extraCount = bi === 0 ? 3 : 1;
+
+    for (let ei = 0; ei < extraCount; ei++) {
+      const empNum = extraEmpCounter++;
       const fn = pick(FIRST_NAMES);
       const ln = pick(LAST_NAMES);
-      const empRole = ei === 0 ? 'admin' : ei === 1 ? 'manager' : 'cashier';
-      const email = `${fn.toLowerCase()}.${ln.toLowerCase()}${rand(1,99)}@${tp.subdomain}.nivo.mx`;
+      const email = `empleado${empNum}@nivo.com`;
+      const avatarStyle = pick(AVATAR_STYLES);
       let emp = await empRepo.findOne({ where: { email } });
       if (!emp) {
         emp = empRepo.create({
           name: `${fn} ${ln}`, email,
           password_hash: await bcrypt.hash('Nivo123!', 10),
           phone: `+52 ${rand(200, 999)} ${rand(100, 999)} ${rand(1000, 9999)}`,
-          pin_hash: await bcrypt.hash(String(rand(1000, 9999)), 10),
-          role: empRole as any,
-          role_id: roles[empRole].id,
+          pin_hash: await bcrypt.hash(String(rand(100000, 999999)), 10),
+          avatar_url: `https://api.dicebear.com/9.x/${avatarStyle}/svg?seed=emp${empNum}-${tp.subdomain}`,
+          role: 'cashier' as any,
+          role_id: roles['cashier'].id,
           branch_id: bid,
-          is_owner: bi === 0 && ei === 0,
+          is_owner: false,
           is_active: true,
           created_at: tp.created_at,
         });
@@ -843,8 +902,7 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
       }
       employees.push(emp);
       count('employees');
-
-      await breRepo.save(breRepo.create({ employee_id: emp.id, branch_id: bid, role_id: roles[empRole].id })).catch(() => {});
+      await breRepo.save(breRepo.create({ employee_id: emp.id, branch_id: bid, role_id: roles['cashier'].id })).catch(() => {});
       count('branch_role_employees');
     }
   }
@@ -1883,7 +1941,7 @@ async function main() {
   console.log('╔══════════════════════════════════════════════════╗');
   console.log('║    🚀 NIVO MASTER SIMULATION SCRIPT             ║');
   console.log('║    Populating 6 months of organic data          ║');
-  console.log('║    Target: 2026-05-18                           ║');
+  console.log('║    Target: 2026-05-20                           ║');
   console.log('╚══════════════════════════════════════════════════╝');
 
   const startTime = Date.now();
@@ -1943,7 +2001,7 @@ async function main() {
     `**Execution Time:** ${elapsed}s`,
     `**Total Records Created:** ${totalRecords.toLocaleString()}`,
     `**Tenants Simulated:** ${TENANT_PROFILES.length}`,
-    `**Date Range:** 2025-12-01 → 2026-05-18`,
+    `**Date Range:** 2025-12-01 → 2026-05-20`,
     '',
     '## Records by Table',
     '',
@@ -1989,7 +2047,7 @@ async function main() {
     '',
     `**Target Email:** ${LIVE_EMAIL_RECIPIENT}`,
     `**Target WhatsApp:** ${LIVE_WHATSAPP_RECIPIENT}`,
-    `**Live Date Range:** 2026-05-15 → 2026-05-18`,
+    `**Live Date Range:** 2026-05-17 → 2026-05-20`,
     '',
     '> Jobs are enqueued in BullMQ. The NestJS API server must be running to process them.',
     '> Email requires SMTP config (MAIL_HOST/MAIL_USER/MAIL_PASS).',

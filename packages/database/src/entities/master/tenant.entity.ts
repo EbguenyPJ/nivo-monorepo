@@ -79,6 +79,12 @@ export class Tenant {
   @Column({ type: 'boolean', nullable: true })
   override_mod_custom_branding: boolean | null;
 
+  @Column({ type: 'boolean', nullable: true })
+  override_mod_mobile: boolean | null;
+
+  @Column({ type: 'boolean', nullable: true })
+  override_mod_nibbit: boolean | null;
+
   // --- Support overrides (null = use plan defaults) ---
   /** Override support channel: 'email' | 'chat' | 'phone' */
   @Column({ type: 'varchar', length: 20, nullable: true })

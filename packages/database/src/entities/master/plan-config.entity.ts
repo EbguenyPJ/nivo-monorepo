@@ -68,6 +68,12 @@ export class PlanConfig {
   @Column({ type: 'boolean', default: false })
   mod_custom_branding: boolean; // Custom logo, brand color and theme per tenant
 
+  @Column({ type: 'boolean', default: false })
+  mod_mobile: boolean; // Mobile apps (B2B staff + B2C client)
+
+  @Column({ type: 'boolean', default: false })
+  mod_nibbit: boolean; // Nibbit AI assistant
+
   // --- Support ---
   @Column({ type: 'varchar', length: 50, default: 'email' })
   support_level: string; // 'email' | 'chat' | 'dedicated' (legacy / tier label)

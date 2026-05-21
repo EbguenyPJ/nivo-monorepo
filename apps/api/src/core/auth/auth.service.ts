@@ -83,6 +83,7 @@ export class AuthService {
         role_id: (employee as any).role_id,
         is_owner: (employee as any).is_owner || false,
         branch_id: (employee as any).branch_id,
+        avatar_url: (employee as any).avatar_url || null,
       },
       tenant: { id: tenant.id, name: tenant.name, subdomain: tenant.subdomain },
     };

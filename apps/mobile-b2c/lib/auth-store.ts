@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { api } from './api-client';
+import { api, setActiveTenant } from './api-client';
 import type { CustomerLoginDto, CustomerRegisterDto } from '@nivo/types';
 
 interface AuthUser {
@@ -38,6 +38,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       dto,
     );
     await SecureStore.setItemAsync('auth_token', res.access_token);
+    const tenant = require('./api-client').getActiveTenant();
+    if (tenant) await SecureStore.setItemAsync('selected_tenant', tenant);
     set({ user: res.user, token: res.access_token, isAuthenticated: true });
   },
 
@@ -52,13 +54,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: async () => {
     await SecureStore.deleteItemAsync('auth_token');
+    await SecureStore.deleteItemAsync('selected_tenant');
     set({ user: null, token: null, isAuthenticated: false });
   },
 
   loadSession: async () => {
     try {
+      const savedTenant = await SecureStore.getItemAsync('selected_tenant');
+      if (savedTenant) setActiveTenant(savedTenant);
+
       const token = await SecureStore.getItemAsync('auth_token');
-      if (!token) {
+      if (!token || !savedTenant) {
         set({ isLoading: false });
         return;
       }

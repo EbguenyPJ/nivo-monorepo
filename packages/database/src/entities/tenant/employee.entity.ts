@@ -29,6 +29,9 @@ export class Employee {
   @Column({ type: 'varchar', length: 20, nullable: true })
   phone: string | null;
 
+  @Column({ type: 'varchar', nullable: true })
+  avatar_url: string | null;
+
   /** Hashed PIN for fast POS unlock (4-6 digits, unique per tenant) */
   @Column({ type: 'varchar', nullable: true })
   pin_hash: string | null;

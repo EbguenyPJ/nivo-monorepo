@@ -13,7 +13,16 @@ function getDevApiBase(): string {
 }
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? (__DEV__ ? getDevApiBase() : 'https://api.nivo.com/api/v1');
-const TENANT = process.env.EXPO_PUBLIC_TENANT_SUBDOMAIN ?? '3hermanos';
+
+let _selectedTenant: string = process.env.EXPO_PUBLIC_TENANT_SUBDOMAIN ?? '';
+
+export function setActiveTenant(subdomain: string) {
+  _selectedTenant = subdomain;
+}
+
+export function getActiveTenant(): string {
+  return _selectedTenant;
+}
 
 async function getToken(): Promise<string | null> {
   return SecureStore.getItemAsync('auth_token');
@@ -26,9 +35,9 @@ async function request<T>(
   const token = await getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-tenant-id': TENANT,
     ...(options.headers as Record<string, string>),
   };
+  if (_selectedTenant) headers['x-tenant-id'] = _selectedTenant;
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -66,9 +75,8 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
   upload: async <T>(path: string, formData: FormData): Promise<T> => {
     const token = await getToken();
-    const headers: Record<string, string> = {
-      'x-tenant-id': TENANT,
-    };
+    const headers: Record<string, string> = {};
+    if (_selectedTenant) headers['x-tenant-id'] = _selectedTenant;
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetch(`${BASE_URL}${path}`, {

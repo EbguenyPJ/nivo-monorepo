@@ -1,11 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ActivityIndicator, KeyboardAvoidingView, Platform,
+  FlatList, Image, Modal,
 } from 'react-native';
 import { Link, router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/lib/auth-store';
+import { api, setActiveTenant } from '@/lib/api-client';
+
+interface AvailableTenant {
+  id: string;
+  name: string;
+  subdomain: string;
+  logo_url: string | null;
+  plan: string;
+}
 
 export default function LoginScreen() {
   const login = useAuthStore((s) => s.login);
@@ -15,7 +25,37 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [tenants, setTenants] = useState<AvailableTenant[]>([]);
+  const [selectedTenant, setSelectedTenant] = useState<AvailableTenant | null>(null);
+  const [showTenantPicker, setShowTenantPicker] = useState(false);
+  const [loadingTenants, setLoadingTenants] = useState(true);
+
+  useEffect(() => {
+    fetch((__DEV__ ? api.get<AvailableTenant[]>('/tenants/mobile/available') : Promise.resolve([])) as any)
+      .catch(() => []);
+    api.get<AvailableTenant[]>('/tenants/mobile/available')
+      .then((data) => {
+        setTenants(data);
+        if (data.length === 1) {
+          setSelectedTenant(data[0]);
+          setActiveTenant(data[0].subdomain);
+        }
+      })
+      .catch(() => setTenants([]))
+      .finally(() => setLoadingTenants(false));
+  }, []);
+
+  const handleSelectTenant = (t: AvailableTenant) => {
+    setSelectedTenant(t);
+    setActiveTenant(t.subdomain);
+    setShowTenantPicker(false);
+  };
+
   async function handleLogin() {
+    if (!selectedTenant) {
+      setError('Selecciona una tienda primero');
+      return;
+    }
     setError(null);
     setLoading(true);
     try {
@@ -50,6 +90,70 @@ export default function LoginScreen() {
         )}
 
         <Animated.View entering={FadeInDown.delay(100).duration(400)}>
+          {/* Tenant Selector */}
+          {loadingTenants ? (
+            <View className="bg-slate-800 rounded-xl px-4 py-4 mb-3 border border-slate-700 items-center">
+              <ActivityIndicator color="#64748b" size="small" />
+            </View>
+          ) : tenants.length > 0 ? (
+            <TouchableOpacity
+              className="bg-slate-800 rounded-xl px-4 py-4 mb-3 border border-slate-700 flex-row items-center"
+              onPress={() => setShowTenantPicker(true)}
+            >
+              {selectedTenant?.logo_url ? (
+                <Image source={{ uri: selectedTenant.logo_url }} className="w-8 h-8 rounded-lg mr-3" />
+              ) : (
+                <Ionicons name="business-outline" size={18} color="#64748b" />
+              )}
+              <Text className={`flex-1 text-base ml-3 ${selectedTenant ? 'text-white' : 'text-slate-500'}`}>
+                {selectedTenant?.name || 'Selecciona tu tienda'}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color="#64748b" />
+            </TouchableOpacity>
+          ) : null}
+
+          {/* Tenant Picker Modal */}
+          <Modal visible={showTenantPicker} animationType="slide" transparent>
+            <View className="flex-1 bg-black/60 justify-end">
+              <View className="bg-slate-900 rounded-t-3xl max-h-[70%]">
+                <View className="flex-row items-center justify-between px-6 py-4 border-b border-slate-800">
+                  <Text className="text-white text-lg font-bold">Selecciona tu tienda</Text>
+                  <TouchableOpacity onPress={() => setShowTenantPicker(false)}>
+                    <Ionicons name="close" size={24} color="#94a3b8" />
+                  </TouchableOpacity>
+                </View>
+                <FlatList
+                  data={tenants}
+                  keyExtractor={(item) => item.id}
+                  contentContainerStyle={{ paddingBottom: 40 }}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      className={`flex-row items-center px-6 py-4 border-b border-slate-800 ${
+                        selectedTenant?.id === item.id ? 'bg-brand-500/10' : ''
+                      }`}
+                      onPress={() => handleSelectTenant(item)}
+                    >
+                      {item.logo_url ? (
+                        <Image source={{ uri: item.logo_url }} className="w-10 h-10 rounded-xl mr-4" />
+                      ) : (
+                        <View className="w-10 h-10 rounded-xl bg-slate-700 items-center justify-center mr-4">
+                          <Ionicons name="business" size={20} color="#94a3b8" />
+                        </View>
+                      )}
+                      <View className="flex-1">
+                        <Text className="text-white text-base font-semibold">{item.name}</Text>
+                        <Text className="text-slate-400 text-sm">{item.subdomain}.nivo.mx</Text>
+                      </View>
+                      {selectedTenant?.id === item.id && (
+                        <Ionicons name="checkmark-circle" size={22} color="#10b981" />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                />
+              </View>
+            </View>
+          </Modal>
+
           <View className="flex-row items-center bg-slate-800 rounded-xl px-4 mb-3 border border-slate-700">
             <Ionicons name="mail-outline" size={18} color="#64748b" />
             <TextInput
@@ -81,9 +185,9 @@ export default function LoginScreen() {
           <TouchableOpacity
             className="bg-brand-500 rounded-2xl py-4 items-center mb-4 flex-row justify-center"
             onPress={handleLogin}
-            disabled={loading || !email || !password}
+            disabled={loading || !email || !password || !selectedTenant}
             activeOpacity={0.8}
-            style={{ opacity: email && password ? 1 : 0.5 }}
+            style={{ opacity: email && password && selectedTenant ? 1 : 0.5 }}
           >
             {loading ? (
               <ActivityIndicator color="white" />

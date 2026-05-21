@@ -6,7 +6,7 @@ import { Queue } from 'bullmq';
 import { Repository, In } from 'typeorm';
 import { IsArray, IsIn, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Tenant, EmailDraft, PurchaseRequisition } from '@nivo/database';
+import { Tenant, Subscription, PlanConfig, EmailDraft, PurchaseRequisition } from '@nivo/database';
 import { TenantConnectionManager } from '../../../core/database/tenant-connection.manager';
 import { QUEUE_NAMES } from '../../../core/queue/queue.module';
 import { NibbitService, ChatMessage } from './nibbit.service';
@@ -53,10 +53,32 @@ export class NibbitController {
     private readonly nibbitService: NibbitService,
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+    @InjectRepository(Subscription)
+    private readonly subscriptionRepo: Repository<Subscription>,
+    @InjectRepository(PlanConfig)
+    private readonly planConfigRepo: Repository<PlanConfig>,
     private readonly connectionManager: TenantConnectionManager,
     @InjectQueue(QUEUE_NAMES.NOTIFICATIONS)
     private readonly notificationsQueue: Queue,
   ) {}
+
+  private async checkNibbitAccess(tenantId: string): Promise<void> {
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) throw new HttpException('Tenant not found', HttpStatus.NOT_FOUND);
+
+    if (tenant.override_mod_nibbit === true) return;
+    if (tenant.override_mod_nibbit === false) {
+      throw new HttpException('Nibbit no está disponible en tu plan actual. Contacta a soporte para activarlo.', HttpStatus.FORBIDDEN);
+    }
+
+    const sub = await this.subscriptionRepo.findOne({ where: { tenant_id: tenantId }, order: { created_at: 'DESC' as const } });
+    if (!sub) throw new HttpException('No subscription found', HttpStatus.FORBIDDEN);
+
+    const plan = await this.planConfigRepo.findOne({ where: { plan_name: sub.plan_name } });
+    if (!plan?.mod_nibbit) {
+      throw new HttpException('Nibbit no está disponible en tu plan actual. Contacta a soporte para activarlo.', HttpStatus.FORBIDDEN);
+    }
+  }
 
   @Post('chat')
   @HttpCode(200)
@@ -80,6 +102,8 @@ export class NibbitController {
     if (!connection) {
       throw new HttpException('No tenant context available', HttpStatus.BAD_REQUEST);
     }
+
+    await this.checkNibbitAccess(tenantId);
 
     try {
       return await this.nibbitService.chat(connection, body.messages, tenantName, tenantId, databaseName);
