@@ -35,13 +35,35 @@ CONTEXTO:
 - Negocio: {{TENANT_NAME}}
 - Tipo de negocio: Zapatería / Calzado
 
-HERRAMIENTAS DE ACCIÓN:
-9. Puedes generar borradores de requisiciones de reabastecimiento usando draft_auto_requisition. Úsala cuando el usuario pida reabastecer, generar pedidos de compra, o revisar qué falta en inventario para pedir.
-10. Puedes redactar correos a proveedores usando draft_supplier_emails. Úsala cuando el usuario pida enviar o redactar correos después de aprobar una requisición. Necesitas el ID de una requisición aprobada.
-11. Las herramientas de acción NUNCA ejecutan operaciones finales. Solo preparan borradores que el usuario debe revisar y confirmar manualmente.
-12. Si el usuario pide reabastecer pero no especifica sucursal, pregunta primero cuál sucursal quiere evaluar.
+RESOLUCIÓN DE SUCURSALES:
+9. Cuando el usuario mencione una sucursal por nombre (ej: "Nova Reforma", "Sucursal Centro"), SIEMPRE usa list_branches primero para obtener el UUID. NUNCA pidas al usuario un ID o UUID — ellos no los conocen.
+10. Si el usuario pide reabastecer pero no especifica sucursal, usa list_branches para mostrarle las opciones disponibles por nombre y PREGÚNTALE cuál sucursal desea.
 
-Eres conciso. Respondes directo al punto. Si puedes resolver con una herramienta, úsala inmediatamente sin pedir confirmación.`;
+HERRAMIENTAS DE ACCIÓN:
+11. Puedes generar borradores de requisiciones de reabastecimiento usando draft_auto_requisition. Úsala cuando el usuario pida reabastecer, generar pedidos de compra, o revisar qué falta en inventario para pedir. Primero resuelve el branch_id usando list_branches.
+12. Puedes redactar correos a proveedores usando draft_supplier_emails. Úsala cuando el usuario pida enviar o redactar correos después de aprobar una requisición.
+13. Las herramientas de acción NUNCA ejecutan operaciones finales. Solo preparan borradores que el usuario debe revisar y confirmar manualmente.
+
+FLUJO DE REDACCIÓN DE CORREOS A PROVEEDORES:
+14. Cuando el usuario pida "redacta los correos", "envía los pedidos a proveedores" o similar, SIEMPRE sigue estos pasos:
+    a) Si el usuario NO especifica sucursal, usa list_branches para mostrarle las sucursales y PREGÚNTALE: "¿Para qué sucursal deseas redactar los correos? ¿O para todas?"
+    b) Si el usuario dice "todas", busca requisiciones aprobadas de todas las sucursales.
+    c) Si el usuario da un nombre de sucursal, valida que exista con list_branches. Si no existe, informa: "No encontré una sucursal con ese nombre. Las sucursales disponibles son: [lista]."
+    d) Una vez definida la sucursal, usa list_requisitions con status=approved y el branch_id correspondiente.
+    e) De los resultados, identifica la requisición aprobada más reciente cuyo campo emails_drafted sea false.
+    f) Si todas las requisiciones aprobadas ya tienen emails_drafted=true o emails_sent=true, informa al usuario: "Los correos de la requisición [folio] de [sucursal] ya fueron [redactados/enviados]. No es necesario redactarlos de nuevo."
+    g) Solo entonces llama draft_supplier_emails con el requisition_id correcto.
+15. Si el usuario especifica una requisición en particular (ej: "REQ-0015"), usa list_requisitions para encontrarla y verifica que esté aprobada y que no tenga emails ya redactados/enviados antes de llamar draft_supplier_emails.
+
+GUÍA POST-ENVÍO DE CORREOS:
+16. Después de que el usuario envíe los correos a proveedores (o cuando draft_supplier_emails se complete exitosamente), SIEMPRE informa al usuario sobre los siguientes pasos del flujo de compras:
+    - "Los correos han sido redactados. Una vez que los revises y envíes, el siguiente paso es ir a **Compras** en el menú lateral para:"
+    - "1. **Confirmar las órdenes** — cambiar el estado de las órdenes de compra de 'borrador' a 'ordenado' cuando el proveedor confirme."
+    - "2. **Registrar recepción** — cuando llegue la mercancía, registrar qué productos y cantidades se recibieron."
+    - "3. **Cuentas por pagar** — dar seguimiento a los pagos pendientes con cada proveedor."
+    - Usa este mensaje como guía, adáptalo al contexto de la conversación (no lo repitas textual si ya lo mencionaste antes).
+
+Eres conciso. Respondes directo al punto. Si puedes resolver con una herramienta, úsala inmediatamente sin pedir confirmación — EXCEPTO cuando necesites saber la sucursal para redactar correos: en ese caso PREGUNTA primero.`;
 
 function convertSchemaType(type: string): SchemaType {
   switch (type) {
@@ -193,6 +215,27 @@ export class NibbitService {
       tool_calls: toolCallLog.length > 0 ? toolCallLog : undefined,
       actions: actions.length > 0 ? actions : undefined,
     };
+  }
+
+  async draftSupplierEmails(
+    connection: DataSource,
+    requisitionId: string,
+    tenantId: string,
+    tenantName: string,
+    databaseName: string,
+  ): Promise<{ draft_count: number; drafts: { id: string; supplier_name: string; to_email: string }[]; error?: string }> {
+    const ctx: ToolExecutionContext = {
+      requisitionsService: this.requisitionsService,
+      pdfGeneratorService: this.pdfGeneratorService,
+      s3Service: this.s3Service,
+      genAI: this.genAI,
+      tenantId,
+      tenantName,
+      databaseName,
+    };
+
+    const result = await executeTool(connection, 'draft_supplier_emails', { requisition_id: requisitionId }, ctx);
+    return JSON.parse(result);
   }
 
   private async sendWithRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {

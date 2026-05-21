@@ -131,6 +131,8 @@ const TOOL_LABELS: Record<string, string> = {
   search_product_catalog: 'Buscando en catálogo',
   get_sales_by_hour: 'Analizando horarios',
   get_branch_comparison: 'Comparando sucursales',
+  list_branches: 'Consultando sucursales',
+  list_requisitions: 'Consultando requisiciones',
   draft_auto_requisition: 'Generando requisición automática',
   draft_supplier_emails: 'Redactando correos a proveedores',
 };

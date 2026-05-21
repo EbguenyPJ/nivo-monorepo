@@ -678,6 +678,8 @@ async function createTenantDb(dbName: string): Promise<DataSource> {
     // Patch missing columns/tables on existing databases
     const patches = [
       `ALTER TABLE purchase_requisitions ADD COLUMN IF NOT EXISTS created_by_ai BOOLEAN DEFAULT false`,
+      `ALTER TABLE purchase_requisitions ADD COLUMN IF NOT EXISTS emails_drafted BOOLEAN DEFAULT false`,
+      `ALTER TABLE purchase_requisitions ADD COLUMN IF NOT EXISTS emails_sent BOOLEAN DEFAULT false`,
       `CREATE TABLE IF NOT EXISTS email_drafts (
         id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
         purchase_order_id UUID REFERENCES purchase_orders(id),
@@ -1854,6 +1856,19 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
     if (day % 30 === 0 && day > 0) {
       process.stdout.write(`  📊 Day ${day}/${totalDays} (${currentDate.toISOString().split('T')[0]}) — ${AUDIT['sales'] || 0} sales so far\r`);
     }
+  }
+
+  // ─── Reset serial sequences after explicit folio inserts ────
+  const sequenceResets = [
+    { table: 'purchase_requisitions', column: 'folio_number' },
+    { table: 'purchase_orders', column: 'folio_number' },
+    { table: 'inventory_transfers', column: 'folio_number' },
+    { table: 'inventory_audits', column: 'folio_number' },
+  ];
+  for (const { table, column } of sequenceResets) {
+    try {
+      await ds.query(`SELECT setval(pg_get_serial_sequence('${table}', '${column}'), COALESCE((SELECT MAX(${column}) FROM ${table}), 0) + 1, false)`);
+    } catch { /* table may not exist */ }
   }
 
   console.log(`\n  ✅ Chronological simulation complete for ${tp.name}`);

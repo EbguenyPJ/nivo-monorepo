@@ -74,6 +74,12 @@ export class PurchaseRequisition {
   @Column({ type: 'boolean', default: false })
   created_by_ai: boolean;
 
+  @Column({ type: 'boolean', default: false })
+  emails_drafted: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  emails_sent: boolean;
+
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 

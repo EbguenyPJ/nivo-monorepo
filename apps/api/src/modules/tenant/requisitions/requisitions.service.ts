@@ -140,7 +140,7 @@ export class RequisitionsService {
     if (filters.branch_id) qb.andWhere('req.branch_id = :branchId', { branchId: filters.branch_id });
     if (filters.status) qb.andWhere('req.status = :status', { status: filters.status });
 
-    qb.orderBy('req.created_at', 'DESC');
+    qb.orderBy('req.folio_number', 'DESC');
     if (filters.limit) qb.take(filters.limit);
     if (filters.offset) qb.skip(filters.offset);
 
@@ -343,6 +343,19 @@ export class RequisitionsService {
     return this.getRequisitionDetail(connection, id);
   }
 
+  async deleteRequisition(connection: DataSource, id: string) {
+    const repo = connection.getRepository(PurchaseRequisition);
+    const req = await repo.findOne({ where: { id } });
+    if (!req) throw new Error('Requisición no encontrada');
+    if (req.status === 'approved') throw new Error('No se puede eliminar una requisición aprobada');
+
+    const itemRepo = connection.getRepository(RequisitionItem);
+    await itemRepo.delete({ requisition_id: id });
+    await repo.delete({ id });
+
+    return { deleted: true, id, folio: req.folio };
+  }
+
   /**
    * APPROVE: Split the requisition into Purchase Orders by supplier
    * and optionally fire webhooks to n8n.
@@ -441,7 +454,7 @@ export class RequisitionsService {
    * Scan all inventory in a branch and populate the draft with items
    * where stock_available <= stock_minimum. Useful for manual "check all" action.
    */
-  async generateDraftFromStock(connection: DataSource, branchId: string) {
+  async generateDraftFromStock(connection: DataSource, branchId: string, forceNew = false) {
     const invRepo = connection.getRepository(Inventory);
     const belowMin = await invRepo
       .createQueryBuilder('inv')
@@ -453,7 +466,21 @@ export class RequisitionsService {
       return { message: 'Todo el inventario está por encima del mínimo', items_added: 0 };
     }
 
-    const draft = await this.getOrCreateDraft(connection, branchId);
+    let draft: PurchaseRequisition;
+    if (forceNew) {
+      const repo = connection.getRepository(PurchaseRequisition);
+      const itemRepo = connection.getRepository(RequisitionItem);
+      const oldDrafts = await repo.find({ where: { branch_id: branchId, status: 'draft' as const } });
+      for (const old of oldDrafts) {
+        await itemRepo.delete({ requisition_id: old.id });
+        await repo.delete({ id: old.id });
+      }
+      draft = repo.create({ branch_id: branchId, status: 'draft' as const });
+      draft = await repo.save(draft);
+      draft.items = [];
+    } else {
+      draft = await this.getOrCreateDraft(connection, branchId);
+    }
     const itemRepo = connection.getRepository(RequisitionItem);
     const vsRepo = connection.getRepository(VariantSupplier);
     const variantRepo = connection.getRepository(ProductVariant);

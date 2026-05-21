@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Query, Req, UseGuards, HttpCode, Logger, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Req, UseGuards, HttpCode, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { InjectRepository } from '@nestjs/typeorm';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -6,7 +6,7 @@ import { Queue } from 'bullmq';
 import { Repository, In } from 'typeorm';
 import { IsArray, IsIn, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { Tenant, EmailDraft } from '@nivo/database';
+import { Tenant, EmailDraft, PurchaseRequisition } from '@nivo/database';
 import { TenantConnectionManager } from '../../../core/database/tenant-connection.manager';
 import { QUEUE_NAMES } from '../../../core/queue/queue.module';
 import { NibbitService, ChatMessage } from './nibbit.service';
@@ -116,6 +116,28 @@ export class NibbitController {
     }));
   }
 
+  @Post('draft-emails/:requisitionId')
+  @HttpCode(200)
+  async draftEmails(@Param('requisitionId') requisitionId: string, @Req() req: any) {
+    const connection = await this.resolveTenantConnection(req);
+    const tenantName = req.tenant?.name || 'Tu negocio';
+    const tenantId = req.tenant?.id || req.user?.tenant_id || '';
+    const databaseName = req.tenant?.database_name || '';
+
+    if (!tenantId) {
+      const tenant = await this.tenantRepo.findOne({ where: { id: req.user?.tenant_id } });
+      if (tenant) {
+        return this.nibbitService.draftSupplierEmails(
+          connection, requisitionId, tenant.id, tenant.name, tenant.database_name,
+        );
+      }
+    }
+
+    return this.nibbitService.draftSupplierEmails(
+      connection, requisitionId, tenantId, tenantName, databaseName,
+    );
+  }
+
   @Post('send-email-drafts')
   @HttpCode(200)
   async sendEmailDrafts(@Body() body: SendEmailDraftsDto, @Req() req: any) {
@@ -143,10 +165,12 @@ export class NibbitController {
 
         await this.notificationsQueue.add('purchase-order-email', {
           type: 'email',
-          to: recipient,
-          subject: draft.subject,
-          html: draft.body_html,
-          attachments: draft.pdf_url ? [{ filename: `${draft.purchase_order_id}.pdf`, path: draft.pdf_url }] : [],
+          payload: {
+            to: recipient,
+            subject: draft.subject,
+            html: draft.body_html,
+            attachments: draft.pdf_url ? [{ filename: `${draft.purchase_order_id}.pdf`, path: draft.pdf_url }] : [],
+          },
         });
 
         draft.status = 'sent';
@@ -160,6 +184,18 @@ export class NibbitController {
       }
 
       await draftRepo.save(draft);
+    }
+
+    if (sent > 0) {
+      const requisitionIds = new Set<string>();
+      for (const item of body.drafts) {
+        const draft = await draftRepo.findOne({ where: { id: item.draft_id } });
+        if (draft?.requisition_id) requisitionIds.add(draft.requisition_id);
+      }
+      const reqRepo = connection.getRepository(PurchaseRequisition);
+      for (const reqId of requisitionIds) {
+        await reqRepo.update(reqId, { emails_sent: true });
+      }
     }
 
     return { sent, failed };

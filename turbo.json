@@ -23,6 +23,9 @@
     },
     "db:seed": {
       "cache": false
+    },
+    "db:simulate-master": {
+      "cache": false
     }
   }
 }

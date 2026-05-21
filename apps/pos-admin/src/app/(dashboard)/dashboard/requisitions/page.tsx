@@ -11,10 +11,11 @@ import {
 import {
   ClipboardList, RefreshCw, Lock, Unlock, CheckCircle2, Package,
   Loader2, ChevronDown, ChevronRight, AlertTriangle, Truck,
-  FileText, ArrowRight, Search, Plus, Minus, Trash2, Edit3,
+  FileText, ArrowRight, Search, Plus, Minus, Trash2, Edit3, Mail,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useBranchStore, GENERAL_BRANCH_ID } from '@/store/branchStore';
+import { EmailDraftsModal } from '@/components/ai/EmailDraftsModal';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -111,6 +112,10 @@ export default function RequisitionsPage() {
 
   // Approval result dialog
   const [approvalResult, setApprovalResult] = useState<{ requisition: Requisition; purchase_orders: any[] } | null>(null);
+
+  // Email drafting (post-approval flow)
+  const [draftingEmails, setDraftingEmails] = useState(false);
+  const [emailDraftIds, setEmailDraftIds] = useState<string[] | null>(null);
 
   const branchId = isGeneralSelected ? undefined : selectedBranchId;
 
@@ -246,6 +251,21 @@ export default function RequisitionsPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!selectedReq) return;
+    setTransitioning(true);
+    try {
+      await apiClient.delete(`/requisitions/${selectedReq.id}`);
+      setSelectedReq(null);
+      fetchData();
+      toast({ title: 'Eliminada', description: `Requisición REQ-${String(selectedReq.folio_number).padStart(4, '0')} eliminada.` });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.response?.data?.message || err.message, variant: 'destructive' });
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
   // ─── Render: Detail view ──────────────────────────────────────
 
   if (selectedReq) {
@@ -294,6 +314,12 @@ export default function RequisitionsPage() {
 
           {/* Action buttons */}
           <div className="flex items-center gap-2">
+            {!isApproved && (
+              <Button variant="ghost" size="sm" onClick={handleDelete} disabled={transitioning} className="gap-1.5 text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                <Trash2 className="h-4 w-4" />
+                Eliminar
+              </Button>
+            )}
             {isDraft && (
               <Button onClick={handleLock} disabled={transitioning || (selectedReq.items?.length || 0) === 0} className="gap-1.5">
                 {transitioning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Lock className="h-4 w-4" />}
@@ -436,11 +462,54 @@ export default function RequisitionsPage() {
                 </p>
               )}
             </div>
-            <DialogFooter>
-              <Button onClick={() => setApprovalResult(null)}>Cerrar</Button>
+            <DialogFooter className="flex gap-2 sm:gap-2">
+              <Button variant="outline" onClick={() => setApprovalResult(null)}>Cerrar</Button>
+              {approvalResult?.purchase_orders && approvalResult.purchase_orders.length > 0 && (
+                <Button
+                  onClick={async () => {
+                    if (!approvalResult) return;
+                    setDraftingEmails(true);
+                    try {
+                      const reqId = approvalResult.requisition.id;
+                      const { data } = await apiClient.post(`/nibbit/draft-emails/${reqId}`);
+                      if (data.error) {
+                        toast({ title: 'Error', description: data.error, variant: 'destructive' });
+                        return;
+                      }
+                      const ids = (data.drafts || []).map((d: any) => d.id);
+                      if (ids.length > 0) {
+                        setApprovalResult(null);
+                        setEmailDraftIds(ids);
+                      } else {
+                        toast({ title: 'Sin correos', description: 'No se generaron borradores (proveedores sin correo)', variant: 'destructive' });
+                      }
+                    } catch (err: any) {
+                      toast({ title: 'Error', description: err.response?.data?.message || err.message, variant: 'destructive' });
+                    } finally {
+                      setDraftingEmails(false);
+                    }
+                  }}
+                  disabled={draftingEmails}
+                >
+                  {draftingEmails ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <Mail className="h-4 w-4 mr-2" />
+                  )}
+                  {draftingEmails ? 'Generando correos...' : 'Redactar Correos a Proveedores'}
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Email drafts modal */}
+        {emailDraftIds && emailDraftIds.length > 0 && (
+          <EmailDraftsModal
+            draftIds={emailDraftIds}
+            onClose={() => setEmailDraftIds(null)}
+          />
+        )}
       </div>
     );
   }

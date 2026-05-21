@@ -4,7 +4,7 @@ import {
   Sale, SaleItem, ProductVariant, Product, Brand, Category,
   Inventory, Expense, CashTransaction, PosSession,
   PurchaseRequisition, PurchaseOrder, PurchaseOrderItem,
-  Supplier, EmailDraft, VariantSupplier,
+  Supplier, EmailDraft, VariantSupplier, Branch,
 } from '@nivo/database';
 import type { RequisitionsService } from '../requisitions/requisitions.service';
 import type { PdfGeneratorService } from '../reports-export/services/pdf-generator.service';
@@ -160,16 +160,38 @@ export const NIBBIT_TOOLS: ToolDefinition[] = [
       required: ['start_date', 'end_date'],
     },
   },
+  {
+    name: 'list_branches',
+    description: 'Lista todas las sucursales del negocio con su ID, nombre, ciudad y estado activo. Usa esta herramienta SIEMPRE que necesites resolver el nombre de una sucursal a su ID antes de llamar otras herramientas que requieran branch_id.',
+    input_schema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: 'list_requisitions',
+    description: 'Lista las requisiciones de compra del negocio. Usa esta herramienta cuando el usuario pregunte por requisiciones, pida redactar correos a proveedores sin especificar un ID, o quiera ver el estado de sus pedidos. Puedes filtrar por estado (draft, locked, approved) y por sucursal.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', description: 'Filtrar por estado: draft, locked, approved (opcional)' },
+        branch_id: { type: 'string', description: 'UUID de sucursal (opcional, obtenido de list_branches)' },
+        limit: { type: 'number', description: 'Máximo de resultados (default 10)' },
+      },
+      required: [],
+    },
+  },
   // ═══════════════════════════════════════════════════════════════════
   // MUTATION TOOLS (require ToolExecutionContext)
   // ═══════════════════════════════════════════════════════════════════
   {
     name: 'draft_auto_requisition',
-    description: 'Genera automáticamente un borrador de requisición de reabastecimiento para una sucursal. Escanea el inventario buscando productos con stock por debajo del mínimo y crea un borrador con las cantidades sugeridas. El usuario debe revisar y aprobar el borrador antes de que se generen órdenes de compra. Usa esta herramienta cuando el usuario pida generar pedidos de reabastecimiento o reabastecer inventario.',
+    description: 'Genera automáticamente un borrador de requisición de reabastecimiento para una sucursal. Escanea el inventario buscando productos con stock por debajo del mínimo y crea un borrador con las cantidades sugeridas. El usuario debe revisar y aprobar el borrador antes de que se generen órdenes de compra. Usa esta herramienta cuando el usuario pida generar pedidos de reabastecimiento o reabastecer inventario. IMPORTANTE: Si el usuario da el nombre de la sucursal, primero usa list_branches para obtener el branch_id correcto.',
     input_schema: {
       type: 'object',
       properties: {
-        branch_id: { type: 'string', description: 'ID de la sucursal para evaluar inventario' },
+        branch_id: { type: 'string', description: 'UUID de la sucursal (obtenido de list_branches)' },
       },
       required: ['branch_id'],
     },
@@ -214,6 +236,10 @@ export async function executeTool(
       return JSON.stringify(await getSalesByHour(conn, input));
     case 'get_branch_comparison':
       return JSON.stringify(await getBranchComparison(conn, input));
+    case 'list_branches':
+      return JSON.stringify(await listBranches(conn));
+    case 'list_requisitions':
+      return JSON.stringify(await listRequisitions(conn, input));
     case 'draft_auto_requisition':
       if (!ctx) return JSON.stringify({ error: 'Contexto de ejecución no disponible para herramientas de mutación' });
       return JSON.stringify(await draftAutoRequisition(conn, input, ctx));
@@ -526,6 +552,71 @@ async function getBranchComparison(conn: DataSource, input: Record<string, any>)
   `, [input.start_date, input.end_date]);
 }
 
+async function listBranches(conn: DataSource) {
+  const branches = await conn.getRepository(Branch).find({
+    select: ['id', 'name', 'code', 'city', 'is_active'],
+    order: { name: 'ASC' },
+  });
+  return branches.map(b => ({
+    id: b.id,
+    name: b.name,
+    code: b.code,
+    city: b.city,
+    is_active: b.is_active,
+  }));
+}
+
+async function listRequisitions(conn: DataSource, input: Record<string, any>) {
+  const limit = input.limit || 10;
+  const params: any[] = [];
+  const conditions: string[] = [];
+
+  if (input.status) {
+    params.push(input.status);
+    conditions.push(`r.status = $${params.length}`);
+  }
+  if (input.branch_id) {
+    params.push(input.branch_id);
+    conditions.push(`r.branch_id = $${params.length}`);
+  }
+
+  const where = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+  params.push(limit);
+
+  const rows = await conn.query(`
+    SELECT
+      r.id,
+      r.folio_number,
+      r.status,
+      r.total_estimated_cost,
+      r.total_items,
+      r.notes,
+      r.created_at,
+      r.approved_at,
+      r.emails_drafted,
+      r.emails_sent,
+      b.name AS branch_name
+    FROM purchase_requisitions r
+    LEFT JOIN branches b ON b.id = r.branch_id
+    ${where}
+    ORDER BY r.folio_number DESC
+    LIMIT $${params.length}
+  `, params);
+
+  return rows.map((r: any) => ({
+    id: r.id,
+    folio: `REQ-${String(r.folio_number).padStart(4, '0')}`,
+    status: r.status,
+    branch: r.branch_name,
+    total_items: r.total_items,
+    total_estimated_cost: Number(r.total_estimated_cost),
+    created_at: r.created_at,
+    approved_at: r.approved_at,
+    emails_drafted: r.emails_drafted,
+    emails_sent: r.emails_sent,
+  }));
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // MUTATION TOOLS
 // ═══════════════════════════════════════════════════════════════════
@@ -535,7 +626,7 @@ async function draftAutoRequisition(
   input: Record<string, any>,
   ctx: ToolExecutionContext,
 ) {
-  const result = await ctx.requisitionsService.generateDraftFromStock(conn, input.branch_id);
+  const result = await ctx.requisitionsService.generateDraftFromStock(conn, input.branch_id, true);
 
   if (!result.draft_id) {
     return { message: result.message, item_count: 0 };
@@ -581,7 +672,13 @@ async function draftSupplierEmails(
     return { error: 'Requisición no encontrada' };
   }
   if (requisition.status !== 'approved') {
-    return { error: 'La requisición debe estar aprobada para generar correos. Estado actual: ' + requisition.status };
+    return { error: `La requisición ${requisition.folio} no está aprobada. Estado actual: ${requisition.status}. Solo se pueden redactar correos de requisiciones aprobadas.` };
+  }
+  if (requisition.emails_sent) {
+    return { error: `Los correos de la requisición ${requisition.folio} (sucursal: ${requisition.branch?.name || 'desconocida'}) ya fueron enviados previamente. No es necesario redactarlos de nuevo.` };
+  }
+  if (requisition.emails_drafted) {
+    return { error: `Los correos de la requisición ${requisition.folio} (sucursal: ${requisition.branch?.name || 'desconocida'}) ya fueron redactados previamente pero aún no se han enviado. El usuario puede revisarlos y enviarlos desde la página de requisiciones.` };
   }
 
   const poRepo = conn.getRepository(PurchaseOrder);
@@ -682,9 +779,13 @@ Devuelve SOLO el body del correo en HTML simple (usa <p>, <ul>, <li>, <strong>).
     });
   }
 
+  await reqRepo.update(requisition.id, { emails_drafted: true });
+
   return {
     draft_count: createdDrafts.length,
     drafts: createdDrafts,
+    requisition_folio: requisition.folio,
+    branch_name: requisition.branch?.name,
     __nibbit_action: {
       type: 'email_drafts',
       label: 'Revisar Correos a Proveedores',

@@ -78,6 +78,11 @@ export class RequisitionsController {
 
   // ─── State Machine ─────────────────────────────────────────────
 
+  @Delete(':id')
+  deleteRequisition(@Req() req: Request, @Param('id') id: string) {
+    return this.requisitionsService.deleteRequisition(req.tenantConnection!, id);
+  }
+
   @Patch(':id/lock')
   lockRequisition(@Req() req: Request, @Param('id') id: string) {
     const employeeId = (req.user as any)?.sub;
