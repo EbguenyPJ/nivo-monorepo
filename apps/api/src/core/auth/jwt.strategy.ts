@@ -24,6 +24,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       role_id: payload.role_id,
       is_owner: payload.is_owner,
       branch_id: payload.branch_id,
+      customer_id: (payload as any).customer_id,
     };
   }
 }

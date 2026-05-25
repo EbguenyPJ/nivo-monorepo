@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { DailyBriefingModal } from '@/components/ai/DailyBriefingModal';
+import CyberpunkClock from '@/components/CyberpunkClock';
 import { NibbitChat } from '@/components/ai/NibbitChat';
 import {
   LayoutDashboard,
@@ -44,6 +45,7 @@ import {
   Send,
   Loader2,
   MessageSquare,
+  Clock,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '@nivo/ui';
@@ -93,6 +95,7 @@ const sidebarGroups: SidebarGroup[] = [
       { href: '/dashboard/accounts', icon: DollarSign, label: 'Cuentas por Cobrar' },
       { href: '/dashboard/customers', icon: Users, label: 'Directorio' },
       { href: '/dashboard/loyalty', icon: Heart, label: 'Programa de Lealtad' },
+      { href: '/dashboard/orders', icon: ShoppingCart, label: 'Pedidos Online' },
     ],
   },
   {
@@ -114,6 +117,7 @@ const sidebarGroups: SidebarGroup[] = [
       { href: '/dashboard/reports', icon: BarChart3, label: 'Reportes de Ventas' },
       { href: '/dashboard/profitability', icon: DollarSign, label: 'Rentabilidad' },
       { href: '/dashboard/analytics', icon: TrendingUp, label: 'Rendimiento' },
+      { href: '/dashboard/heatmap', icon: Globe, label: 'Mapa de Calor' },
     ],
   },
   {
@@ -187,6 +191,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     sidebarGroups.forEach((g) => { initial[g.label] = g.label !== 'Principal'; });
     return initial;
   });
+
+  // Clock state — visible by default only on dashboard home
+  const isDashboardHome = pathname === '/dashboard';
+  const [clockVisible, setClockVisible] = useState(false);
+  const [clockInitialized, setClockInitialized] = useState(false);
+
+  // Auto-show clock on dashboard home on first mount
+  useEffect(() => {
+    if (!clockInitialized && isDashboardHome) {
+      setClockVisible(true);
+      setClockInitialized(true);
+    } else if (!clockInitialized) {
+      setClockInitialized(true);
+    }
+  }, [isDashboardHome, clockInitialized]);
+
+  // Auto-show on dashboard, auto-hide when navigating away (unless user manually toggled)
+  const userToggledClock = useRef(false);
+  useEffect(() => {
+    if (isDashboardHome && !userToggledClock.current) {
+      setClockVisible(true);
+    } else if (!isDashboardHome && !userToggledClock.current) {
+      setClockVisible(false);
+    }
+  }, [isDashboardHome]);
+
+  const handleClockToggle = useCallback(() => {
+    userToggledClock.current = true;
+    setClockVisible((v) => !v);
+  }, []);
+
+  const handleClockClose = useCallback(() => {
+    userToggledClock.current = true;
+    setClockVisible(false);
+  }, []);
+
+  // Reset user toggle when navigating to dashboard
+  useEffect(() => {
+    if (isDashboardHome) {
+      userToggledClock.current = false;
+    }
+  }, [isDashboardHome]);
 
   // Top bar states
   const [omnisearchOpen, setOmnisearchOpen] = useState(false);
@@ -585,7 +631,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
             <div className="flex-1" />
 
-            {/* RIGHT: Quick Actions */}
+            {/* RIGHT: Clock Toggle */}
+            <button
+              onClick={handleClockToggle}
+              className={cn(
+                'h-9 w-9 rounded-lg border border-border bg-card hover:bg-muted flex items-center justify-center transition-colors relative',
+                clockVisible && 'ring-1 ring-[#00fff5]/30 border-[#00fff5]/20'
+              )}
+              title={clockVisible ? 'Ocultar reloj' : 'Mostrar reloj'}
+            >
+              <Clock className={cn('h-4 w-4', clockVisible ? 'text-[#00fff5]' : 'text-foreground')} />
+              {clockVisible && (
+                <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-[#00fff5] border border-card" />
+              )}
+            </button>
+
+            {/* Quick Actions */}
             <div ref={quickActionsRef} className="relative">
               <button
                 onClick={() => { setQuickActionsOpen(!quickActionsOpen); setNotificationsOpen(false); setProfileOpen(false); }}
@@ -783,6 +844,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="max-w-7xl mx-auto px-8 py-7">{children}</div>
           </main>
         </div>
+
+        {/* Cyberpunk floating clock — self-positions via fixed */}
+        <CyberpunkClock visible={clockVisible} onClose={handleClockClose} />
       </div>
 
       {/* ================================================================== */}

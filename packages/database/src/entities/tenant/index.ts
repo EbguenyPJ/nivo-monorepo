@@ -69,3 +69,4 @@ export { DeliveryProof } from './delivery-proof.entity';
 export { PreSale } from './pre-sale.entity';
 export { PreSaleItem } from './pre-sale-item.entity';
 export { OrderTracking } from './order-tracking.entity';
+export { ShippingMethod } from './shipping-method.entity';

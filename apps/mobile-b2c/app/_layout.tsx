@@ -29,11 +29,12 @@ export default function RootLayout() {
           <StatusBar style="light" />
           <Stack
             screenOptions={{
-              headerStyle: { backgroundColor: '#020617' },
+              headerStyle: { backgroundColor: '#0c0f1a' },
               headerTintColor: '#f8fafc',
-              headerTitleStyle: { fontWeight: '600' },
-              contentStyle: { backgroundColor: '#0f172a' },
+              headerTitleStyle: { fontWeight: '700', fontSize: 17 },
+              contentStyle: { backgroundColor: '#0c0f1a' },
               animation: 'slide_from_right',
+              headerShadowVisible: false,
             }}
           >
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />

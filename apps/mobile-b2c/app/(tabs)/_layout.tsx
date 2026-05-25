@@ -1,6 +1,7 @@
 import { Tabs, router } from 'expo-router';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useCartStore } from '@/lib/cart-store';
 
 function CartBadge() {
@@ -9,33 +10,110 @@ function CartBadge() {
   return (
     <TouchableOpacity
       onPress={() => router.push('/cart')}
-      className="mr-4 relative"
+      style={{ marginRight: 16, position: 'relative' }}
     >
       <Ionicons name="bag-handle-outline" size={24} color="#f8fafc" />
-      <View className="absolute -top-1 -right-2 bg-brand-500 rounded-full w-5 h-5 items-center justify-center">
-        <Text className="text-white text-[10px] font-bold">{count > 9 ? '9+' : count}</Text>
+      <View style={{ position: 'absolute', top: -4, right: -8, backgroundColor: '#6366f1', borderRadius: 10, width: 20, height: 20, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{count > 9 ? '9+' : count}</Text>
       </View>
     </TouchableOpacity>
+  );
+}
+
+const TAB_ICONS: Record<string, { active: string; inactive: string }> = {
+  home: { active: 'home', inactive: 'home-outline' },
+  catalog: { active: 'grid', inactive: 'grid-outline' },
+  loyalty: { active: 'qr-code', inactive: 'qr-code-outline' },
+  layaways: { active: 'layers', inactive: 'layers-outline' },
+  profile: { active: 'person', inactive: 'person-outline' },
+};
+
+function CustomTabBar({ state, descriptors, navigation }: any) {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, 8);
+
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        backgroundColor: '#0c0f1a',
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.06)',
+        paddingBottom: bottomPad,
+        paddingTop: 10,
+      }}
+    >
+      {state.routes.map((route, index) => {
+        const { options } = descriptors[route.key];
+        const label = options.title ?? route.name;
+        const isFocused = state.index === index;
+        const icons = TAB_ICONS[route.name] ?? { active: 'ellipse', inactive: 'ellipse-outline' };
+
+        const onPress = () => {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name, route.params);
+          }
+        };
+
+        const onLongPress = () => {
+          navigation.emit({
+            type: 'tabLongPress',
+            target: route.key,
+          });
+        };
+
+        return (
+          <Pressable
+            key={route.key}
+            accessibilityRole="button"
+            accessibilityState={isFocused ? { selected: true } : {}}
+            accessibilityLabel={options.tabBarAccessibilityLabel}
+            onPress={onPress}
+            onLongPress={onLongPress}
+            style={{
+              flex: 1,
+              alignItems: 'center',
+              justifyContent: 'center',
+              paddingVertical: 4,
+            }}
+          >
+            <Ionicons
+              name={(isFocused ? icons.active : icons.inactive) as any}
+              size={22}
+              color={isFocused ? '#818cf8' : 'rgba(255,255,255,0.35)'}
+            />
+            <Text
+              style={{
+                fontSize: 10,
+                fontWeight: '600',
+                marginTop: 4,
+                color: isFocused ? '#818cf8' : 'rgba(255,255,255,0.35)',
+              }}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
   );
 }
 
 export default function TabsLayout() {
   return (
     <Tabs
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
-        tabBarStyle: {
-          backgroundColor: '#020617',
-          borderTopColor: '#1e293b',
-          height: 88,
-          paddingBottom: 24,
-          paddingTop: 8,
-        },
-        tabBarActiveTintColor: '#818cf8',
-        tabBarInactiveTintColor: '#64748b',
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
-        headerStyle: { backgroundColor: '#020617' },
+        headerStyle: { backgroundColor: '#0c0f1a' },
         headerTintColor: '#f8fafc',
-        headerTitleStyle: { fontWeight: '700', fontSize: 18 },
+        headerTitleStyle: { fontWeight: '800', fontSize: 20, letterSpacing: -0.5 },
+        headerShadowVisible: false,
         headerRight: () => <CartBadge />,
       }}
     >
@@ -44,15 +122,13 @@ export default function TabsLayout() {
         options={{
           title: 'Inicio',
           headerTitle: 'Nivo',
-          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="catalog"
         options={{
           title: 'Tienda',
-          headerTitle: 'Catálogo',
-          tabBarIcon: ({ color, size }) => <Ionicons name="grid-outline" size={size} color={color} />,
+          headerTitle: 'Catalogo',
         }}
       />
       <Tabs.Screen
@@ -60,7 +136,6 @@ export default function TabsLayout() {
         options={{
           title: 'Wallet',
           headerTitle: 'Mi Tarjeta',
-          tabBarIcon: ({ color, size }) => <Ionicons name="qr-code-outline" size={size} color={color} />,
           headerRight: () => null,
         }}
       />
@@ -69,7 +144,6 @@ export default function TabsLayout() {
         options={{
           title: 'Apartados',
           headerTitle: 'Mis Apartados',
-          tabBarIcon: ({ color, size }) => <Ionicons name="layers-outline" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -77,7 +151,6 @@ export default function TabsLayout() {
         options={{
           title: 'Perfil',
           headerTitle: 'Mi Cuenta',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person-outline" size={size} color={color} />,
           headerRight: () => null,
         }}
       />

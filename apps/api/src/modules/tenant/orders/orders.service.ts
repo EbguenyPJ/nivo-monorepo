@@ -199,13 +199,14 @@ export class OrdersService {
       .createQueryBuilder('o')
       .leftJoinAndSelect('o.customer', 'customer')
       .leftJoinAndSelect('o.pickup_branch', 'pickup_branch')
-      .where('o.status = :status', { status: 'out_for_delivery' });
+      .where('o.fulfillment_type = :ft', { ft: 'delivery' })
+      .andWhere('o.status IN (:...statuses)', { statuses: ['paid', 'picking', 'packed', 'out_for_delivery'] });
 
     if (branchId) {
       qb.andWhere('(o.branch_id = :bid OR o.pickup_branch_id = :bid)', { bid: branchId });
     }
 
-    return qb.orderBy('o.created_at', 'ASC').getMany();
+    return qb.orderBy('o.order_number', 'DESC').getMany();
   }
 
   async markOutForDelivery(connection: DataSource, orderId: string) {
@@ -234,5 +235,145 @@ export class OrdersService {
       completed_at: new Date(),
     });
     return { status: 'picked_up' };
+  }
+
+  async listOrders(connection: DataSource, filters: {
+    status?: string;
+    fulfillment_type?: string;
+    branch_id?: string;
+    search?: string;
+    start_date?: string;
+    end_date?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = filters.page || 1;
+    const limit = filters.limit || 20;
+
+    const qb = connection.getRepository(Order)
+      .createQueryBuilder('o')
+      .leftJoinAndSelect('o.customer', 'customer')
+      .leftJoinAndSelect('o.items', 'items');
+
+    if (filters.status) qb.andWhere('o.status = :status', { status: filters.status });
+    if (filters.fulfillment_type) qb.andWhere('o.fulfillment_type = :ft', { ft: filters.fulfillment_type });
+    if (filters.branch_id) qb.andWhere('(o.pickup_branch_id = :bid OR o.branch_id = :bid)', { bid: filters.branch_id });
+    if (filters.start_date) qb.andWhere('o.created_at >= :start', { start: filters.start_date });
+    if (filters.end_date) qb.andWhere('o.created_at <= :end', { end: filters.end_date });
+    if (filters.search) {
+      qb.andWhere('(CAST(o.order_number AS TEXT) LIKE :s OR customer.name ILIKE :q)', {
+        s: `%${filters.search}%`,
+        q: `%${filters.search}%`,
+      });
+    }
+
+    const [items, total] = await qb
+      .orderBy('o.created_at', 'DESC')
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getManyAndCount();
+
+    return { items, total, page, limit, pages: Math.ceil(total / limit) };
+  }
+
+  async updateOrderStatus(connection: DataSource, orderId: string, newStatus: string, employeeId?: string) {
+    const order = await connection.getRepository(Order).findOne({
+      where: { id: orderId },
+      relations: ['customer', 'pickup_branch'],
+    });
+    if (!order) throw new NotFoundException('Pedido no encontrado');
+
+    const transitions: Record<string, string[]> = {
+      pending_payment: ['paid', 'cancelled'],
+      paid: ['picking', 'cancelled'],
+      picking: ['packed', 'ready_for_pickup'],
+      packed: ['ready_for_pickup', 'out_for_delivery'],
+      ready_for_pickup: ['picked_up', 'cancelled'],
+      out_for_delivery: ['delivered'],
+    };
+
+    const allowed = transitions[order.status];
+    if (!allowed || !allowed.includes(newStatus)) {
+      throw new BadRequestException(`No se puede cambiar de '${order.status}' a '${newStatus}'`);
+    }
+
+    const updateData: any = { status: newStatus };
+    if (newStatus === 'packed') updateData.packed_at = new Date();
+    if (['delivered', 'picked_up'].includes(newStatus)) updateData.completed_at = new Date();
+    if (employeeId) updateData.employee_id = employeeId;
+
+    await connection.getRepository(Order).update(orderId, updateData);
+
+    return { status: newStatus, order_id: orderId };
+  }
+
+  async cancelOrder(connection: DataSource, orderId: string) {
+    const order = await connection.getRepository(Order).findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Pedido no encontrado');
+    if (['delivered', 'picked_up', 'cancelled'].includes(order.status)) {
+      throw new BadRequestException('No se puede cancelar un pedido completado');
+    }
+    await connection.getRepository(Order).update(orderId, { status: 'cancelled' });
+    return { status: 'cancelled' };
+  }
+
+  async getPickupOrders(connection: DataSource, branchId?: string) {
+    const qb = connection.getRepository(Order)
+      .createQueryBuilder('o')
+      .leftJoinAndSelect('o.customer', 'customer')
+      .leftJoinAndSelect('o.items', 'items')
+      .leftJoinAndSelect('items.variant', 'variant')
+      .leftJoinAndSelect('variant.product', 'product')
+      .where('o.fulfillment_type = :ft', { ft: 'bopis' })
+      .andWhere('o.status IN (:...statuses)', { statuses: ['paid', 'picking', 'packed', 'ready_for_pickup'] });
+
+    if (branchId) {
+      qb.andWhere('o.pickup_branch_id = :bid', { bid: branchId });
+    }
+
+    return qb.orderBy('o.order_number', 'DESC').getMany();
+  }
+
+  async getPickupByQR(connection: DataSource, orderId: string) {
+    const order = await connection.getRepository(Order).findOne({
+      where: { id: orderId },
+      relations: [
+        'customer', 'pickup_branch',
+        'items', 'items.variant', 'items.variant.product',
+      ],
+    });
+    if (!order) throw new NotFoundException('Pedido no encontrado');
+
+    // Spread into plain object so extra fields survive serialization
+    const plain = JSON.parse(JSON.stringify(order));
+    plain.qr_valid = order.status === 'ready_for_pickup';
+    plain.pickup_info = {
+      location: order.pickup_location,
+      status: order.status,
+      can_pickup: order.status === 'ready_for_pickup',
+    };
+    return plain;
+  }
+
+  async confirmPickupWithSignature(
+    connection: DataSource,
+    orderId: string,
+    signatureData: { signature_url: string; recipient_name: string },
+    employeeId: string,
+  ) {
+    const order = await connection.getRepository(Order).findOne({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Pedido no encontrado');
+    if (order.status !== 'ready_for_pickup') {
+      throw new BadRequestException('El pedido no está listo para recoger');
+    }
+
+    await connection.getRepository(Order).update(orderId, {
+      status: 'picked_up',
+      completed_at: new Date(),
+      employee_id: employeeId,
+      signature_url: signatureData.signature_url,
+    });
+
+    return this.findOne(connection, orderId);
   }
 }

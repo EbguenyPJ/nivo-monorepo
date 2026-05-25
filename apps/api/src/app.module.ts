@@ -53,6 +53,9 @@ import { NivoMailerModule } from './modules/tenant/mailer/mailer.module';
 import { LogisticsModule } from './modules/tenant/logistics/logistics.module';
 import { DailyBriefingModule } from './modules/tenant/daily-briefing/daily-briefing.module';
 import { NibbitModule } from './modules/tenant/nibbit/nibbit.module';
+import { ShippingMethodsModule } from './modules/tenant/shipping-methods/shipping-methods.module';
+import { GeocodingModule } from './modules/tenant/geocoding/geocoding.module';
+import { TenantPaymentsModule } from './modules/tenant/payments/payments.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -115,6 +118,9 @@ import { HealthController } from './health.controller';
     LogisticsModule,
     DailyBriefingModule,
     NibbitModule,
+    ShippingMethodsModule,
+    GeocodingModule,
+    TenantPaymentsModule,
   ],
   controllers: [HealthController],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],

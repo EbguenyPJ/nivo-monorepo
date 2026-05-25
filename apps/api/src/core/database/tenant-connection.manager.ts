@@ -73,6 +73,7 @@ import {
   DeliveryProof,
   PreSale,
   PreSaleItem,
+  ShippingMethod,
 } from '@nivo/database';
 
 const TENANT_ENTITIES = [
@@ -147,6 +148,7 @@ const TENANT_ENTITIES = [
   DeliveryProof,
   PreSale,
   PreSaleItem,
+  ShippingMethod,
 ];
 
 @Injectable()

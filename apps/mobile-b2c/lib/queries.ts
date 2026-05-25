@@ -61,7 +61,10 @@ export function useCreateOrder() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto: CreateOrderDto) =>
-      api.post<{ id: string; client_secret: string }>('/mobile/orders', dto),
+      api.post<{ id: string; client_secret: string; payment_intent_id: string }>(
+        '/mobile/orders',
+        dto,
+      ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['orders'] }),
   });
 }
@@ -102,10 +105,39 @@ export function useLayawayPayment() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (dto: LayawayStripePaymentDto) =>
-      api.post<{ client_secret: string }>('/mobile/layaways/pay', dto),
+      api.post<{ client_secret: string; payment_intent_id: string }>(
+        '/mobile/layaways/pay',
+        dto,
+      ),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['layaways'] });
     },
+  });
+}
+
+// ─── Addresses ───────────────────────────────────────────────────
+
+export function useMyAddresses() {
+  return useQuery({
+    queryKey: ['addresses'],
+    queryFn: () => api.get<{ items: SavedAddress[] }>('/mobile/addresses'),
+  });
+}
+
+export function useCreateAddress() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Omit<SavedAddress, 'id'>) =>
+      api.post<SavedAddress>('/mobile/addresses', data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['addresses'] }),
+  });
+}
+
+export function useDeleteAddress() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete<{ success: boolean }>(`/mobile/addresses/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['addresses'] }),
   });
 }
 
@@ -130,6 +162,7 @@ export interface CatalogProduct {
   variant_count: number;
   min_price: number;
   max_price: number;
+  total_stock: number;
 }
 
 export interface ProductDetail {
@@ -174,6 +207,8 @@ export interface OrderSummary {
   fulfillment_type: string;
   total_amount: number;
   item_count: number;
+  first_image_url: string | null;
+  first_product_name: string | null;
   created_at: string;
 }
 
@@ -203,6 +238,8 @@ export interface LayawaySummary {
   due_date: string;
   item_count: number;
   branch_name: string;
+  first_image_url: string | null;
+  first_product_name: string | null;
   created_at: string;
 }
 
@@ -224,6 +261,19 @@ export interface LayawayDetail extends LayawaySummary {
     created_at: string;
   }[];
   down_payment: number;
+}
+
+export interface SavedAddress {
+  id: string;
+  label: string | null;
+  street: string;
+  neighborhood: string | null;
+  city: string;
+  state: string;
+  zip_code: string;
+  country: string;
+  reference: string | null;
+  is_default: boolean;
 }
 
 export interface LoyaltyProfile {

@@ -3,15 +3,20 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { DataSource, IsNull } from 'typeorm';
 import {
   Customer, CustomerAddress, Sale, SaleItem,
   LoyaltyLedger, Layaway, CreditAccount,
 } from '@nivo/database';
+import { GeocodingService } from '../geocoding/geocoding.service';
 
 @Injectable()
 export class CustomersService {
+  private readonly logger = new Logger(CustomersService.name);
+
+  constructor(private readonly geocodingService: GeocodingService) {}
   // ─── List with pagination + search ──────────────────────────────
   async findAll(
     connection: DataSource,
@@ -201,7 +206,11 @@ export class CustomersService {
         reference: data.address.reference || null,
         is_default: true,
       });
-      await addrRepo.save(address);
+      const savedAddr = await addrRepo.save(address);
+      // Fire-and-forget geocoding
+      this.geocodingService.geocodeAddress(connection, savedAddr.id).catch((err) =>
+        this.logger.error(`Geocoding failed for address ${savedAddr.id}: ${err}`),
+      );
     }
 
     return this.findOne(connection, saved.id);
@@ -296,7 +305,12 @@ export class CustomersService {
       is_default: data.is_default || false,
     });
 
-    return addrRepo.save(address);
+    const savedAddr = await addrRepo.save(address);
+    // Fire-and-forget geocoding
+    this.geocodingService.geocodeAddress(connection, savedAddr.id).catch((err) =>
+      this.logger.error(`Geocoding failed for address ${savedAddr.id}: ${err}`),
+    );
+    return savedAddr;
   }
 
   async updateAddress(connection: DataSource, addressId: string, data: any) {
@@ -310,7 +324,14 @@ export class CustomersService {
     }
 
     Object.assign(address, data);
-    return addrRepo.save(address);
+    const savedAddr = await addrRepo.save(address);
+    // Fire-and-forget geocoding when address fields change
+    if (data.street || data.city || data.state || data.country) {
+      this.geocodingService.geocodeAddress(connection, savedAddr.id).catch((err) =>
+        this.logger.error(`Geocoding failed for address ${savedAddr.id}: ${err}`),
+      );
+    }
+    return savedAddr;
   }
 
   async removeAddress(connection: DataSource, addressId: string) {

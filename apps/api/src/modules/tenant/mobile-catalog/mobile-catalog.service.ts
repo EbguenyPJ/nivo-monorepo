@@ -24,9 +24,11 @@ export class MobileCatalogService {
     if (filters.category_id) qb.andWhere('p.category_id = :cid', { cid: filters.category_id });
     if (filters.brand_id) qb.andWhere('p.brand_id = :bid', { bid: filters.brand_id });
 
-    qb.addSelect('COUNT(v.id)', 'variant_count')
+    qb.leftJoin('inventory', 'inv', 'inv.variant_id = v.id')
+      .addSelect('COUNT(DISTINCT v.id)', 'variant_count')
       .addSelect('MIN(COALESCE(v.price_override, p.base_price))', 'min_price')
       .addSelect('MAX(COALESCE(v.price_override, p.base_price))', 'max_price')
+      .addSelect('COALESCE(SUM(inv.stock_available), 0)', 'total_stock')
       .groupBy('p.id')
       .addGroupBy('brand.id')
       .addGroupBy('category.id')
@@ -52,6 +54,7 @@ export class MobileCatalogService {
           variant_count: parseInt(raw[idx]?.variant_count || '0'),
           min_price: parseFloat(raw[idx]?.min_price || String(p.base_price)),
           max_price: parseFloat(raw[idx]?.max_price || String(p.base_price)),
+          total_stock: parseInt(raw[idx]?.total_stock || '0'),
         };
       }),
       total,

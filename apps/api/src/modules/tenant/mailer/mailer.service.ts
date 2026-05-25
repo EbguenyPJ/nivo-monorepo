@@ -94,4 +94,28 @@ export class NivoMailerService {
       `,
     });
   }
+
+  async sendOutForDelivery(email: string, orderFolio: string) {
+    return this.send({
+      to: email,
+      subject: `Tu pedido ${orderFolio} va en camino`,
+      html: `
+        <h2>¡Tu pedido está en camino!</h2>
+        <p>El pedido <strong>${orderFolio}</strong> ha salido a reparto.</p>
+        <p>Puedes seguir el estado de tu entrega desde la app.</p>
+      `,
+    });
+  }
+
+  async sendOrderCompleted(email: string, orderFolio: string) {
+    return this.send({
+      to: email,
+      subject: `Pedido ${orderFolio} completado`,
+      html: `
+        <h2>¡Pedido entregado!</h2>
+        <p>Tu pedido <strong>${orderFolio}</strong> ha sido entregado exitosamente.</p>
+        <p>¡Gracias por tu compra!</p>
+      `,
+    });
+  }
 }

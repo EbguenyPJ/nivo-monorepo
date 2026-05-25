@@ -1,15 +1,21 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput,
+  View, Text, ScrollView, TouchableOpacity, ActivityIndicator, Alert, TextInput, Pressable,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useStripe } from '@stripe/stripe-react-native';
 import { useCartStore } from '@/lib/cart-store';
 import { useAuthStore } from '@/lib/auth-store';
-import { useCreateOrder, useBranches, type BranchWithStock } from '@/lib/queries';
+import { api } from '@/lib/api-client';
+import {
+  useCreateOrder, useBranches, useMyAddresses, useCreateAddress,
+  type BranchWithStock, type SavedAddress,
+} from '@/lib/queries';
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
@@ -29,10 +35,19 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(false);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  const [street, setStreet] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [zipCode, setZipCode] = useState('');
+  // Address state
+  const addresses = useMyAddresses();
+  const createAddress = useCreateAddress();
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [showNewForm, setShowNewForm] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const [newStreet, setNewStreet] = useState('');
+  const [newNeighborhood, setNewNeighborhood] = useState('');
+  const [newCity, setNewCity] = useState('');
+  const [newState, setNewState] = useState('');
+  const [newZipCode, setNewZipCode] = useState('');
+  const [newReference, setNewReference] = useState('');
+  const [savingAddress, setSavingAddress] = useState(false);
 
   const variantIds = items.map((i) => i.variant_id);
   const branches = useBranches(variantIds);
@@ -46,6 +61,15 @@ export default function CheckoutScreen() {
       }
     })();
   }, []);
+
+  // Auto-select default address when addresses load
+  useEffect(() => {
+    if (addresses.data?.items && !selectedAddressId) {
+      const defaultAddr = addresses.data.items.find((a) => a.is_default);
+      if (defaultAddr) setSelectedAddressId(defaultAddr.id);
+      else if (addresses.data.items.length > 0) setSelectedAddressId(addresses.data.items[0].id);
+    }
+  }, [addresses.data]);
 
   const sortedBranches = useMemo(() => {
     const raw = (branches.data ?? []).filter((b) => b.has_stock);
@@ -62,8 +86,39 @@ export default function CheckoutScreen() {
       .sort((a, b) => a.local_distance - b.local_distance);
   }, [branches.data, userLocation]);
 
-  const addressValid = street.trim().length > 3 && city.trim() && state.trim() && zipCode.trim().length >= 5;
-  const canPay = fulfillmentType === 'delivery' ? addressValid : !!pickupBranchId;
+  const selectedAddress = addresses.data?.items?.find((a) => a.id === selectedAddressId) ?? null;
+  const hasAddress = !!selectedAddress || showNewForm;
+  const newFormValid = newStreet.trim().length > 3 && newCity.trim() && newState.trim() && newZipCode.trim().length >= 5;
+  const canPay = fulfillmentType === 'delivery'
+    ? (selectedAddress != null || (showNewForm && newFormValid))
+    : !!pickupBranchId;
+
+  async function handleSaveNewAddress() {
+    if (!newFormValid) return;
+    setSavingAddress(true);
+    try {
+      const addr = await createAddress.mutateAsync({
+        label: newLabel.trim() || null,
+        street: newStreet.trim(),
+        neighborhood: newNeighborhood.trim() || null,
+        city: newCity.trim(),
+        state: newState.trim(),
+        zip_code: newZipCode.trim(),
+        country: 'Mexico',
+        reference: newReference.trim() || null,
+        is_default: (addresses.data?.items?.length ?? 0) === 0,
+      });
+      setSelectedAddressId(addr.id);
+      setShowNewForm(false);
+      // Clear form
+      setNewLabel(''); setNewStreet(''); setNewNeighborhood('');
+      setNewCity(''); setNewState(''); setNewZipCode(''); setNewReference('');
+    } catch (e: any) {
+      Alert.alert('Error', e.message ?? 'No se pudo guardar la direccion');
+    } finally {
+      setSavingAddress(false);
+    }
+  }
 
   async function handlePay() {
     if (!user) return;
@@ -84,13 +139,25 @@ export default function CheckoutScreen() {
         orderPayload.pickup_branch_id = pickupBranchId;
       }
       if (fulfillmentType === 'delivery') {
-        orderPayload.shipping_address = {
-          street: street.trim(),
-          city: city.trim(),
-          state: state.trim(),
-          zip_code: zipCode.trim(),
-          country: 'MX',
-        };
+        if (selectedAddress) {
+          orderPayload.shipping_address = {
+            street: selectedAddress.street,
+            neighborhood: selectedAddress.neighborhood || '',
+            city: selectedAddress.city,
+            state: selectedAddress.state,
+            zip_code: selectedAddress.zip_code,
+            country: selectedAddress.country || 'MX',
+          };
+        } else if (showNewForm) {
+          orderPayload.shipping_address = {
+            street: newStreet.trim(),
+            neighborhood: newNeighborhood.trim(),
+            city: newCity.trim(),
+            state: newState.trim(),
+            zip_code: newZipCode.trim(),
+            country: 'MX',
+          };
+        }
       }
 
       const res = await createOrder.mutateAsync(orderPayload);
@@ -118,6 +185,11 @@ export default function CheckoutScreen() {
         return;
       }
 
+      // Confirm payment with backend (records in DB, updates order to paid)
+      await api.post(`/mobile/orders/${res.id}/confirm-payment`, {
+        payment_intent_id: res.payment_intent_id,
+      });
+
       clear();
       router.replace(`/order/${res.id}`);
     } catch (e: any) {
@@ -133,59 +205,72 @@ export default function CheckoutScreen() {
     return d < 1 ? `${Math.round(d * 1000)} m` : `${d.toFixed(1)} km`;
   }
 
+  const inputStyle = {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    color: '#f8fafc',
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    fontSize: 14,
+  } as const;
+
   return (
-    <View className="flex-1 bg-surface">
+    <View style={{ flex: 1, backgroundColor: '#0c0f1a' }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 140 }}>
-        <Text className="text-white text-xl font-bold mb-5">Método de entrega</Text>
+        <Text style={{ color: '#f8fafc', fontSize: 20, fontWeight: '700', marginBottom: 20 }}>
+          Metodo de entrega
+        </Text>
 
         {/* Fulfillment type */}
-        <View className="flex-row gap-3 mb-6">
+        <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
           <TouchableOpacity
-            className={`flex-1 p-5 rounded-2xl border ${
-              fulfillmentType === 'bopis'
-                ? 'border-brand-500 bg-brand-500/15'
-                : 'border-slate-700 bg-surface-card'
-            }`}
+            style={{
+              flex: 1, padding: 20, borderRadius: 20, borderWidth: 1,
+              borderColor: fulfillmentType === 'bopis' ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)',
+              backgroundColor: fulfillmentType === 'bopis' ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.06)',
+            }}
             onPress={() => setFulfillment('bopis')}
           >
-            <Ionicons name="storefront-outline" size={28} color={fulfillmentType === 'bopis' ? '#818cf8' : '#64748b'} />
-            <Text className={`mt-2 font-semibold ${fulfillmentType === 'bopis' ? 'text-brand-100' : 'text-slate-300'}`}>
+            <Ionicons name="storefront-outline" size={28} color={fulfillmentType === 'bopis' ? '#818cf8' : 'rgba(255,255,255,0.4)'} />
+            <Text style={{ marginTop: 8, fontWeight: '600', fontSize: 14, color: fulfillmentType === 'bopis' ? '#a5b4fc' : 'rgba(255,255,255,0.6)' }}>
               Recoger en tienda
             </Text>
-            <Text className="text-emerald-400 text-xs mt-1 font-medium">Gratis</Text>
+            <Text style={{ color: '#34d399', fontSize: 12, marginTop: 4, fontWeight: '600' }}>Gratis</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            className={`flex-1 p-5 rounded-2xl border ${
-              fulfillmentType === 'delivery'
-                ? 'border-brand-500 bg-brand-500/15'
-                : 'border-slate-700 bg-surface-card'
-            }`}
+            style={{
+              flex: 1, padding: 20, borderRadius: 20, borderWidth: 1,
+              borderColor: fulfillmentType === 'delivery' ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)',
+              backgroundColor: fulfillmentType === 'delivery' ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.06)',
+            }}
             onPress={() => setFulfillment('delivery')}
           >
-            <Ionicons name="car-outline" size={28} color={fulfillmentType === 'delivery' ? '#818cf8' : '#64748b'} />
-            <Text className={`mt-2 font-semibold ${fulfillmentType === 'delivery' ? 'text-brand-100' : 'text-slate-300'}`}>
-              Envío a domicilio
+            <Ionicons name="car-outline" size={28} color={fulfillmentType === 'delivery' ? '#818cf8' : 'rgba(255,255,255,0.4)'} />
+            <Text style={{ marginTop: 8, fontWeight: '600', fontSize: 14, color: fulfillmentType === 'delivery' ? '#a5b4fc' : 'rgba(255,255,255,0.6)' }}>
+              Envio a domicilio
             </Text>
-            <Text className="text-slate-500 text-xs mt-1">Costo según zona</Text>
+            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 4 }}>Costo segun zona</Text>
           </TouchableOpacity>
         </View>
 
-        {/* BOPIS: Branch selection with Haversine */}
+        {/* BOPIS: Branch selection */}
         {fulfillmentType === 'bopis' && (
-          <Animated.View entering={FadeIn.duration(250)} className="mb-6">
-            <Text className="text-white font-semibold mb-3">Sucursal de recolección</Text>
+          <Animated.View entering={FadeIn.duration(250)} style={{ marginBottom: 24 }}>
+            <Text style={{ color: '#f8fafc', fontWeight: '600', marginBottom: 12, fontSize: 15 }}>Sucursal de recoleccion</Text>
             {userLocation && (
-              <View className="flex-row items-center mb-3">
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
                 <Ionicons name="location" size={14} color="#34d399" />
-                <Text className="text-emerald-400 text-xs ml-1">Ordenadas por cercanía a tu ubicación</Text>
+                <Text style={{ color: '#34d399', fontSize: 12, marginLeft: 4 }}>Ordenadas por cercania a tu ubicacion</Text>
               </View>
             )}
             {branches.isLoading ? (
               <ActivityIndicator color="#6366f1" />
             ) : sortedBranches.length === 0 ? (
-              <View className="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
-                <Text className="text-red-300 text-sm">
-                  No hay sucursales con stock disponible para todos los artículos de tu carrito.
+              <View style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.25)', borderRadius: 16, padding: 16 }}>
+                <Text style={{ color: '#f87171', fontSize: 13 }}>
+                  No hay sucursales con stock disponible para todos los articulos de tu carrito.
                 </Text>
               </View>
             ) : (
@@ -195,25 +280,30 @@ export default function CheckoutScreen() {
                 return (
                   <TouchableOpacity
                     key={branch.id}
-                    className={`p-4 rounded-xl mb-2.5 border flex-row items-center ${
-                      isSelected
-                        ? 'border-brand-500 bg-brand-500/15'
-                        : 'border-slate-700 bg-surface-card'
-                    }`}
+                    style={{
+                      padding: 16, borderRadius: 16, marginBottom: 10, borderWidth: 1,
+                      borderColor: isSelected ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)',
+                      backgroundColor: isSelected ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.06)',
+                      flexDirection: 'row', alignItems: 'center',
+                    }}
                     onPress={() => setFulfillment('bopis', branch.id)}
                   >
-                    <View className={`w-10 h-10 rounded-full items-center justify-center ${isSelected ? 'bg-brand-500' : 'bg-slate-700'}`}>
+                    <View style={{
+                      width: 40, height: 40, borderRadius: 20,
+                      backgroundColor: isSelected ? '#6366f1' : 'rgba(255,255,255,0.08)',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
                       <Ionicons name={isSelected ? 'checkmark' : 'storefront'} size={18} color="#ffffff" />
                     </View>
-                    <View className="flex-1 ml-3">
-                      <Text className="text-white font-medium">{branch.name}</Text>
+                    <View style={{ flex: 1, marginLeft: 12 }}>
+                      <Text style={{ color: '#f8fafc', fontWeight: '500', fontSize: 14 }}>{branch.name}</Text>
                       {branch.address && (
-                        <Text className="text-slate-400 text-xs mt-0.5" numberOfLines={1}>{branch.address}</Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 2 }} numberOfLines={1}>{branch.address}</Text>
                       )}
                     </View>
                     {dist && (
-                      <View className="bg-brand-500/20 px-2.5 py-1 rounded-lg">
-                        <Text className="text-brand-100 text-xs font-medium">{dist}</Text>
+                      <View style={{ backgroundColor: 'rgba(99,102,241,0.15)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                        <Text style={{ color: '#a5b4fc', fontSize: 12, fontWeight: '600' }}>{dist}</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -223,93 +313,217 @@ export default function CheckoutScreen() {
           </Animated.View>
         )}
 
-        {/* Delivery: Address form */}
+        {/* Delivery: Saved addresses + new address form */}
         {fulfillmentType === 'delivery' && (
-          <Animated.View entering={SlideInDown.duration(300)} className="mb-6">
-            <Text className="text-white font-semibold mb-3">Dirección de envío</Text>
-            <TextInput
-              className="bg-surface-card text-white rounded-xl px-4 py-3.5 mb-3 border border-slate-700"
-              placeholder="Calle y número"
-              placeholderTextColor="#475569"
-              value={street}
-              onChangeText={setStreet}
-            />
-            <View className="flex-row gap-3 mb-3">
-              <TextInput
-                className="flex-1 bg-surface-card text-white rounded-xl px-4 py-3.5 border border-slate-700"
-                placeholder="Ciudad"
-                placeholderTextColor="#475569"
-                value={city}
-                onChangeText={setCity}
-              />
-              <TextInput
-                className="flex-1 bg-surface-card text-white rounded-xl px-4 py-3.5 border border-slate-700"
-                placeholder="Estado"
-                placeholderTextColor="#475569"
-                value={state}
-                onChangeText={setState}
-              />
-            </View>
-            <TextInput
-              className="bg-surface-card text-white rounded-xl px-4 py-3.5 border border-slate-700"
-              placeholder="Código postal"
-              placeholderTextColor="#475569"
-              keyboardType="number-pad"
-              maxLength={5}
-              value={zipCode}
-              onChangeText={setZipCode}
-            />
+          <Animated.View entering={SlideInDown.duration(300)} style={{ marginBottom: 24 }}>
+            <Text style={{ color: '#f8fafc', fontWeight: '600', marginBottom: 12, fontSize: 15 }}>Direccion de envio</Text>
+
+            {/* Loading state */}
+            {addresses.isLoading && <ActivityIndicator color="#6366f1" style={{ marginBottom: 12 }} />}
+
+            {/* Saved addresses list */}
+            {(addresses.data?.items ?? []).length > 0 && !showNewForm && (
+              <View style={{ marginBottom: 12 }}>
+                {addresses.data!.items.map((addr) => {
+                  const isSelected = selectedAddressId === addr.id;
+                  return (
+                    <Pressable
+                      key={addr.id}
+                      style={{
+                        padding: 16, borderRadius: 16, marginBottom: 10, borderWidth: 1,
+                        borderColor: isSelected ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.08)',
+                        backgroundColor: isSelected ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.06)',
+                        flexDirection: 'row', alignItems: 'center',
+                      }}
+                      onPress={() => setSelectedAddressId(addr.id)}
+                    >
+                      <View style={{
+                        width: 36, height: 36, borderRadius: 18,
+                        backgroundColor: isSelected ? '#6366f1' : 'rgba(255,255,255,0.08)',
+                        alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        <Ionicons
+                          name={isSelected ? 'checkmark' : 'location-outline'}
+                          size={16}
+                          color={isSelected ? '#ffffff' : 'rgba(255,255,255,0.5)'}
+                        />
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        {addr.label && (
+                          <Text style={{ color: '#a5b4fc', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>
+                            {addr.label}
+                          </Text>
+                        )}
+                        <Text style={{ color: '#f8fafc', fontSize: 14, fontWeight: '500' }} numberOfLines={1}>
+                          {addr.street}
+                        </Text>
+                        <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12, marginTop: 1 }} numberOfLines={1}>
+                          {[addr.neighborhood, addr.city, addr.state, addr.zip_code].filter(Boolean).join(', ')}
+                        </Text>
+                      </View>
+                      {addr.is_default && (
+                        <View style={{ backgroundColor: 'rgba(52,211,153,0.15)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                          <Text style={{ color: '#34d399', fontSize: 10, fontWeight: '600' }}>Default</Text>
+                        </View>
+                      )}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Add new address button */}
+            {!showNewForm && (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+                  padding: 14, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed',
+                  borderColor: 'rgba(99,102,241,0.3)', backgroundColor: 'rgba(99,102,241,0.06)',
+                  marginBottom: 4,
+                }}
+                onPress={() => { setShowNewForm(true); setSelectedAddressId(null); }}
+              >
+                <Ionicons name="add-circle-outline" size={18} color="#818cf8" />
+                <Text style={{ color: '#818cf8', fontWeight: '600', fontSize: 14, marginLeft: 8 }}>
+                  Agregar nueva direccion
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* New address form */}
+            {showNewForm && (
+              <Animated.View entering={FadeIn.duration(200)} style={{
+                backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20,
+                borderWidth: 1, borderColor: 'rgba(99,102,241,0.2)', padding: 16,
+              }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                  <Text style={{ color: '#a5b4fc', fontWeight: '700', fontSize: 14 }}>Nueva direccion</Text>
+                  <TouchableOpacity onPress={() => {
+                    setShowNewForm(false);
+                    // Re-select first saved address if available
+                    const firstAddr = addresses.data?.items?.[0];
+                    if (firstAddr) setSelectedAddressId(firstAddr.id);
+                  }}>
+                    <Ionicons name="close-circle" size={22} color="rgba(255,255,255,0.35)" />
+                  </TouchableOpacity>
+                </View>
+
+                <TextInput style={[inputStyle, { marginBottom: 10 }]} placeholder="Etiqueta (ej. Casa, Oficina)" placeholderTextColor="rgba(255,255,255,0.3)" value={newLabel} onChangeText={setNewLabel} />
+                <TextInput style={[inputStyle, { marginBottom: 10 }]} placeholder="Calle y numero *" placeholderTextColor="rgba(255,255,255,0.3)" value={newStreet} onChangeText={setNewStreet} />
+                <TextInput style={[inputStyle, { marginBottom: 10 }]} placeholder="Colonia" placeholderTextColor="rgba(255,255,255,0.3)" value={newNeighborhood} onChangeText={setNewNeighborhood} />
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                  <TextInput style={[inputStyle, { flex: 1 }]} placeholder="Ciudad *" placeholderTextColor="rgba(255,255,255,0.3)" value={newCity} onChangeText={setNewCity} />
+                  <TextInput style={[inputStyle, { flex: 1 }]} placeholder="Estado *" placeholderTextColor="rgba(255,255,255,0.3)" value={newState} onChangeText={setNewState} />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10, marginBottom: 10 }}>
+                  <TextInput style={[inputStyle, { flex: 1 }]} placeholder="C.P. *" placeholderTextColor="rgba(255,255,255,0.3)" keyboardType="number-pad" maxLength={5} value={newZipCode} onChangeText={setNewZipCode} />
+                  <TextInput style={[inputStyle, { flex: 2 }]} placeholder="Referencia" placeholderTextColor="rgba(255,255,255,0.3)" value={newReference} onChangeText={setNewReference} />
+                </View>
+
+                <TouchableOpacity
+                  style={{
+                    height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center',
+                    flexDirection: 'row',
+                    backgroundColor: newFormValid ? '#6366f1' : 'rgba(255,255,255,0.06)',
+                    marginTop: 4,
+                  }}
+                  onPress={handleSaveNewAddress}
+                  disabled={!newFormValid || savingAddress}
+                >
+                  {savingAddress ? (
+                    <ActivityIndicator color="white" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="save-outline" size={16} color={newFormValid ? '#ffffff' : 'rgba(255,255,255,0.3)'} />
+                      <Text style={{ color: newFormValid ? '#ffffff' : 'rgba(255,255,255,0.3)', fontWeight: '600', fontSize: 14, marginLeft: 6 }}>
+                        Guardar direccion
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </Animated.View>
+            )}
           </Animated.View>
         )}
 
         {/* Order summary */}
-        <View className="bg-surface-card rounded-2xl p-5 mb-4">
-          <Text className="text-white font-semibold mb-3">Resumen del pedido</Text>
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 24, padding: 20, marginBottom: 16 }}>
+          <Text style={{ color: '#f8fafc', fontWeight: '600', marginBottom: 14, fontSize: 15 }}>Resumen del pedido</Text>
           {items.map((item) => {
             const attrs = Object.values(item.attributes).join(' · ');
             return (
-              <View key={item.variant_id} className="flex-row justify-between mb-2">
-                <View className="flex-1 mr-3">
-                  <Text className="text-slate-300 text-sm" numberOfLines={1}>{item.product_name}</Text>
-                  <Text className="text-slate-500 text-xs">{attrs} × {item.quantity}</Text>
+              <View key={item.variant_id} style={{ flexDirection: 'row', marginBottom: 12, alignItems: 'center' }}>
+                {/* Product image */}
+                {item.image_url ? (
+                  <Image
+                    source={{ uri: item.image_url }}
+                    style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)' }}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={{ width: 48, height: 48, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="footsteps-outline" size={18} color="rgba(255,255,255,0.15)" />
+                  </View>
+                )}
+                <View style={{ flex: 1, marginLeft: 12, marginRight: 8 }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, fontWeight: '500' }} numberOfLines={1}>{item.product_name}</Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.35)', fontSize: 12 }}>{attrs} x{item.quantity}</Text>
                 </View>
-                <Text className="text-slate-200 text-sm font-medium">
+                <Text style={{ color: '#818cf8', fontSize: 13, fontWeight: '700' }}>
                   ${(item.unit_price * item.quantity).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
                 </Text>
               </View>
             );
           })}
-          <View className="h-px bg-slate-700 my-3" />
-          <View className="flex-row justify-between">
-            <Text className="text-white font-bold text-lg">Total</Text>
-            <Text className="text-white font-bold text-xl">
+          <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 8 }} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ color: '#f8fafc', fontWeight: '700', fontSize: 16 }}>Total</Text>
+            <Text style={{ color: '#f8fafc', fontWeight: '900', fontSize: 20 }}>
               ${total().toLocaleString('es-MX', { minimumFractionDigits: 2 })}
             </Text>
           </View>
         </View>
 
-        <View className="flex-row items-center bg-brand-500/10 rounded-xl p-3 mb-2">
+        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(99,102,241,0.1)', borderRadius: 16, padding: 14, marginBottom: 8 }}>
           <Ionicons name="shield-checkmark" size={18} color="#818cf8" />
-          <Text className="text-brand-100 text-xs ml-2 flex-1">
-            Pago seguro procesado por Stripe. Tu información está protegida.
+          <Text style={{ color: '#a5b4fc', fontSize: 12, marginLeft: 8, flex: 1 }}>
+            Pago seguro procesado por Stripe. Tu informacion esta protegida.
           </Text>
         </View>
       </ScrollView>
 
       {/* Floating pay button */}
-      <View className="absolute bottom-0 left-0 right-0 bg-surface border-t border-slate-800 px-5 pt-4 pb-8">
+      <View style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        backgroundColor: 'rgba(12, 15, 26, 0.95)',
+        borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)',
+        paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32,
+      }}>
         <TouchableOpacity
-          className={`rounded-2xl py-4.5 items-center flex-row justify-center ${canPay && !loading ? 'bg-brand-500' : 'bg-slate-700'}`}
+          style={{
+            height: 56, borderRadius: 16, overflow: 'hidden',
+            flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+          }}
           onPress={handlePay}
           disabled={loading || !canPay}
           activeOpacity={0.8}
         >
+          {canPay && !loading ? (
+            <LinearGradient
+              colors={['#6366f1', '#8b5cf6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 16 }}
+            />
+          ) : (
+            <View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.06)' }} />
+          )}
           {loading ? (
             <ActivityIndicator color="white" />
           ) : (
             <>
-              <Ionicons name="lock-closed" size={18} color="#ffffff" />
-              <Text className="text-white font-bold text-base ml-2">
+              <Ionicons name="lock-closed" size={18} color={canPay ? '#ffffff' : 'rgba(255,255,255,0.35)'} />
+              <Text style={{ color: canPay ? '#ffffff' : 'rgba(255,255,255,0.35)', fontWeight: '700', fontSize: 16, marginLeft: 8 }}>
                 Pagar ${total().toLocaleString('es-MX', { minimumFractionDigits: 2 })}
               </Text>
             </>

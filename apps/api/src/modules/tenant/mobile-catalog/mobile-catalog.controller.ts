@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query, Req, UseGuards } from '@nestjs/common';
 import { MobileCatalogService } from './mobile-catalog.service';
 
-@Controller('api/v1/mobile')
+@Controller('mobile')
 export class MobileCatalogController {
   constructor(private readonly service: MobileCatalogService) {}
 

@@ -30,6 +30,7 @@ interface AuthState {
   hydrate: () => Promise<void>;
   login: (token: string, employee: EmployeeSession, tenant: TenantSession) => Promise<void>;
   logout: () => Promise<void>;
+  setBranchId: (branchId: string) => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -74,5 +75,16 @@ export const useAuthStore = create<AuthState>((set) => ({
       SecureStore.deleteItemAsync(SESSION_KEY),
     ]);
     set({ token: null, employee: null, tenant: null });
+  },
+
+  setBranchId: async (branchId: string) => {
+    const state = useAuthStore.getState();
+    if (!state.employee) return;
+    const updated = { ...state.employee, branch_id: branchId };
+    set({ employee: updated });
+    await SecureStore.setItemAsync(
+      SESSION_KEY,
+      JSON.stringify({ employee: updated, tenant: state.tenant }),
+    );
   },
 }));

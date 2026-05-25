@@ -1,5 +1,4 @@
 import { useMutation } from '@tanstack/react-query';
-import { Alert } from 'react-native';
 import { api } from '../api/client';
 import { useAuthStore, type EmployeeSession, type TenantSession } from '../stores/auth.store';
 
@@ -32,10 +31,6 @@ export function useEmployeeLogin() {
     onSuccess: async (data) => {
       await login(data.access_token, data.user, data.tenant);
     },
-    onError: (err: any) => {
-      const msg = err.response?.data?.message ?? 'Credenciales inválidas';
-      Alert.alert('Error de autenticación', msg);
-    },
   });
 }
 
@@ -49,10 +44,6 @@ export function usePinLogin() {
     },
     onSuccess: async (data) => {
       await login(data.access_token, data.user, data.tenant);
-    },
-    onError: (err: any) => {
-      const msg = err.response?.data?.message ?? 'PIN inválido';
-      Alert.alert('Error', msg);
     },
   });
 }

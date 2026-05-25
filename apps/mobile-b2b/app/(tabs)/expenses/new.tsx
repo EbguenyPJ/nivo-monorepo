@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack } from 'expo-router';
 import { useUploadExpense, useExpenseCategories } from '../../../src/hooks/use-expenses';
 import { useAuthStore } from '../../../src/stores/auth.store';
@@ -31,7 +32,7 @@ export default function NewExpenseScreen() {
   const takePhoto = async () => {
     const permResult = await ImagePicker.requestCameraPermissionsAsync();
     if (!permResult.granted) {
-      Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara para tomar foto del ticket.');
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la camara para tomar foto del ticket.');
       return;
     }
 
@@ -50,7 +51,7 @@ export default function NewExpenseScreen() {
   const pickFromGallery = async () => {
     const permResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permResult.granted) {
-      Alert.alert('Permiso denegado', 'Se necesita acceso a la galería.');
+      Alert.alert('Permiso denegado', 'Se necesita acceso a la galeria.');
       return;
     }
 
@@ -68,20 +69,20 @@ export default function NewExpenseScreen() {
 
   const handleSubmit = () => {
     if (!branchId) {
-      Alert.alert('Error', 'No se detectó la sucursal activa.');
+      Alert.alert('Error', 'No se detecto la sucursal activa.');
       return;
     }
     if (!categoryId) {
-      Alert.alert('Campo requerido', 'Selecciona una categoría.');
+      Alert.alert('Campo requerido', 'Selecciona una categoria.');
       return;
     }
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      Alert.alert('Monto inválido', 'Ingresa un monto mayor a $0.');
+      Alert.alert('Monto invalido', 'Ingresa un monto mayor a $0.');
       return;
     }
     if (!description.trim()) {
-      Alert.alert('Campo requerido', 'Agrega una descripción del gasto.');
+      Alert.alert('Campo requerido', 'Agrega una descripcion del gasto.');
       return;
     }
 
@@ -113,7 +114,8 @@ export default function NewExpenseScreen() {
       />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1 bg-slate-950"
+        className="flex-1"
+        style={{ backgroundColor: '#020617' }}
       >
         <ScrollView
           className="flex-1 px-6 pt-4"
@@ -121,9 +123,9 @@ export default function NewExpenseScreen() {
           keyboardShouldPersistTaps="handled"
         >
           {/* Category selector */}
-          <Text className="text-slate-400 text-sm mb-3 ml-1">Categoría</Text>
+          <Text style={{ color: '#64748b' }} className="text-sm mb-3 ml-1">Categoria</Text>
           {catLoading ? (
-            <ActivityIndicator color="#6366f1" className="my-4" />
+            <ActivityIndicator color="#0ea5e9" className="my-4" />
           ) : (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-5">
               {categories
@@ -131,17 +133,17 @@ export default function NewExpenseScreen() {
                 .map((cat) => (
                   <TouchableOpacity
                     key={cat.id}
-                    className={`px-5 py-3 rounded-xl mr-3 border ${
+                    style={
                       categoryId === cat.id
-                        ? 'bg-brand border-brand-light'
-                        : 'bg-slate-900 border-slate-800'
-                    }`}
+                        ? { backgroundColor: 'rgba(14,165,233,0.20)', borderColor: '#0ea5e9', borderWidth: 1, borderRadius: 16 }
+                        : { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderRadius: 16 }
+                    }
+                    className="px-5 py-3 mr-3"
                     onPress={() => setCategoryId(cat.id)}
                   >
                     <Text
-                      className={`font-semibold ${
-                        categoryId === cat.id ? 'text-white' : 'text-slate-400'
-                      }`}
+                      className="font-semibold"
+                      style={{ color: categoryId === cat.id ? '#22d3ee' : '#94a3b8' }}
                     >
                       {cat.name}
                     </Text>
@@ -150,9 +152,9 @@ export default function NewExpenseScreen() {
             </ScrollView>
           )}
 
-          {/* Amount */}
-          <Text className="text-slate-400 text-sm mb-2 ml-1">Monto</Text>
-          <View className="flex-row items-center bg-slate-900 rounded-xl border border-slate-800 mb-5">
+          {/* Amount - glass input */}
+          <Text style={{ color: '#64748b' }} className="text-sm mb-2 ml-1">Monto</Text>
+          <View style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderRadius: 16 }} className="flex-row items-center mb-5">
             <Text className="text-slate-500 text-2xl pl-4">$</Text>
             <TextInput
               className="flex-1 text-white text-2xl font-bold px-3 py-4"
@@ -165,14 +167,15 @@ export default function NewExpenseScreen() {
           </View>
 
           {/* Payment source */}
-          <Text className="text-slate-400 text-sm mb-3 ml-1">Fuente de pago</Text>
+          <Text style={{ color: '#64748b' }} className="text-sm mb-3 ml-1">Fuente de pago</Text>
           <View className="flex-row gap-3 mb-5">
             <TouchableOpacity
-              className={`flex-1 py-4 rounded-xl items-center border ${
+              className="flex-1 py-4 items-center"
+              style={
                 paymentSource === 'cash'
-                  ? 'bg-emerald-600/20 border-emerald-500'
-                  : 'bg-slate-900 border-slate-800'
-              }`}
+                  ? { backgroundColor: 'rgba(16,185,129,0.12)', borderColor: '#059669', borderWidth: 1, borderRadius: 16 }
+                  : { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderRadius: 16 }
+              }
               onPress={() => setPaymentSource('cash')}
             >
               <Ionicons
@@ -181,19 +184,19 @@ export default function NewExpenseScreen() {
                 color={paymentSource === 'cash' ? '#34d399' : '#64748b'}
               />
               <Text
-                className={`mt-1 font-semibold ${
-                  paymentSource === 'cash' ? 'text-emerald-400' : 'text-slate-500'
-                }`}
+                className="mt-1 font-semibold"
+                style={{ color: paymentSource === 'cash' ? '#34d399' : '#64748b' }}
               >
                 Efectivo
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              className={`flex-1 py-4 rounded-xl items-center border ${
+              className="flex-1 py-4 items-center"
+              style={
                 paymentSource === 'bank'
-                  ? 'bg-blue-600/20 border-blue-500'
-                  : 'bg-slate-900 border-slate-800'
-              }`}
+                  ? { backgroundColor: 'rgba(59,130,246,0.12)', borderColor: '#3b82f6', borderWidth: 1, borderRadius: 16 }
+                  : { backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderRadius: 16 }
+              }
               onPress={() => setPaymentSource('bank')}
             >
               <Ionicons
@@ -202,19 +205,19 @@ export default function NewExpenseScreen() {
                 color={paymentSource === 'bank' ? '#60a5fa' : '#64748b'}
               />
               <Text
-                className={`mt-1 font-semibold ${
-                  paymentSource === 'bank' ? 'text-blue-400' : 'text-slate-500'
-                }`}
+                className="mt-1 font-semibold"
+                style={{ color: paymentSource === 'bank' ? '#60a5fa' : '#64748b' }}
               >
                 Banco
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Description */}
-          <Text className="text-slate-400 text-sm mb-2 ml-1">Descripción</Text>
+          {/* Description - glass input */}
+          <Text style={{ color: '#64748b' }} className="text-sm mb-2 ml-1">Descripcion</Text>
           <TextInput
-            className="bg-slate-900 text-white text-base px-4 py-4 rounded-xl border border-slate-800 mb-5"
+            style={{ backgroundColor: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderRadius: 16, minHeight: 80 }}
+            className="text-white text-base px-4 py-4 mb-5"
             placeholder="Ej: Limpieza de sucursal"
             placeholderTextColor="#475569"
             value={description}
@@ -222,73 +225,79 @@ export default function NewExpenseScreen() {
             multiline
             numberOfLines={3}
             textAlignVertical="top"
-            style={{ minHeight: 80 }}
           />
 
           {/* Receipt photo */}
-          <Text className="text-slate-400 text-sm mb-3 ml-1">Foto del ticket (opcional)</Text>
+          <Text style={{ color: '#64748b' }} className="text-sm mb-3 ml-1">Foto del ticket (opcional)</Text>
           {receiptUri ? (
             <View className="mb-5">
               <Image
                 source={{ uri: receiptUri }}
-                className="w-full h-64 rounded-xl"
+                style={{ borderRadius: 20 }}
+                className="w-full h-64"
                 resizeMode="cover"
               />
               <View className="flex-row gap-3 mt-3">
                 <TouchableOpacity
-                  className="flex-1 bg-slate-900 border border-slate-800 py-3 rounded-xl items-center flex-row justify-center"
+                  className="flex-1 py-3 items-center flex-row justify-center"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderRadius: 16 }}
                   onPress={takePhoto}
                 >
-                  <Ionicons name="camera" size={20} color="#818cf8" />
-                  <Text className="text-brand-light ml-2 font-semibold">Retomar</Text>
+                  <Ionicons name="camera" size={20} color="#22d3ee" />
+                  <Text style={{ color: '#22d3ee' }} className="ml-2 font-semibold">Retomar</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  className="flex-1 bg-red-900/30 border border-red-800 py-3 rounded-xl items-center flex-row justify-center"
+                  className="flex-1 py-3 items-center flex-row justify-center"
+                  style={{ backgroundColor: 'rgba(239,68,68,0.10)', borderColor: 'rgba(239,68,68,0.25)', borderWidth: 1, borderRadius: 16 }}
                   onPress={() => setReceiptUri(null)}
                 >
                   <Ionicons name="trash" size={20} color="#f87171" />
-                  <Text className="text-red-400 ml-2 font-semibold">Eliminar</Text>
+                  <Text style={{ color: '#f87171' }} className="ml-2 font-semibold">Eliminar</Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <View className="flex-row gap-3 mb-5">
               <TouchableOpacity
-                className="flex-1 bg-slate-900 border border-dashed border-slate-700 rounded-xl py-8 items-center"
+                className="flex-1 py-8 items-center"
+                style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderStyle: 'dashed', borderRadius: 20 }}
                 onPress={takePhoto}
               >
-                <Ionicons name="camera" size={32} color="#818cf8" />
-                <Text className="text-brand-light mt-2 font-semibold">Tomar Foto</Text>
+                <Ionicons name="camera" size={32} color="#22d3ee" />
+                <Text style={{ color: '#22d3ee' }} className="mt-2 font-semibold">Tomar Foto</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                className="flex-1 bg-slate-900 border border-dashed border-slate-700 rounded-xl py-8 items-center"
+                className="flex-1 py-8 items-center"
+                style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderStyle: 'dashed', borderRadius: 20 }}
                 onPress={pickFromGallery}
               >
-                <Ionicons name="images" size={32} color="#818cf8" />
-                <Text className="text-brand-light mt-2 font-semibold">Galería</Text>
+                <Ionicons name="images" size={32} color="#22d3ee" />
+                <Text style={{ color: '#22d3ee' }} className="mt-2 font-semibold">Galeria</Text>
               </TouchableOpacity>
             </View>
           )}
         </ScrollView>
 
         {/* Submit button */}
-        <View className="absolute bottom-0 left-0 right-0 px-6 pb-8 pt-4 bg-slate-950">
+        <View className="absolute bottom-0 left-0 right-0 px-6 pb-8 pt-4" style={{ backgroundColor: '#020617' }}>
           <TouchableOpacity
-            className={`py-5 rounded-xl items-center flex-row justify-center ${
-              uploadMutation.isPending ? 'bg-brand-dark' : 'bg-brand'
-            }`}
             onPress={handleSubmit}
             disabled={uploadMutation.isPending}
             activeOpacity={0.8}
           >
-            {uploadMutation.isPending ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={24} color="#ffffff" />
-                <Text className="text-white text-lg font-bold ml-2">Registrar Gasto</Text>
-              </>
-            )}
+            <LinearGradient
+              colors={uploadMutation.isPending ? ['#0284c7', '#0e7490'] : ['#0ea5e9', '#06b6d4']}
+              style={{ borderRadius: 16, paddingVertical: 18, alignItems: 'center', flexDirection: 'row', justifyContent: 'center' }}
+            >
+              {uploadMutation.isPending ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-circle" size={24} color="#ffffff" />
+                  <Text className="text-white text-lg font-bold ml-2">Registrar Gasto</Text>
+                </>
+              )}
+            </LinearGradient>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

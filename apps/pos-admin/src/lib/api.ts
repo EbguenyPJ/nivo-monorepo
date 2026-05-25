@@ -26,6 +26,7 @@ const BRANCH_EXCLUDED_PATHS = [
   '/layaways',
   '/credit-accounts',
   '/dashboard',
+  '/orders',
   '/expenses',
   '/tenant-integrations',
   '/tenant-support',

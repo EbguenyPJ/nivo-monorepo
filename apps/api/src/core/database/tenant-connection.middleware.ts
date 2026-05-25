@@ -42,12 +42,11 @@ export class TenantConnectionMiddleware implements NestMiddleware {
   }
 
   private extractSubdomain(req: Request): string | null {
-    // From header (useful for development)
     const tenantHeader = req.headers['x-tenant-id'] as string;
     if (tenantHeader) return tenantHeader;
 
-    // From hostname
     const host = req.hostname;
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) return null;
     const parts = host.split('.');
     if (parts.length >= 3) {
       return parts[0];

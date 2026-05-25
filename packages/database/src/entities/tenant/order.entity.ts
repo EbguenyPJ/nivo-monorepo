@@ -84,8 +84,20 @@ export class Order {
   @JoinColumn({ name: 'pickup_branch_id' })
   pickup_branch: Branch | null;
 
+  @Column({ type: 'uuid', nullable: true })
+  shipping_method_id: string | null;
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+  shipping_cost: number;
+
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  @Column({ type: 'varchar', length: 200, nullable: true })
+  pickup_location: string | null;
+
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  signature_url: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
   paid_at: Date | null;

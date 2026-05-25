@@ -93,6 +93,20 @@ export class DashboardController {
     });
   }
 
+  @Get('customer-heatmap')
+  getCustomerHeatmap(
+    @Req() req: any,
+    @Query('branch_id') branchId?: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.dashboardService.getCustomerHeatmap(req.tenantConnection, {
+      branch_id: branchId,
+      start_date: startDate,
+      end_date: endDate,
+    });
+  }
+
   /** Profitability drill-down report, groupable by brand/collection/seller */
   @Get('profitability-report')
   getProfitabilityReport(

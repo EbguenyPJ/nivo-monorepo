@@ -40,7 +40,10 @@ interface BranchRow { branch_id: string; branch_name: string; total_revenue: num
 // ─── Helpers ──────────────────────────────────────────────────────
 
 function formatShortDate(dateStr: string) {
-  const d = new Date(dateStr + 'T00:00:00');
+  // dateStr may be ISO "2026-05-01T06:00:00.000Z" or plain "2026-05-01"
+  const raw = typeof dateStr === 'string' ? dateStr.split('T')[0] : String(dateStr).split('T')[0];
+  const d = new Date(raw + 'T00:00:00');
+  if (isNaN(d.getTime())) return dateStr; // fallback
   return d.toLocaleDateString('es-MX', { day: '2-digit', month: 'short' });
 }
 function formatCompact(n: number) {

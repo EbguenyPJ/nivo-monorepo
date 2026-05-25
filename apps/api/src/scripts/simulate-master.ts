@@ -109,8 +109,8 @@ const addDays = (d: Date, days: number) => new Date(d.getTime() + days * 8640000
 const addHours = (d: Date, hours: number) => new Date(d.getTime() + hours * 3600000);
 const daysBetween = (a: Date, b: Date) => Math.floor((b.getTime() - a.getTime()) / 86400000);
 
-const TODAY = new Date('2026-05-20T23:59:59');
-const LIVE_CUTOFF = new Date('2026-05-17T00:00:00');
+const TODAY = new Date('2026-05-24T23:59:59');
+const LIVE_CUTOFF = new Date('2026-05-20T00:00:00');
 
 const LIVE_EMAIL_RECIPIENT = 'nivo.demo2@gmail.com';
 const LIVE_WHATSAPP_RECIPIENT = '+522228124824';
@@ -341,6 +341,7 @@ const COLLECTIONS_DATA = [
 ];
 
 const TENANT_PROFILES = [
+  // ── Tenant 1: Calzados El Paso (legacy, 6 months, corporativo, 3 branches) ──
   {
     name: 'Calzados El Paso',
     subdomain: 'elpaso',
@@ -361,6 +362,23 @@ const TENANT_PROFILES = [
       { plan: 'corporativo', date: new Date('2026-04-01') },
     ],
   },
+  // ── Tenant 2: Sneaker Hub (heavy_mobile, 4+ months, profesional, 2 branches) ──
+  {
+    name: 'Sneaker Hub',
+    subdomain: 'sneakerhub',
+    created_at: new Date('2026-01-15'),
+    plan: 'profesional',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=SneakerHub&backgroundColor=059669&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#059669',
+    accent_color: '#34D399',
+    branches: [
+      { name: 'Hub Monterrey', code: 'SH-MTY', ...MEXICO_CITIES[3] },
+      { name: 'Hub Querétaro', code: 'SH-QRO', ...MEXICO_CITIES[4] },
+    ],
+    profile: 'heavy_mobile',
+    subscription_changes: [],
+  },
+  // ── Tenant 3: Zapatería Nova (growth, 3.5 months, profesional, 2 branches) ──
   {
     name: 'Zapatería Nova',
     subdomain: 'nova',
@@ -376,6 +394,7 @@ const TENANT_PROFILES = [
     profile: 'growth',
     subscription_changes: [],
   },
+  // ── Tenant 4: Foot Paradise (churn, started Mar, cancelled mid-Apr) ──
   {
     name: 'Foot Paradise',
     subdomain: 'footparadise',
@@ -391,20 +410,199 @@ const TENANT_PROFILES = [
     subscription_changes: [],
     churn_date: new Date('2026-04-15'),
   },
+  // ── Tenant 5: Calzado León (legacy, 5.5 months, corporativo, 4 branches — biggest) ──
   {
-    name: 'Sneaker Hub',
-    subdomain: 'sneakerhub',
-    created_at: new Date('2026-01-15'),
-    plan: 'profesional',
-    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=SneakerHub&backgroundColor=059669&textColor=ffffff&fontSize=42&fontWeight=600',
-    primary_color: '#059669',
-    accent_color: '#34D399',
+    name: 'Calzado León',
+    subdomain: 'calzadoleon',
+    created_at: new Date('2025-12-10'),
+    plan: 'corporativo',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=CalzadoLeon&backgroundColor=854d0e&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#854d0e',
+    accent_color: '#d97706',
     branches: [
-      { name: 'Hub Monterrey', code: 'SH-MTY', ...MEXICO_CITIES[3] },
-      { name: 'Hub Querétaro', code: 'SH-QRO', ...MEXICO_CITIES[4] },
+      { name: 'León Centro', code: 'CL-CTR', ...MEXICO_CITIES[7] },
+      { name: 'León Plaza Mayor', code: 'CL-PLZ', city: 'León', state: 'Guanajuato', zip: '37150', lat: 21.1350, lng: -101.6700 },
+      { name: 'Irapuato', code: 'CL-IRA', city: 'Irapuato', state: 'Guanajuato', zip: '36500', lat: 20.6767, lng: -101.3478 },
+      { name: 'Celaya', code: 'CL-CEL', city: 'Celaya', state: 'Guanajuato', zip: '38000', lat: 20.5234, lng: -100.8157 },
+    ],
+    profile: 'legacy',
+    subscription_changes: [
+      { plan: 'profesional', date: new Date('2025-12-10') },
+      { plan: 'corporativo', date: new Date('2026-03-01') },
+    ],
+  },
+  // ── Tenant 6: Zapatos Mérida (growth, 4 months, profesional, 2 branches) ──
+  {
+    name: 'Zapatos Mérida',
+    subdomain: 'zapatosmerida',
+    created_at: new Date('2026-01-20'),
+    plan: 'profesional',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=ZapatosMerida&backgroundColor=0891b2&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#0891b2',
+    accent_color: '#22d3ee',
+    branches: [
+      { name: 'Centro Mérida', code: 'ZM-CTR', ...MEXICO_CITIES[6] },
+      { name: 'Gran Plaza', code: 'ZM-GPZ', city: 'Mérida', state: 'Yucatán', zip: '97133', lat: 20.9800, lng: -89.6200 },
+    ],
+    profile: 'growth',
+    subscription_changes: [],
+  },
+  // ── Tenant 7: Pasos Firmes (heavy_mobile, 3 months, profesional, 3 branches) ──
+  {
+    name: 'Pasos Firmes',
+    subdomain: 'pasosfirmes',
+    created_at: new Date('2026-02-15'),
+    plan: 'profesional',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=PasosFirmes&backgroundColor=7c3aed&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#7c3aed',
+    accent_color: '#a78bfa',
+    branches: [
+      { name: 'CDMX Polanco', code: 'PF-POL', city: 'CDMX', state: 'Ciudad de México', zip: '11560', lat: 19.4332, lng: -99.1956 },
+      { name: 'CDMX Coyoacán', code: 'PF-COY', city: 'CDMX', state: 'Ciudad de México', zip: '04000', lat: 19.3497, lng: -99.1620 },
+      { name: 'Toluca Centro', code: 'PF-TOL', city: 'Toluca', state: 'Estado de México', zip: '50000', lat: 19.2826, lng: -99.6557 },
     ],
     profile: 'heavy_mobile',
     subscription_changes: [],
+  },
+  // ── Tenant 8: Oaxaca Shoes (growth, 2.5 months, basico → profesional, 1 branch) ──
+  {
+    name: 'Oaxaca Shoes',
+    subdomain: 'oaxacashoes',
+    created_at: new Date('2026-03-05'),
+    plan: 'profesional',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=OaxacaShoes&backgroundColor=be185d&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#be185d',
+    accent_color: '#f472b6',
+    branches: [
+      { name: 'Centro Oaxaca', code: 'OX-CTR', ...MEXICO_CITIES[5] },
+    ],
+    profile: 'growth',
+    subscription_changes: [
+      { plan: 'basico', date: new Date('2026-03-05') },
+      { plan: 'profesional', date: new Date('2026-04-15') },
+    ],
+  },
+  // ── Tenant 9: Zapaterías del Valle (legacy, 5 months, corporativo, 3 branches) ──
+  {
+    name: 'Zapaterías del Valle',
+    subdomain: 'delvalle',
+    created_at: new Date('2025-12-20'),
+    plan: 'corporativo',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=DelValle&backgroundColor=166534&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#166534',
+    accent_color: '#4ade80',
+    branches: [
+      { name: 'Monterrey Valle', code: 'DV-VLL', ...MEXICO_CITIES[3] },
+      { name: 'Monterrey San Pedro', code: 'DV-SPD', city: 'San Pedro Garza García', state: 'Nuevo León', zip: '66260', lat: 25.6580, lng: -100.3520 },
+      { name: 'Saltillo Centro', code: 'DV-SAL', city: 'Saltillo', state: 'Coahuila', zip: '25000', lat: 25.4230, lng: -100.9925 },
+    ],
+    profile: 'legacy',
+    subscription_changes: [
+      { plan: 'profesional', date: new Date('2025-12-20') },
+      { plan: 'corporativo', date: new Date('2026-02-15') },
+    ],
+  },
+  // ── Tenant 10: RunMX (heavy_mobile, 2 months, profesional, 2 branches — running specialty) ──
+  {
+    name: 'RunMX',
+    subdomain: 'runmx',
+    created_at: new Date('2026-03-20'),
+    plan: 'profesional',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=RunMX&backgroundColor=ea580c&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#ea580c',
+    accent_color: '#fb923c',
+    branches: [
+      { name: 'RunMX Condesa', code: 'RM-CON', city: 'CDMX', state: 'Ciudad de México', zip: '06140', lat: 19.4133, lng: -99.1750 },
+      { name: 'RunMX Guadalajara', code: 'RM-GDL', ...MEXICO_CITIES[2] },
+    ],
+    profile: 'heavy_mobile',
+    subscription_changes: [],
+  },
+  // ── Tenant 11: Mundo Boots (growth, 4 months, basico, 1 branch — boot specialist) ──
+  {
+    name: 'Mundo Boots',
+    subdomain: 'mundoboots',
+    created_at: new Date('2026-01-25'),
+    plan: 'basico',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=MundoBoots&backgroundColor=78350f&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#78350f',
+    accent_color: '#b45309',
+    branches: [
+      { name: 'Boots Querétaro', code: 'MB-QRO', ...MEXICO_CITIES[4] },
+    ],
+    profile: 'growth',
+    subscription_changes: [],
+  },
+  // ── Tenant 12: Kidzapatos (growth, 1.5 months, basico, 1 branch — kids shoes) ──
+  {
+    name: 'Kidzapatos',
+    subdomain: 'kidzapatos',
+    created_at: new Date('2026-04-05'),
+    plan: 'basico',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Kidzapatos&backgroundColor=2563eb&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#2563eb',
+    accent_color: '#60a5fa',
+    branches: [
+      { name: 'KidZ Puebla', code: 'KZ-PUE', ...MEXICO_CITIES[0] },
+    ],
+    profile: 'growth',
+    subscription_changes: [],
+  },
+  // ── Tenant 13: Eleganza Calzado (legacy, 5.5 months, corporativo, 3 branches — premium) ──
+  {
+    name: 'Eleganza Calzado',
+    subdomain: 'eleganza',
+    created_at: new Date('2025-12-05'),
+    plan: 'corporativo',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=Eleganza&backgroundColor=1e1b4b&textColor=d4af37&fontSize=42&fontWeight=600',
+    primary_color: '#1e1b4b',
+    accent_color: '#d4af37',
+    branches: [
+      { name: 'Eleganza Santa Fe', code: 'EL-STF', city: 'CDMX', state: 'Ciudad de México', zip: '05348', lat: 19.3600, lng: -99.2700 },
+      { name: 'Eleganza Interlomas', code: 'EL-INT', city: 'Huixquilucan', state: 'Estado de México', zip: '52760', lat: 19.3950, lng: -99.2900 },
+      { name: 'Eleganza Pedregal', code: 'EL-PED', city: 'CDMX', state: 'Ciudad de México', zip: '10700', lat: 19.3100, lng: -99.2000 },
+    ],
+    profile: 'legacy',
+    subscription_changes: [
+      { plan: 'basico', date: new Date('2025-12-05') },
+      { plan: 'profesional', date: new Date('2026-01-15') },
+      { plan: 'corporativo', date: new Date('2026-03-01') },
+    ],
+  },
+  // ── Tenant 14: Deportes y Más (heavy_mobile, 1 month, prueba → basico, 1 branch — trial) ──
+  {
+    name: 'Deportes y Más',
+    subdomain: 'deportesymas',
+    created_at: new Date('2026-04-20'),
+    plan: 'basico',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=DeportesYMas&backgroundColor=0d9488&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#0d9488',
+    accent_color: '#5eead4',
+    branches: [
+      { name: 'DyM León', code: 'DM-LEO', ...MEXICO_CITIES[7] },
+    ],
+    profile: 'growth',
+    subscription_changes: [
+      { plan: 'prueba', date: new Date('2026-04-20') },
+      { plan: 'basico', date: new Date('2026-05-05') },
+    ],
+  },
+  // ── Tenant 15: ZapaTec (churn, started Feb, cancelled Apr, profesional, 2 branches) ──
+  {
+    name: 'ZapaTec',
+    subdomain: 'zapatec',
+    created_at: new Date('2026-02-10'),
+    plan: 'profesional',
+    logo: 'https://api.dicebear.com/9.x/initials/svg?seed=ZapaTec&backgroundColor=991b1b&textColor=ffffff&fontSize=42&fontWeight=600',
+    primary_color: '#991b1b',
+    accent_color: '#fca5a5',
+    branches: [
+      { name: 'ZapaTec Tijuana', code: 'ZT-TIJ', city: 'Tijuana', state: 'Baja California', zip: '22000', lat: 32.5149, lng: -117.0382 },
+      { name: 'ZapaTec Mexicali', code: 'ZT-MXL', city: 'Mexicali', state: 'Baja California', zip: '21000', lat: 32.6245, lng: -115.4523 },
+    ],
+    profile: 'churn',
+    subscription_changes: [],
+    churn_date: new Date('2026-04-25'),
   },
 ];
 
@@ -524,7 +722,7 @@ async function seedMaster(ds: DataSource) {
         logo_url: tp.logo,
         theme_settings: { primary_color: tp.primary_color, accent_color: (tp as any).accent_color || tp.primary_color },
         is_active: tp.profile !== 'churn',
-        rfc: `RFC${tp.subdomain.toUpperCase()}260101XX${rand(0, 9)}`,
+        rfc: `${tp.subdomain.toUpperCase().slice(0, 4)}010101XX${rand(0, 9)}`,
         razon_social: `${tp.name} S.A. de C.V.`,
         regimen_fiscal: '601',
         codigo_postal_fiscal: tp.branches[0].zip,
@@ -535,7 +733,7 @@ async function seedMaster(ds: DataSource) {
     count('tenants');
 
     // Subscription
-    const subStatus = tp.profile === 'churn' ? 'past_due' : 'active';
+    const subStatus = tp.profile === 'churn' ? 'canceled' : 'active';
     let sub = await subRepo.findOne({ where: { tenant_id: tenant.id } });
     if (!sub) {
       sub = subRepo.create({
@@ -700,6 +898,22 @@ async function createTenantDb(dbName: string): Promise<DataSource> {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       )`,
+      `ALTER TABLE customer_addresses ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)`,
+      `ALTER TABLE customer_addresses ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)`,
+      `ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_method_id UUID`,
+      `ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipping_cost DECIMAL(10,2) DEFAULT 0`,
+      `CREATE TABLE IF NOT EXISTS shipping_methods (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        base_cost DECIMAL(10,2) NOT NULL DEFAULT 0,
+        free_above DECIMAL(10,2),
+        is_active BOOLEAN DEFAULT true,
+        estimated_days_min INT,
+        estimated_days_max INT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )`,
     ];
     for (const sql of patches) {
       try { await tenantDs.query(sql); } catch (_) { /* ignore if already applied */ }
@@ -750,18 +964,23 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
   // ─── Branches ──────────────────────────────────────────────
   const branchRepo = ds.getRepository(Branch);
   const branchIds: string[] = [];
-  for (const b of tp.branches) {
+  const branchCreatedDates: Date[] = [];
+  for (let bi = 0; bi < tp.branches.length; bi++) {
+    const b = tp.branches[bi];
+    // First branch opens at tenant creation; subsequent branches open staggered over time
+    const branchOpenDate = bi === 0 ? tp.created_at : addDays(tp.created_at, bi * rand(20, 45));
     let branch = await branchRepo.findOne({ where: { code: b.code } });
     if (!branch) {
       branch = branchRepo.create({
         name: b.name, code: b.code, address: `Calle Principal #${rand(100, 999)}`,
         city: b.city, zip_code: b.zip, phone: `+52 ${rand(200, 999)} ${rand(100, 999)} ${rand(1000, 9999)}`,
         latitude: b.lat, longitude: b.lng, is_active: true,
-        created_at: tp.created_at,
+        created_at: branchOpenDate,
       });
       await branchRepo.save(branch);
     }
     branchIds.push(branch.id);
+    branchCreatedDates.push(branchOpenDate);
     count('branches');
   }
 
@@ -1193,18 +1412,51 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
       count('customer_auth');
     }
 
-    // Addresses
-    if (ci < 30) {
-      const loc = pick(MEXICO_CITIES);
-      const addrExists = await caddrRepo.findOne({ where: { customer_id: cust.id } });
-      if (!addrExists) {
+    // Addresses — every customer gets at least one address, bigger tenants get more variety
+    const loc = pick(MEXICO_CITIES);
+    const existingAddrs = await caddrRepo.find({ where: { customer_id: cust.id } });
+    if (existingAddrs.length === 0) {
+      // Primary address for every customer
+      const spread = 0.06;
+      const lat = loc.lat + (Math.random() - 0.5) * spread * 2;
+      const lng = loc.lng + (Math.random() - 0.5) * spread * 2;
+      await caddrRepo.save(caddrRepo.create({
+        customer_id: cust.id, label: pick(['Casa', 'Oficina', 'Trabajo', 'Casa mamá']),
+        street: `Av. ${pick(LAST_NAMES)} #${rand(100, 2000)}`,
+        neighborhood: `Col. ${pick(LAST_NAMES)}`,
+        city: loc.city, state: loc.state, zip_code: loc.zip,
+        country: 'Mexico', is_default: true,
+        latitude: parseFloat(lat.toFixed(7)),
+        longitude: parseFloat(lng.toFixed(7)),
+      }));
+      count('customer_addresses');
+
+      // Some customers get a second address
+      if (ci < 20 && Math.random() > 0.4) {
+        const loc2 = pick(MEXICO_CITIES);
+        const lat2 = loc2.lat + (Math.random() - 0.5) * 0.12;
+        const lng2 = loc2.lng + (Math.random() - 0.5) * 0.12;
         await caddrRepo.save(caddrRepo.create({
-          customer_id: cust.id, label: 'Casa',
-          street: `Av. ${pick(LAST_NAMES)} #${rand(100, 2000)}`,
+          customer_id: cust.id, label: pick(['Oficina', 'Casa mamá', 'Departamento', 'Trabajo']),
+          street: `Calle ${pick(FIRST_NAMES)} #${rand(1, 500)}`,
           neighborhood: `Col. ${pick(LAST_NAMES)}`,
-          city: loc.city, state: loc.state, zip_code: loc.zip,
-          country: 'Mexico', is_default: true,
+          city: loc2.city, state: loc2.state, zip_code: loc2.zip,
+          country: 'Mexico', is_default: false,
+          latitude: parseFloat(lat2.toFixed(7)),
+          longitude: parseFloat(lng2.toFixed(7)),
         }));
+        count('customer_addresses');
+      }
+    } else {
+      // Backfill existing addresses without coordinates
+      for (const addr of existingAddrs) {
+        if (!addr.latitude) {
+          const lat = loc.lat + (Math.random() - 0.5) * 0.12;
+          const lng = loc.lng + (Math.random() - 0.5) * 0.12;
+          addr.latitude = parseFloat(lat.toFixed(7));
+          addr.longitude = parseFloat(lng.toFixed(7));
+          await caddrRepo.save(addr);
+        }
       }
       count('customer_addresses');
     }
@@ -1244,7 +1496,7 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
   // ═══════════════════════════════════════════════════════════
   // CHRONOLOGICAL SIMULATION
   // ═══════════════════════════════════════════════════════════
-  console.log(`  📅 Simulating daily operations from ${tp.created_at.toISOString().split('T')[0]} to 2026-05-18...`);
+  console.log(`  📅 Simulating daily operations from ${tp.created_at.toISOString().split('T')[0]} to 2026-05-24...`);
 
   const saleRepo = ds.getRepository(Sale);
   const siRepo = ds.getRepository(SaleItem);
@@ -1320,7 +1572,10 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
     const profileMultiplier = tp.profile === 'legacy' ? 1.4 : tp.profile === 'heavy_mobile' ? 1.1 : tp.profile === 'churn' ? 0.6 : 0.9;
 
     // ─── Daily POS Sessions ──────────────────────────────
-    for (const bid of branchIds) {
+    for (let bIdx = 0; bIdx < branchIds.length; bIdx++) {
+      const bid = branchIds[bIdx];
+      // Skip branches that haven't opened yet (staggered opening dates)
+      if (currentDate < branchCreatedDates[bIdx]) continue;
       const branchEmployees = employees.filter(e => e.branch_id === bid);
       if (branchEmployees.length === 0) continue;
 
@@ -1929,6 +2184,97 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
     } catch { /* table may not exist */ }
   }
 
+  // ─── Ensure mobile-app customers have layaways & orders ──────
+  // Customers with customer_auth can log into the mobile B2C app.
+  // We guarantee each has at least 2 active layaways & 2 orders.
+  console.log(`  📱 Ensuring mobile customers have layaways & orders...`);
+  const mobileCustomers = [];
+  for (const cust of customers) {
+    const hasAuth = await ds.getRepository(CustomerAuth).findOne({ where: { customer_id: cust.id } });
+    if (hasAuth) mobileCustomers.push(cust);
+  }
+
+  let mobileEnsured = 0;
+  for (const cust of mobileCustomers) {
+    try {
+      // ─── Layaways ─────────────────────────────
+      const existingLayaways = await layRepo.count({ where: { customer_id: cust.id, status: 'active' as any } });
+      const layawaysNeeded = Math.max(0, 2 - existingLayaways);
+      for (let li = 0; li < layawaysNeeded; li++) {
+        const bid = pick(branchIds);
+        const emp = pick(employees.filter(e => e.branch_id === bid) || employees);
+        const layVariant = pick(allVariants);
+        const price = Number(layVariant.price_override) || 1500;
+        const downPay = parseFloat((price * 0.3).toFixed(2));
+        const createdDate = addDays(TODAY, -rand(5, 30));
+
+        const lay = await layRepo.save(layRepo.create({
+          customer_id: cust.id, branch_id: bid, employee_id: emp.id,
+          total_amount: price, down_payment: downPay,
+          balance_due: parseFloat((price - downPay).toFixed(2)),
+          status: 'active',
+          due_date: addDays(createdDate, 30),
+          created_at: createdDate,
+        }));
+
+        await liRepo.save(liRepo.create({
+          layaway_id: lay.id, variant_id: layVariant.id,
+          quantity: 1, unit_price: price, discount: 0, subtotal: price,
+        }));
+
+        await lpRepo.save(lpRepo.create({
+          layaway_id: lay.id, amount: downPay,
+          payment_method: 'cash',
+          employee_id: emp.id,
+          created_at: createdDate,
+        } as any));
+        count('layaways');
+        count('layaway_items');
+        count('layaway_payments');
+      }
+
+      // ─── Orders ───────────────────────────────
+      const existingOrders = await orderRepo.count({ where: { customer_id: cust.id } });
+      const ordersNeeded = Math.max(0, 2 - existingOrders);
+      for (let oi = 0; oi < ordersNeeded; oi++) {
+        const bid = pick(branchIds);
+        const variant = pick(allVariants);
+        const price = Number(variant.price_override) || 1500;
+        const fulfillment = pick(['bopis', 'delivery'] as const);
+        const activeStatuses: string[] = ['paid', 'picking', 'packed',
+          ...(fulfillment === 'bopis' ? ['ready_for_pickup'] : ['out_for_delivery'])];
+        const finalStatus = pick(activeStatuses);
+        const createdDate = addDays(TODAY, -rand(1, 10));
+        const addr = await caddrRepo.findOne({ where: { customer_id: cust.id } });
+
+        const order = await orderRepo.save(orderRepo.create({
+          customer_id: cust.id, branch_id: bid,
+          fulfillment_type: fulfillment as any, status: finalStatus as any,
+          total_amount: price, discount_amount: 0,
+          tax_amount: parseFloat((price * 0.16 / 1.16).toFixed(2)),
+          stripe_payment_intent_id: `pi_sim_${uuid().substring(0, 12)}`,
+          shipping_address: fulfillment === 'delivery' && addr
+            ? { street: addr.street, city: addr.city, state: addr.state, zip: addr.zip_code }
+            : null,
+          pickup_branch_id: fulfillment === 'bopis' ? bid : null,
+          paid_at: addHours(createdDate, rand(8, 14)),
+          created_at: addHours(createdDate, rand(7, 13)),
+        }));
+
+        await oiRepo.save(oiRepo.create({
+          order_id: order.id, variant_id: variant.id,
+          quantity: 1, unit_price: price, subtotal: price,
+        }));
+        count('orders');
+        count('order_items');
+      }
+      mobileEnsured++;
+    } catch (err: any) {
+      console.error(`  ⚠️ Failed to ensure data for ${cust.name}: ${err.message}`);
+    }
+  }
+  console.log(`  ✅ ${mobileEnsured}/${mobileCustomers.length} mobile customers ensured with layaways & orders`);
+
   console.log(`\n  ✅ Chronological simulation complete for ${tp.name}`);
   return { branchIds, employees, customers, allVariants, suppliers, payMethods, cashRegisters, expCategories, cancelReasons };
 }
@@ -1940,8 +2286,8 @@ async function seedTenant(ds: DataSource, tenant: Tenant & { _profile: typeof TE
 async function main() {
   console.log('╔══════════════════════════════════════════════════╗');
   console.log('║    🚀 NIVO MASTER SIMULATION SCRIPT             ║');
-  console.log('║    Populating 6 months of organic data          ║');
-  console.log('║    Target: 2026-05-20                           ║');
+  console.log('║    Populating 15 tenants × 6 months of data     ║');
+  console.log('║    Target: 2026-05-23                           ║');
   console.log('╚══════════════════════════════════════════════════╝');
 
   const startTime = Date.now();
@@ -2001,7 +2347,7 @@ async function main() {
     `**Execution Time:** ${elapsed}s`,
     `**Total Records Created:** ${totalRecords.toLocaleString()}`,
     `**Tenants Simulated:** ${TENANT_PROFILES.length}`,
-    `**Date Range:** 2025-12-01 → 2026-05-20`,
+    `**Date Range:** 2025-12-01 → 2026-05-24`,
     '',
     '## Records by Table',
     '',
@@ -2014,6 +2360,26 @@ async function main() {
     '## Tenant Profiles',
     '',
     ...TENANT_PROFILES.map(t => `- **${t.name}** (${t.subdomain}): Plan ${t.plan}, Profile: ${t.profile}, Branches: ${t.branches.length}`),
+    '',
+    '## Credentials',
+    '',
+    '### Super Admin',
+    '| Email | Password |',
+    '|-------|----------|',
+    '| admin@nivo.com | Admin123! |',
+    '| soporte@nivo.com | Soporte123! |',
+    '',
+    '### Employee Credentials (per tenant)',
+    '| Role | Email | Password | PIN |',
+    '|------|-------|----------|-----|',
+    '| Admin | admin@nivo.com | Nivo123! | 111111 |',
+    '| Manager | manager@nivo.com | Nivo123! | 222222 |',
+    '| Cajero 1 | empleado1@nivo.com | Nivo123! | 123456 |',
+    '| Cajero 2 | empleado2@nivo.com | Nivo123! | 654321 |',
+    '| Cajero 3+ | empleado{N}@nivo.com | Nivo123! | (random) |',
+    '',
+    '### Customer Credentials (mobile B2C app)',
+    '| Password for all | Client123! |',
     '',
     '## Coverage Checklist',
     '',
@@ -2047,7 +2413,7 @@ async function main() {
     '',
     `**Target Email:** ${LIVE_EMAIL_RECIPIENT}`,
     `**Target WhatsApp:** ${LIVE_WHATSAPP_RECIPIENT}`,
-    `**Live Date Range:** 2026-05-17 → 2026-05-20`,
+    `**Live Date Range:** 2026-05-20 → 2026-05-24`,
     '',
     '> Jobs are enqueued in BullMQ. The NestJS API server must be running to process them.',
     '> Email requires SMTP config (MAIL_HOST/MAIL_USER/MAIL_PASS).',

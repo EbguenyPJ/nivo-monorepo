@@ -1,7 +1,29 @@
 import { Tabs, Redirect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
+import { View, Text, StyleSheet } from 'react-native';
 import { useAuthStore } from '../../src/stores/auth.store';
 import { HeaderLogout } from '../../src/components/header-logout';
+import { BranchSelector } from '../../src/components/branch-selector';
+
+function TabBarBackground() {
+  return (
+    <BlurView
+      intensity={60}
+      tint="dark"
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
+
+function HeaderTitle({ title }: { title: string }) {
+  return (
+    <View style={{ alignItems: 'center' }}>
+      <Text style={{ color: '#f8fafc', fontWeight: '700', fontSize: 16 }}>{title}</Text>
+      <BranchSelector />
+    </View>
+  );
+}
 
 export default function TabsLayout() {
   const token = useAuthStore((s) => s.token);
@@ -14,28 +36,44 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         tabBarStyle: {
-          backgroundColor: '#0f172a',
-          borderTopColor: '#1e293b',
-          height: 88,
-          paddingBottom: 24,
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 80,
+          backgroundColor: 'rgba(15,23,42,0.95)',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(255,255,255,0.06)',
+          paddingBottom: 20,
           paddingTop: 8,
+          elevation: 20,
         },
-        tabBarActiveTintColor: '#818cf8',
-        tabBarInactiveTintColor: '#64748b',
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarBackground: () => <TabBarBackground />,
+        tabBarActiveTintColor: '#22d3ee',
+        tabBarInactiveTintColor: '#475569',
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         headerStyle: { backgroundColor: '#020617' },
         headerTintColor: '#f8fafc',
-        headerTitleStyle: { fontWeight: '700', fontSize: 18 },
         headerRight: () => <HeaderLogout />,
       }}
     >
       <Tabs.Screen
         name="scanner"
         options={{
-          title: 'Escáner',
-          headerTitle: 'Auditoría de Inventario',
+          title: 'Escaner',
+          headerTitle: () => <HeaderTitle title="Inventario" />,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="barcode-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="pickup"
+        options={{
+          title: 'Recoleccion',
+          headerTitle: () => <HeaderTitle title="Click & Collect" />,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bag-handle-outline" size={size} color={color} />
           ),
         }}
       />
@@ -43,7 +81,7 @@ export default function TabsLayout() {
         name="expenses"
         options={{
           title: 'Gastos',
-          headerTitle: 'Caja Chica',
+          headerTitle: () => <HeaderTitle title="Caja Chica" />,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="receipt-outline" size={size} color={color} />
           ),
@@ -53,7 +91,7 @@ export default function TabsLayout() {
         name="deliveries"
         options={{
           title: 'Entregas',
-          headerTitle: 'Entregas Pendientes',
+          headerTitle: () => <HeaderTitle title="Entregas" />,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="bicycle-outline" size={size} color={color} />
           ),

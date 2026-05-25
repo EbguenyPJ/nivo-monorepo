@@ -3,7 +3,7 @@ import { DataSource } from 'typeorm';
 import {
   Sale, SaleItem, ProductVariant, Product, Brand,
   Inventory, InventoryAudit, InventoryTransfer, InventoryAdjustment,
-  Employee,
+  Employee, CustomerAddress, Branch, Order,
 } from '@nivo/database';
 
 type Filters = { branch_id?: string; start_date?: string; end_date?: string };
@@ -523,5 +523,72 @@ export class DashboardService {
 
     const rows = await connection.query(sql, params);
     return rows.map((r: any) => ({ day: Number(r.day), hour: Number(r.hour), count: Number(r.count) }));
+  }
+
+  async getCustomerHeatmap(connection: DataSource, filters: {
+    start_date?: string;
+    end_date?: string;
+    branch_id?: string;
+  }) {
+    const params: any[] = [];
+    let idx = 1;
+
+    let sql = `
+      SELECT
+        ca.latitude::float AS lat,
+        ca.longitude::float AS lng,
+        COUNT(DISTINCT COALESCE(s.id, o.id))::int AS weight,
+        c.name AS customer_name
+      FROM customer_addresses ca
+      INNER JOIN customers c ON c.id = ca.customer_id
+      LEFT JOIN sales s ON s.customer_id = c.id AND s.status = 'completed'
+      LEFT JOIN orders o ON o.customer_id = c.id AND o.status NOT IN ('cancelled', 'pending_payment')
+      WHERE ca.latitude IS NOT NULL AND ca.longitude IS NOT NULL
+    `;
+
+    if (filters.branch_id) {
+      sql += ` AND (s.branch_id = $${idx} OR o.pickup_branch_id = $${idx} OR o.branch_id = $${idx})`;
+      params.push(filters.branch_id);
+      idx++;
+    }
+    if (filters.start_date) {
+      sql += ` AND (s.created_at >= $${idx} OR o.created_at >= $${idx})`;
+      params.push(filters.start_date);
+      idx++;
+    }
+    if (filters.end_date) {
+      sql += ` AND (s.created_at <= $${idx} OR o.created_at <= $${idx})`;
+      params.push(filters.end_date);
+      idx++;
+    }
+
+    sql += ` GROUP BY ca.latitude, ca.longitude, c.name
+             HAVING COUNT(DISTINCT COALESCE(s.id, o.id)) > 0
+             ORDER BY weight DESC`;
+
+    const points = await connection.query(sql, params);
+
+    const branches = await connection.getRepository(Branch).find({
+      select: ['id', 'name', 'address', 'city', 'latitude', 'longitude'],
+      where: { is_active: true },
+    });
+
+    return {
+      points: points.map((p: any) => ({
+        lat: p.lat,
+        lng: p.lng,
+        weight: p.weight,
+        customer_name: p.customer_name,
+      })),
+      branches: branches.map((b) => ({
+        id: b.id,
+        name: b.name,
+        address: b.address,
+        city: (b as any).city ?? null,
+        lat: b.latitude ? Number(b.latitude) : null,
+        lng: b.longitude ? Number(b.longitude) : null,
+      })),
+      total_mapped: points.length,
+    };
   }
 }
