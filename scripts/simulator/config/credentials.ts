@@ -1,13 +1,13 @@
 export const CREDENTIALS = {
   superAdmin: {
-    email: 'admin@nivo.com',
-    password: 'Superadmin1234!',
+    email: process.env.SUPER_ADMIN_EMAIL || 'admin@nivo.com',
+    password: process.env.SUPER_ADMIN_PASSWORD || 'ChangeMe123!',
     role: 'super-admin' as const,
   },
   demo: {
-    email: 'nivo.demo2@gmail.com',
-    emailPassword: 'NiVo241195!',
-    phone: '+522228124824',
+    email: process.env.DEMO_EMAIL || 'demo@nivo.com',
+    emailPassword: process.env.DEMO_EMAIL_PASSWORD || 'ChangeMe123!',
+    phone: process.env.DEMO_PHONE || '+520000000000',
   },
 };
 

@@ -45,5 +45,6 @@ redis-data/
 # Uploads
 uploads/
 
+.claude/
 CLAUDE.md
 commit.md
