@@ -364,6 +364,7 @@ export class RequisitionsService {
     connection: DataSource,
     id: string,
     employeeId: string,
+    skipPo = false,
   ): Promise<{ requisition: PurchaseRequisition; purchase_orders: PurchaseOrder[] }> {
     return connection.transaction(async (manager) => {
       const reqRepo = manager.getRepository(PurchaseRequisition);
@@ -375,61 +376,66 @@ export class RequisitionsService {
       if (req.status !== 'locked') throw new Error('Solo se pueden aprobar requisiciones bloqueadas');
       if (!req.items || req.items.length === 0) throw new Error('Requisición sin ítems');
 
-      // ─── Group items by supplier ────────────────────────────
-      const supplierGroups = new Map<string, RequisitionItem[]>();
-      const noSupplierItems: RequisitionItem[] = [];
-
-      for (const item of req.items) {
-        if (item.supplier_id) {
-          const group = supplierGroups.get(item.supplier_id) || [];
-          group.push(item);
-          supplierGroups.set(item.supplier_id, group);
-        } else {
-          noSupplierItems.push(item);
-        }
-      }
-
-      // Items without supplier go into a "sin proveedor" group — skip PO generation for these
-      if (noSupplierItems.length > 0) {
-        this.logger.warn(
-          `Requisition ${req.folio}: ${noSupplierItems.length} items have no supplier assigned — skipped for PO generation`,
-        );
-      }
-
-      // ─── Create Purchase Orders per supplier ────────────────
       const createdPOs: PurchaseOrder[] = [];
-      const poRepo = manager.getRepository(PurchaseOrder);
-      const poItemRepo = manager.getRepository(PurchaseOrderItem);
 
-      for (const [supplierId, items] of supplierGroups) {
-        const po = poRepo.create({
-          supplier_id: supplierId,
-          branch_id: req.branch_id,
-          status: 'draft',
-          created_by_id: employeeId,
-          requisition_id: req.id,
-          notes: `Generada automáticamente desde ${req.folio}`,
-        });
+      // ─── Generate Purchase Orders (skipped when skipPo=true) ──
+      // TODO: Re-enable PO generation by removing skip_po=true from the frontend call
+      if (!skipPo) {
+        // ─── Group items by supplier ────────────────────────────
+        const supplierGroups = new Map<string, RequisitionItem[]>();
+        const noSupplierItems: RequisitionItem[] = [];
 
-        const savedPO = await poRepo.save(po);
-
-        let totalCost = 0;
-        for (const item of items) {
-          const qty = item.override_quantity ?? item.suggested_quantity;
-          const cost = Number(item.estimated_cost);
-          const poItem = poItemRepo.create({
-            purchase_order_id: savedPO.id,
-            variant_id: item.variant_id,
-            ordered_quantity: qty,
-            unit_cost: cost,
-          });
-          await poItemRepo.save(poItem);
-          totalCost += qty * cost;
+        for (const item of req.items) {
+          if (item.supplier_id) {
+            const group = supplierGroups.get(item.supplier_id) || [];
+            group.push(item);
+            supplierGroups.set(item.supplier_id, group);
+          } else {
+            noSupplierItems.push(item);
+          }
         }
 
-        savedPO.total_cost = totalCost;
-        await poRepo.save(savedPO);
-        createdPOs.push(savedPO);
+        // Items without supplier go into a "sin proveedor" group — skip PO generation for these
+        if (noSupplierItems.length > 0) {
+          this.logger.warn(
+            `Requisition ${req.folio}: ${noSupplierItems.length} items have no supplier assigned — skipped for PO generation`,
+          );
+        }
+
+        // ─── Create Purchase Orders per supplier ────────────────
+        const poRepo = manager.getRepository(PurchaseOrder);
+        const poItemRepo = manager.getRepository(PurchaseOrderItem);
+
+        for (const [supplierId, items] of supplierGroups) {
+          const po = poRepo.create({
+            supplier_id: supplierId,
+            branch_id: req.branch_id,
+            status: 'draft',
+            created_by_id: employeeId,
+            requisition_id: req.id,
+            notes: `Generada automáticamente desde ${req.folio}`,
+          });
+
+          const savedPO = await poRepo.save(po);
+
+          let totalCost = 0;
+          for (const item of items) {
+            const qty = item.override_quantity ?? item.suggested_quantity;
+            const cost = Number(item.estimated_cost);
+            const poItem = poItemRepo.create({
+              purchase_order_id: savedPO.id,
+              variant_id: item.variant_id,
+              ordered_quantity: qty,
+              unit_cost: cost,
+            });
+            await poItemRepo.save(poItem);
+            totalCost += qty * cost;
+          }
+
+          savedPO.total_cost = totalCost;
+          await poRepo.save(savedPO);
+          createdPOs.push(savedPO);
+        }
       }
 
       // ─── Mark requisition as approved ───────────────────────
@@ -439,7 +445,9 @@ export class RequisitionsService {
       await reqRepo.save(req);
 
       // ─── Fire n8n webhooks (non-blocking) ───────────────────
-      this.fireWebhooks(connection, createdPOs, req);
+      if (createdPOs.length > 0) {
+        this.fireWebhooks(connection, createdPOs, req);
+      }
 
       const updatedReq = await this.getRequisitionDetail(connection, id);
       return { requisition: updatedReq, purchase_orders: createdPOs };
@@ -782,6 +790,7 @@ export class RequisitionsService {
     const drafts = await qb.clone().andWhere('req.status = :s', { s: 'draft' }).getCount();
     const locked = await qb.clone().andWhere('req.status = :s', { s: 'locked' }).getCount();
     const approved = await qb.clone().andWhere('req.status = :s', { s: 'approved' }).getCount();
+    const rejected = await qb.clone().andWhere('req.status = :s', { s: 'rejected' }).getCount();
 
     // Count variants below minimum
     const belowMinQb = invRepo.createQueryBuilder('inv')
@@ -789,6 +798,6 @@ export class RequisitionsService {
     if (branchId) belowMinQb.andWhere('inv.branch_id = :branchId', { branchId });
     const belowMinCount = await belowMinQb.getCount();
 
-    return { drafts, locked, approved, below_minimum: belowMinCount };
+    return { drafts, locked, approved, rejected, below_minimum: belowMinCount };
   }
 }

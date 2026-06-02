@@ -19,7 +19,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { useOrderDetail, useDeliverOrder, useTrackLocation } from '../../../src/hooks/use-deliveries';
+import { useOrderDetail, useDeliverOrder, useTrackLocation } from '../../src/hooks/use-deliveries';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SLIDER_PADDING = 48;

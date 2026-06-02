@@ -23,11 +23,13 @@ export default function RootLayout() {
             headerStyle: { backgroundColor: '#020617' },
             headerTintColor: '#f8fafc',
             headerTitleStyle: { fontWeight: '700' },
-            contentStyle: { backgroundColor: '#020617' },
           }}
         >
-          <Stack.Screen name="login" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false, contentStyle: { backgroundColor: '#020617' } }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+          <Stack.Screen name="pickup-order/[id]" options={{ headerTitle: 'Detalle Recoleccion' }} />
+          <Stack.Screen name="expense-new" options={{ headerTitle: 'Nuevo Gasto' }} />
+          <Stack.Screen name="delivery-order/[id]" options={{ headerTitle: 'Detalle Entrega' }} />
         </Stack>
       </QueryClientProvider>
     </GestureHandlerRootView>

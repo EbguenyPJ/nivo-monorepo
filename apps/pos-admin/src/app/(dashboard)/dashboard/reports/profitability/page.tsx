@@ -11,10 +11,12 @@ import { apiClient } from '@/lib/api';
 import { useBranchStore } from '@/store/branchStore';
 import { getThisMonthRange, formatCurrency } from '@/lib/date-utils';
 import { ExportButton } from '@/components/reports/ExportButton';
+import { ReportTabs } from '@/components/reports/ReportTabs';
 import {
-  ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis,
+  ScatterChart, Scatter, XAxis, YAxis,
   CartesianGrid, Tooltip, ReferenceLine, Cell,
 } from 'recharts';
+import { ChartContainer } from '@/components/charts/ChartContainer';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -94,22 +96,19 @@ export default function ProfitabilityReportPage() {
   const [data, setData] = useState<ProfitRow[]>([]);
 
   useEffect(() => {
-    const fetchData = async () => {
+    let cancelled = false;
+    const fetchData = async (sd: string, ed: string, gb: string, bid?: string) => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({
-          start_date: startDate,
-          end_date: endDate,
-          group_by: groupBy,
-          limit: '100',
-        });
-        if (branchId) params.set('branch_id', branchId);
+        const params = new URLSearchParams({ start_date: sd, end_date: ed, group_by: gb, limit: '100' });
+        if (bid) params.set('branch_id', bid);
         const res = await apiClient.get(`/dashboard/profitability-report?${params}`);
-        setData(res.data.items ?? []);
+        if (!cancelled) setData(res.data.items ?? []);
       } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+      finally { if (!cancelled) setLoading(false); }
     };
-    fetchData();
+    fetchData(startDate, endDate, groupBy, branchId);
+    return () => { cancelled = true; };
   }, [startDate, endDate, groupBy, branchId]);
 
   const avgUnits = data.length > 0 ? data.reduce((s, d) => s + d.units_sold, 0) / data.length : 0;
@@ -119,6 +118,7 @@ export default function ProfitabilityReportPage() {
 
   return (
     <div className="space-y-6">
+      <ReportTabs />
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -166,7 +166,7 @@ export default function ProfitabilityReportPage() {
               <QuadrantLabel x="right" y="bottom" text="Volumen bajo" sub="Alto volumen · margen estrecho" />
               <QuadrantLabel x="left" y="bottom" text="Liquidar" sub="Poco volumen · poco margen" />
 
-              <ResponsiveContainer width="100%" height={320}>
+              <ChartContainer height={320}>
                 <ScatterChart margin={{ top: 20, right: 30, bottom: 10, left: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
                   <XAxis type="number" dataKey="units_sold" name="Unidades" tick={{ fill: '#71717a', fontSize: 11 }}
@@ -182,7 +182,7 @@ export default function ProfitabilityReportPage() {
                     ))}
                   </Scatter>
                 </ScatterChart>
-              </ResponsiveContainer>
+              </ChartContainer>
 
               {/* Legend */}
               <div className="flex items-center justify-center gap-6 mt-2 text-xs text-zinc-400">

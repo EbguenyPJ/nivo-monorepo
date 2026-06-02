@@ -11,7 +11,7 @@ import {
 import {
   ClipboardList, RefreshCw, Lock, Unlock, CheckCircle2, Package,
   Loader2, ChevronDown, ChevronRight, AlertTriangle, Truck,
-  FileText, ArrowRight, Search, Plus, Minus, Trash2, Edit3, Mail,
+  FileText, ArrowRight, Search, Plus, Minus, Trash2, Edit3, Mail, XCircle,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { useBranchStore, GENERAL_BRANCH_ID } from '@/store/branchStore';
@@ -44,7 +44,7 @@ interface Requisition {
   id: string;
   folio_number: number;
   branch_id: string;
-  status: 'draft' | 'locked' | 'approved';
+  status: 'draft' | 'locked' | 'approved' | 'rejected';
   total_estimated_cost: number;
   total_items: number;
   notes: string | null;
@@ -63,6 +63,7 @@ interface Kpis {
   drafts: number;
   locked: number;
   approved: number;
+  rejected: number;
   below_minimum: number;
 }
 
@@ -72,6 +73,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   draft: { label: 'Borrador', color: 'bg-amber-500/10 text-amber-500 border-amber-500/20', icon: <Edit3 className="h-3 w-3" /> },
   locked: { label: 'En Revisión', color: 'bg-blue-500/10 text-blue-500 border-blue-500/20', icon: <Lock className="h-3 w-3" /> },
   approved: { label: 'Aprobada', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', icon: <CheckCircle2 className="h-3 w-3" /> },
+  rejected: { label: 'Rechazada', color: 'bg-red-500/10 text-red-500 border-red-500/20', icon: <XCircle className="h-3 w-3" /> },
 };
 
 function formatCurrency(n: number) {
@@ -334,9 +336,15 @@ export default function RequisitionsPage() {
                 </Button>
                 <Button onClick={handleApprove} disabled={transitioning} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
                   {transitioning ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                  Aprobar y Generar OC
+                  Aprobar
                 </Button>
               </>
+            )}
+            {isApproved && (
+              <Button disabled className="gap-1.5 bg-emerald-600/50 cursor-default">
+                <CheckCircle2 className="h-4 w-4" />
+                Aprobada
+              </Button>
             )}
           </div>
         </div>
@@ -543,12 +551,13 @@ export default function RequisitionsPage() {
 
       {/* KPIs */}
       {kpis && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-5 gap-4">
           {[
             { label: 'Borradores', value: kpis.drafts, color: 'text-amber-500' },
             { label: 'En Revisión', value: kpis.locked, color: 'text-blue-500' },
             { label: 'Aprobadas', value: kpis.approved, color: 'text-emerald-500' },
-            { label: 'Bajo Mínimo', value: kpis.below_minimum, color: 'text-red-500' },
+            { label: 'Rechazadas', value: kpis.rejected ?? 0, color: 'text-red-500' },
+            { label: 'Bajo Mínimo', value: kpis.below_minimum, color: 'text-orange-500' },
           ].map((kpi) => (
             <Card key={kpi.label}>
               <CardContent className="p-4">

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useAuthStore } from '../../../src/stores/auth.store';
+import { useAuthStore } from '../../src/stores/auth.store';
 
 export default function ExpensesIndex() {
   const employee = useAuthStore((s) => s.employee);
@@ -25,7 +25,7 @@ export default function ExpensesIndex() {
 
       {/* Gradient register button */}
       <TouchableOpacity
-        onPress={() => router.push('/(tabs)/expenses/new')}
+        onPress={() => router.push('/expense-new')}
         activeOpacity={0.8}
       >
         <LinearGradient

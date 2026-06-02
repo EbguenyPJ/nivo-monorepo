@@ -187,10 +187,18 @@ export function NibbitChat() {
         ),
       );
     } catch (err: any) {
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.message || err?.response?.data?.detail || '';
+      let errorMsg = 'Lo siento, ocurrió un error al procesar tu consulta. Intenta de nuevo.';
+      if (status === 403) {
+        errorMsg = detail || 'Nibbit no está disponible en tu plan actual. Contacta a soporte para activarlo.';
+      } else if (status === 400) {
+        errorMsg = 'No se pudo conectar con el contexto de tu negocio. Intenta recargar la página.';
+      }
       setMessages(prev =>
         prev.map(m =>
           m.id === loadingMsg.id
-            ? { ...m, content: 'Lo siento, ocurrió un error al procesar tu consulta. Intenta de nuevo.', loading: false }
+            ? { ...m, content: errorMsg, loading: false }
             : m,
         ),
       );
@@ -339,11 +347,19 @@ export function NibbitChat() {
               <textarea
                 ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  // Auto-resize: reset to 1 row then grow up to 2 lines
+                  const el = e.target;
+                  el.style.height = 'auto';
+                  const lineHeight = parseInt(getComputedStyle(el).lineHeight) || 20;
+                  el.style.height = `${Math.min(el.scrollHeight, lineHeight * 2)}px`;
+                }}
                 onKeyDown={handleKeyDown}
                 placeholder="Pregunta a Nibbit..."
                 rows={1}
-                className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 resize-none outline-none max-h-24"
+                className="flex-1 bg-transparent text-sm text-white placeholder:text-white/30 resize-none outline-none leading-5"
+                style={{ maxHeight: '2.5rem' }}
                 disabled={sending}
               />
               <button

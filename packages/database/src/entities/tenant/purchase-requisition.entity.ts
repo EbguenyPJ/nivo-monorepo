@@ -17,6 +17,7 @@ import { RequisitionItem } from './requisition-item.entity';
  * Answers: "What merchandise does this branch need to reach max stock?"
  *
  * State machine: draft → locked → approved → (generates POs)
+ *                              └→ rejected
  */
 @Entity('purchase_requisitions')
 export class PurchaseRequisition {
@@ -36,10 +37,10 @@ export class PurchaseRequisition {
 
   @Column({
     type: 'enum',
-    enum: ['draft', 'locked', 'approved'],
+    enum: ['draft', 'locked', 'approved', 'rejected'],
     default: 'draft',
   })
-  status: 'draft' | 'locked' | 'approved';
+  status: 'draft' | 'locked' | 'approved' | 'rejected';
 
   /** Total estimated cost (sum of items qty * estimated_cost) */
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })

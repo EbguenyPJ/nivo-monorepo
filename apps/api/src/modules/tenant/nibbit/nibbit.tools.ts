@@ -24,6 +24,7 @@ export interface ToolExecutionContext {
   pdfGeneratorService: PdfGeneratorService;
   s3Service: S3Service;
   genAI: GoogleGenerativeAI;
+  geminiModel: string;
   tenantId: string;
   tenantName: string;
   databaseName: string;
@@ -747,7 +748,7 @@ Devuelve SOLO el body del correo en HTML simple (usa <p>, <ul>, <li>, <strong>).
 
     let bodyHtml = '';
     try {
-      const model = ctx.genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+      const model = ctx.genAI.getGenerativeModel({ model: ctx.geminiModel });
       const result = await model.generateContent(emailPrompt);
       bodyHtml = result.response.text();
     } catch (err: any) {

@@ -11,6 +11,7 @@ import { Request } from 'express';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from '../../../core/auth/jwt-auth.guard';
+import { Public } from '../../../core/auth/public.decorator';
 import { TenantConnectionManager } from '../../../core/database/tenant-connection.manager';
 import { QUEUE_NAMES } from '../../../core/queue/queue.module';
 import { ExcelBuilderService, ReportType } from './services/excel-builder.service';
@@ -223,6 +224,7 @@ export class ReportsExportController {
 
   @Get('print-data')
   @SkipThrottle()
+  @Public()
   async getPrintData(
     @Query('token') token: string,
     @Query('report_type') reportType: string,

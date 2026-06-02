@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,18 +7,15 @@ import {
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
-import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera';
-import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { usePickupOrders, useScanPickupQR } from '../../../src/hooks/use-pickup';
+import { useDeliveryOrders } from '../../src/hooks/use-deliveries';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: string }> = {
   paid:             { label: 'Pagado',    color: '#60a5fa', bg: 'rgba(59,130,246,0.15)',  icon: 'card-outline' },
   picking:          { label: 'Surtiendo', color: '#fbbf24', bg: 'rgba(245,158,11,0.15)',  icon: 'search-outline' },
   packed:           { label: 'Empacado',  color: '#a78bfa', bg: 'rgba(139,92,246,0.15)',  icon: 'cube-outline' },
-  ready_for_pickup: { label: 'Listo',     color: '#34d399', bg: 'rgba(16,185,129,0.15)',  icon: 'checkmark-circle-outline' },
+  out_for_delivery: { label: 'En Camino', color: '#fb923c', bg: 'rgba(249,115,22,0.15)',  icon: 'bicycle-outline' },
 };
 
 const FILTER_OPTIONS = [
@@ -26,17 +23,12 @@ const FILTER_OPTIONS = [
   { key: 'paid', label: 'Pagados' },
   { key: 'picking', label: 'Surtiendo' },
   { key: 'packed', label: 'Empacados' },
-  { key: 'ready_for_pickup', label: 'Listos' },
+  { key: 'out_for_delivery', label: 'En Camino' },
 ];
 
-export default function PickupIndex() {
-  const [permission, requestPermission] = useCameraPermissions();
-  const [isScannerMode, setIsScannerMode] = useState(false);
+export default function DeliveriesIndex() {
   const [statusFilter, setStatusFilter] = useState('all');
-  const cooldownRef = useRef(false);
-
-  const { data: orders, isLoading, refetch, isRefetching } = usePickupOrders();
-  const scanMutation = useScanPickupQR();
+  const { data: orders, isLoading, refetch, isRefetching } = useDeliveryOrders();
 
   const filteredOrders = useMemo(() => {
     if (!orders) return [];
@@ -44,7 +36,6 @@ export default function PickupIndex() {
     return orders.filter((o) => o.status === statusFilter);
   }, [orders, statusFilter]);
 
-  // Count per status for badges
   const statusCounts = useMemo(() => {
     if (!orders) return {};
     const counts: Record<string, number> = { all: orders.length };
@@ -54,123 +45,10 @@ export default function PickupIndex() {
     return counts;
   }, [orders]);
 
-  const handleBarCodeScanned = useCallback(
-    (result: BarcodeScanningResult) => {
-      if (cooldownRef.current) return;
-      cooldownRef.current = true;
-
-      const orderId = result.data;
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      scanMutation.mutate(orderId, {
-        onSuccess: () => {
-          setIsScannerMode(false);
-          router.push(`/(tabs)/pickup/${orderId}`);
-        },
-        onSettled: () => {
-          setTimeout(() => {
-            cooldownRef.current = false;
-          }, 1500);
-        },
-      });
-    },
-    [scanMutation],
-  );
-
-  // Scanner mode
-  if (isScannerMode) {
-    if (!permission?.granted) {
-      return (
-        <View className="flex-1 items-center justify-center px-8" style={{ backgroundColor: '#020617' }}>
-          <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderRadius: 24 }} className="p-8 items-center">
-            <Ionicons name="camera-outline" size={64} color="#0ea5e9" />
-            <Text className="text-white text-xl font-bold mt-6 text-center">
-              Permiso de Camara Requerido
-            </Text>
-            <Text style={{ color: '#64748b' }} className="text-center mt-3 mb-8">
-              Nivo Staff necesita acceso a la camara para escanear codigos QR de recoleccion.
-            </Text>
-            <TouchableOpacity onPress={requestPermission} activeOpacity={0.8}>
-              <LinearGradient
-                colors={['#0ea5e9', '#06b6d4']}
-                style={{ borderRadius: 16, paddingVertical: 16, paddingHorizontal: 32 }}
-              >
-                <Text className="text-white text-lg font-bold">Permitir Camara</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className="mt-4 py-3 px-6"
-              onPress={() => setIsScannerMode(false)}
-            >
-              <Text style={{ color: '#64748b' }} className="font-semibold">Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
-    }
-
-    return (
-      <View className="flex-1" style={{ backgroundColor: '#020617' }}>
-        <CameraView
-          style={{ flex: 1 }}
-          facing="back"
-          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-          onBarcodeScanned={handleBarCodeScanned}
-        >
-          {/* Scan overlay */}
-          <View className="flex-1 items-center justify-center">
-            <View style={{ width: 256, height: 256, borderWidth: 2, borderColor: '#0ea5e9', borderRadius: 28 }} />
-            <View style={{ backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12, marginTop: 16, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}>
-              <Text className="text-white text-sm">Apunta al codigo QR del cliente</Text>
-            </View>
-          </View>
-
-          {/* Loading indicator */}
-          {scanMutation.isPending && (
-            <View className="absolute inset-0 items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
-              <ActivityIndicator size="large" color="#0ea5e9" />
-              <Text className="text-white font-bold mt-3">Verificando pedido...</Text>
-            </View>
-          )}
-
-          {/* Back button */}
-          <TouchableOpacity
-            style={{ backgroundColor: 'rgba(0,0,0,0.7)', borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)' }}
-            className="absolute top-12 left-6 p-3"
-            onPress={() => setIsScannerMode(false)}
-          >
-            <Ionicons name="arrow-back" size={24} color="#ffffff" />
-          </TouchableOpacity>
-        </CameraView>
-      </View>
-    );
-  }
-
-  // List mode
   return (
     <View className="flex-1" style={{ backgroundColor: '#020617' }}>
-      {/* Scan QR button */}
-      <View className="px-6 pt-3">
-        <TouchableOpacity
-          onPress={() => setIsScannerMode(true)}
-          activeOpacity={0.8}
-          className="mb-2"
-        >
-          <LinearGradient
-            colors={['#0ea5e9', '#06b6d4']}
-            style={{ borderRadius: 14, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Ionicons name="qr-code-outline" size={20} color="#ffffff" />
-            <Text className="text-white text-base font-bold ml-2">
-              Escanear QR de Cliente
-            </Text>
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-
       {/* Status filter chips */}
-      <View style={{ height: 36, marginBottom: 4 }}>
+      <View style={{ height: 36, marginTop: 8, marginBottom: 4 }}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -232,14 +110,14 @@ export default function PickupIndex() {
         ) : !filteredOrders.length ? (
           <View className="items-center mt-16">
             <View style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20 }} className="p-8 items-center">
-              <Ionicons name="bag-handle-outline" size={64} color="#334155" />
+              <Ionicons name="bicycle-outline" size={64} color="#334155" />
               <Text className="text-slate-500 text-xl font-bold mt-6">
                 {statusFilter === 'all'
-                  ? 'No hay pedidos de recoleccion'
+                  ? 'Sin entregas pendientes'
                   : `Sin pedidos "${FILTER_OPTIONS.find(f => f.key === statusFilter)?.label}"`}
               </Text>
               <Text className="text-slate-600 text-sm mt-2 text-center">
-                Los pedidos Click & Collect apareceran aqui automaticamente.
+                Cuando se asignen pedidos de entrega a tu sucursal, apareceran aqui.
               </Text>
               <TouchableOpacity
                 style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderRadius: 16 }}
@@ -257,14 +135,16 @@ export default function PickupIndex() {
             keyExtractor={(item) => item.id}
             onRefresh={refetch}
             refreshing={isRefetching}
-            contentContainerStyle={{ paddingBottom: 96 }}
+            contentContainerStyle={{ paddingBottom: 16 }}
             renderItem={({ item }) => {
               const info = STATUS_CONFIG[item.status] ?? { label: item.status, color: '#94a3b8', bg: 'rgba(255,255,255,0.06)', icon: 'ellipse-outline' };
+              const address = item.shipping_address;
+
               return (
                 <TouchableOpacity
                   style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderRadius: 14 }}
                   className="p-3.5 mb-2"
-                  onPress={() => router.push(`/(tabs)/pickup/${item.id}`)}
+                  onPress={() => router.push(`/delivery-order/${item.id}`)}
                   activeOpacity={0.7}
                 >
                   <View className="flex-row items-center justify-between mb-1">
@@ -272,9 +152,9 @@ export default function PickupIndex() {
                       <Text className="text-white text-base font-bold">
                         Pedido #{item.order_number}
                       </Text>
-                      {(item as any).customer?.name && (
+                      {item.customer_name && (
                         <Text style={{ color: '#64748b', fontSize: 12 }} className="mt-0.5">
-                          {(item as any).customer.name}
+                          {item.customer_name}
                         </Text>
                       )}
                     </View>
@@ -286,16 +166,19 @@ export default function PickupIndex() {
                     </View>
                   </View>
 
-                  <View className="flex-row items-center justify-between mt-2 pt-2" style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }}>
-                    <View className="flex-row items-center">
-                      <Ionicons name="cube-outline" size={14} color="#64748b" />
-                      <Text style={{ color: '#64748b', fontSize: 12 }} className="ml-1">
-                        {(item as any).items?.length ?? 0} art.
-                      </Text>
-                      <Text style={{ color: '#475569', fontSize: 12 }} className="ml-3">
-                        ${Number(item.total_amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                  {address && (
+                    <View className="flex-row items-center mt-1">
+                      <Ionicons name="location-outline" size={13} color="#64748b" />
+                      <Text style={{ color: '#64748b', fontSize: 12 }} className="ml-1 flex-1" numberOfLines={1}>
+                        {[address.street, address.city, address.state].filter(Boolean).join(', ')}
                       </Text>
                     </View>
+                  )}
+
+                  <View className="flex-row items-center justify-between mt-2 pt-2" style={{ borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)' }}>
+                    <Text style={{ color: '#475569', fontSize: 12 }}>
+                      ${Number(item.total_amount).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                    </Text>
                     <Ionicons name="chevron-forward" size={16} color="#334155" />
                   </View>
                 </TouchableOpacity>

@@ -6,6 +6,7 @@ import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from '@nivo/ui';
 import { Download, DollarSign, Receipt, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ReportTabs } from '@/components/reports/ReportTabs';
 import { apiClient } from '@/lib/api';
 import { useBranchStore } from '@/store/branchStore';
 import { getTodayRange, getThisWeekRange, getThisMonthRange, formatCurrency, formatDate } from '@/lib/date-utils';
@@ -49,7 +50,7 @@ const STATUS_VARIANTS: Record<string, 'default' | 'secondary' | 'destructive' | 
 
 const PAGE_SIZE = 15;
 
-function getDateRange(period: string) {
+function getDateRange(period: string): { start_date?: string; end_date?: string } {
   switch (period) {
     case 'today': return getTodayRange();
     case 'week': return getThisWeekRange();
@@ -148,6 +149,8 @@ export default function ReportsPage() {
           </Button>
         </div>
       </div>
+
+      <ReportTabs />
 
       {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-3">

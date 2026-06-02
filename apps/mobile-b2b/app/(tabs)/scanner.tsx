@@ -11,7 +11,7 @@ import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'ex
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useActiveAudits, useScanBarcode, useSubmitAudit, type BatchScanEntry } from '../../../src/hooks/use-audit';
+import { useActiveAudits, useScanBarcode, useSubmitAudit, type BatchScanEntry } from '../../src/hooks/use-audit';
 
 export default function ScannerScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -271,7 +271,7 @@ export default function ScannerScreen() {
           <FlatList
             data={scans}
             keyExtractor={(item) => item.barcode}
-            contentContainerStyle={{ paddingBottom: 160 }}
+            contentContainerStyle={{ paddingBottom: 16 }}
             ListEmptyComponent={
               <View className="items-center mt-16">
                 <View style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 20 }} className="p-8 items-center">
@@ -304,7 +304,7 @@ export default function ScannerScreen() {
           />
 
           {/* Action buttons */}
-          <View className="absolute bottom-0 left-0 right-0 px-6 pb-8 pt-4" style={{ backgroundColor: '#020617' }}>
+          <View className="px-6 pb-6 pt-4" style={{ backgroundColor: '#020617' }}>
             <View className="flex-row gap-3">
               <TouchableOpacity
                 className="flex-1"

@@ -15,8 +15,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, Stack } from 'expo-router';
-import { useUploadExpense, useExpenseCategories } from '../../../src/hooks/use-expenses';
-import { useAuthStore } from '../../../src/stores/auth.store';
+import { useUploadExpense, useExpenseCategories } from '../src/hooks/use-expenses';
+import { useAuthStore } from '../src/stores/auth.store';
 
 export default function NewExpenseScreen() {
   const branchId = useAuthStore((s) => s.employee?.branch_id);
@@ -279,7 +279,7 @@ export default function NewExpenseScreen() {
         </ScrollView>
 
         {/* Submit button */}
-        <View className="absolute bottom-0 left-0 right-0 px-6 pb-8 pt-4" style={{ backgroundColor: '#020617' }}>
+        <View className="px-6 pb-6 pt-4" style={{ backgroundColor: '#020617' }}>
           <TouchableOpacity
             onPress={handleSubmit}
             disabled={uploadMutation.isPending}

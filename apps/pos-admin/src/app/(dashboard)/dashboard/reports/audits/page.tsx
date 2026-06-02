@@ -9,10 +9,12 @@ import { apiClient } from '@/lib/api';
 import { useBranchStore } from '@/store/branchStore';
 import { getThisMonthRange, formatCurrency } from '@/lib/date-utils';
 import { ExportButton } from '@/components/reports/ExportButton';
+import { ReportTabs } from '@/components/reports/ReportTabs';
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ReferenceLine, Cell,
 } from 'recharts';
+import { ChartContainer } from '@/components/charts/ChartContainer';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -60,17 +62,19 @@ export default function AuditsReportPage() {
   const [diffData, setDiffData] = useState<DifferencePoint[]>([]);
 
   useEffect(() => {
-    const fetch = async () => {
+    let cancelled = false;
+    const fetchData = async (sd: string, ed: string, bid?: string) => {
       setLoading(true);
       try {
-        const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
-        if (branchId) params.set('branch_id', branchId);
+        const params = new URLSearchParams({ start_date: sd, end_date: ed });
+        if (bid) params.set('branch_id', bid);
         const res = await apiClient.get(`/reports/cash-difference-trend?${params}`);
-        setDiffData(res.data);
+        if (!cancelled) setDiffData(res.data);
       } catch (e) { console.error(e); }
-      finally { setLoading(false); }
+      finally { if (!cancelled) setLoading(false); }
     };
-    fetch();
+    fetchData(startDate, endDate, branchId);
+    return () => { cancelled = true; };
   }, [startDate, endDate, branchId]);
 
   // Summary stats
@@ -84,6 +88,7 @@ export default function AuditsReportPage() {
 
   return (
     <div className="space-y-6">
+      <ReportTabs />
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -150,7 +155,7 @@ export default function AuditsReportPage() {
               Sin cortes de caja registrados en el periodo
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={290}>
+            <ChartContainer height={290}>
               <BarChart data={diffData} barSize={diffData.length > 20 ? 8 : 18}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                 <XAxis dataKey="date" tickFormatter={formatShortDate} tick={{ fill: '#71717a', fontSize: 11 }} />
@@ -167,7 +172,7 @@ export default function AuditsReportPage() {
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           )}
         </CardContent>
       </Card>

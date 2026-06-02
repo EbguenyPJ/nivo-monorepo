@@ -9,9 +9,11 @@ import { apiClient } from '@/lib/api';
 import { useBranchStore } from '@/store/branchStore';
 import { getThisMonthRange, formatCurrency } from '@/lib/date-utils';
 import { ExportButton } from '@/components/reports/ExportButton';
+import { ReportTabs } from '@/components/reports/ReportTabs';
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell,
 } from 'recharts';
+import { ChartContainer } from '@/components/charts/ChartContainer';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -129,27 +131,29 @@ export default function PerformancePage() {
   const [sellThrough, setSellThrough] = useState<SellThroughRow[]>([]);
 
   useEffect(() => {
-    const fetchSellers = async () => {
+    let cancelled = false;
+    const fetchSellers = async (sd: string, ed: string, bid?: string) => {
       setLoadingSellers(true);
       try {
-        const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
-        if (branchId) params.set('branch_id', branchId);
+        const params = new URLSearchParams({ start_date: sd, end_date: ed });
+        if (bid) params.set('branch_id', bid);
         const res = await apiClient.get(`/reports/seller-performance?${params}`);
-        setSellers(res.data);
+        if (!cancelled) setSellers(res.data);
       } catch (e) { console.error(e); }
-      finally { setLoadingSellers(false); }
+      finally { if (!cancelled) setLoadingSellers(false); }
     };
-    const fetchST = async () => {
+    const fetchST = async (sd: string, ed: string) => {
       setLoadingST(true);
       try {
-        const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+        const params = new URLSearchParams({ start_date: sd, end_date: ed });
         const res = await apiClient.get(`/reports/sell-through?${params}`);
-        setSellThrough(res.data);
+        if (!cancelled) setSellThrough(res.data);
       } catch (e) { console.error(e); }
-      finally { setLoadingST(false); }
+      finally { if (!cancelled) setLoadingST(false); }
     };
-    fetchSellers();
-    fetchST();
+    fetchSellers(startDate, endDate, branchId);
+    fetchST(startDate, endDate);
+    return () => { cancelled = true; };
   }, [startDate, endDate, branchId]);
 
   const maxRevenue = sellers[0]?.revenue || 1;
@@ -157,6 +161,7 @@ export default function PerformancePage() {
 
   return (
     <div className="space-y-6">
+      <ReportTabs />
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -191,7 +196,7 @@ export default function PerformancePage() {
           ) : (
             <div className="grid gap-4 lg:grid-cols-2">
               {/* Horizontal bar chart */}
-              <ResponsiveContainer width="100%" height={Math.max(sellers.length * 44, 180)}>
+              <ChartContainer height={Math.max(sellers.length * 44, 180)}>
                 <BarChart data={sellers} layout="vertical" barSize={22} margin={{ left: 0, right: 20, top: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
                   <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fill: '#71717a', fontSize: 11 }} />
@@ -201,7 +206,7 @@ export default function PerformancePage() {
                     {sellers.map((_, i) => <Cell key={i} fill={SELLER_COLORS[i % SELLER_COLORS.length]} />)}
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartContainer>
 
               {/* Metric table */}
               <div className="overflow-x-auto">

@@ -9,12 +9,14 @@ import {
 import { CreditCard, BarChart3, Search, TrendingUp, ShoppingCart, Receipt } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 import { ExportButton } from '@/components/reports/ExportButton';
+import { ReportTabs } from '@/components/reports/ReportTabs';
 import { useBranchStore } from '@/store/branchStore';
 import { getThisMonthRange, formatCurrency } from '@/lib/date-utils';
 import {
-  ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend,
+  PieChart, Pie, Cell, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts';
+import { ChartContainer } from '@/components/charts/ChartContainer';
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -98,28 +100,34 @@ export default function SalesReportPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterPayment, setFilterPayment] = useState('all');
 
-  const fetchCharts = async () => {
+  const fetchAll = async (sd: string, ed: string, bid?: string, p = 0) => {
     setLoading(true);
-    try {
-      const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
-      if (branchId) params.set('branch_id', branchId);
+    const params = new URLSearchParams({ start_date: sd, end_date: ed });
+    if (bid) params.set('branch_id', bid);
 
-      const [summRes, pmRes, dowRes] = await Promise.all([
-        apiClient.get(`/reports/summary?${params}`),
-        apiClient.get(`/reports/payment-breakdown?${params}`),
-        apiClient.get(`/reports/day-of-week-volume?${params}`),
-      ]);
-      setSummary(summRes.data);
-      setPaymentData(pmRes.data);
-      setDowData(dowRes.data);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    // Independent calls — one failing doesn't kill the rest
+    const [summRes, pmRes, dowRes, salesRes] = await Promise.allSettled([
+      apiClient.get(`/reports/summary?${params}`),
+      apiClient.get(`/reports/payment-breakdown?${params}`),
+      apiClient.get(`/reports/day-of-week-volume?${params}`),
+      apiClient.get(`/reports/sales?${params}&limit=25&offset=${p * 25}`),
+    ]);
+
+    if (summRes.status === 'fulfilled') setSummary(summRes.value.data);
+    if (pmRes.status === 'fulfilled') setPaymentData(pmRes.value.data);
+    if (dowRes.status === 'fulfilled') setDowData(dowRes.value.data);
+    if (salesRes.status === 'fulfilled') {
+      setSales(salesRes.value.data.data);
+      setTotal(salesRes.value.data.total);
+    }
+    setPage(p);
+    setLoading(false);
   };
 
-  const fetchTable = async (p = 0) => {
+  const fetchTable = async (p: number) => {
+    const params = new URLSearchParams({ start_date: startDate, end_date: endDate, limit: '25', offset: String(p * 25) });
+    if (branchId) params.set('branch_id', branchId);
     try {
-      const params = new URLSearchParams({ start_date: startDate, end_date: endDate, limit: '25', offset: String(p * 25) });
-      if (branchId) params.set('branch_id', branchId);
       const res = await apiClient.get(`/reports/sales?${params}`);
       setSales(res.data.data);
       setTotal(res.data.total);
@@ -127,7 +135,8 @@ export default function SalesReportPage() {
     } catch (e) { console.error(e); }
   };
 
-  useEffect(() => { fetchCharts(); fetchTable(0); }, [startDate, endDate, branchId]);
+  // Fetch data — pass values directly to avoid stale closures
+  useEffect(() => { fetchAll(startDate, endDate, branchId); }, [startDate, endDate, branchId]);
 
   const filtered = useMemo(() => sales.filter((s) => {
     if (filterPayment !== 'all' && s.payment_method !== filterPayment) return false;
@@ -146,6 +155,7 @@ export default function SalesReportPage() {
 
   return (
     <div className="space-y-6">
+      <ReportTabs />
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -196,7 +206,7 @@ export default function SalesReportPage() {
               <div className="h-56 flex items-center justify-center text-sm text-muted-foreground">Sin datos</div>
             ) : (
               <>
-                <ResponsiveContainer width="100%" height={220}>
+                <ChartContainer height={220}>
                   <PieChart>
                     <Pie data={paymentData} dataKey="total" nameKey="label" cx="50%" cy="45%"
                       innerRadius={55} outerRadius={85} paddingAngle={2}>
@@ -207,7 +217,7 @@ export default function SalesReportPage() {
                     <Tooltip content={<PaymentTooltip />} />
                     <Legend iconType="circle" iconSize={8} formatter={(v) => <span className="text-xs text-zinc-400">{v}</span>} />
                   </PieChart>
-                </ResponsiveContainer>
+                </ChartContainer>
                 {/* Summary row */}
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   {paymentData.map((d) => (
@@ -238,7 +248,7 @@ export default function SalesReportPage() {
           </CardHeader>
           <CardContent>
             {loading ? <Skeleton className="h-72 w-full" /> : (
-              <ResponsiveContainer width="100%" height={290}>
+              <ChartContainer height={290}>
                 <BarChart data={dowData} barSize={28}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                   <XAxis dataKey="day_name" tick={{ fill: '#71717a', fontSize: 12 }} />
@@ -248,7 +258,7 @@ export default function SalesReportPage() {
                     {dowData.map((d, i) => <Cell key={i} fill={DOW_COLORS[d.dow % DOW_COLORS.length]} />)}
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
+              </ChartContainer>
             )}
           </CardContent>
         </Card>

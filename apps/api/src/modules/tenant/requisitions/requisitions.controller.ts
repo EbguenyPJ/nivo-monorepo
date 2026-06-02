@@ -95,9 +95,9 @@ export class RequisitionsController {
   }
 
   @Patch(':id/approve')
-  approveRequisition(@Req() req: Request, @Param('id') id: string) {
+  approveRequisition(@Req() req: Request, @Param('id') id: string, @Query('skip_po') skipPo?: string) {
     const employeeId = (req.user as any)?.sub;
-    return this.requisitionsService.approveRequisition(req.tenantConnection!, id, employeeId);
+    return this.requisitionsService.approveRequisition(req.tenantConnection!, id, employeeId, skipPo === 'true');
   }
 
   // ─── Variant Suppliers ─────────────────────────────────────────

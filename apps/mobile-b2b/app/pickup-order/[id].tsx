@@ -19,7 +19,7 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { useScanPickupQR, useConfirmPickup, type PickupOrder } from '../../../src/hooks/use-pickup';
+import { useScanPickupQR, useConfirmPickup, type PickupOrder } from '../../src/hooks/use-pickup';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SLIDER_PADDING = 48;
