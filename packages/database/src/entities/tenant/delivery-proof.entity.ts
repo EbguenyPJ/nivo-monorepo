@@ -43,6 +43,18 @@ export class DeliveryProof {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  /** Firma del cliente capturada en la app (JSON de trazos SVG) */
+  @Column({ type: 'text', nullable: true })
+  signature_data: string | null;
+
+  /** El repartidor confirmo el codigo de entrega del cliente */
+  @Column({ type: 'boolean', default: false })
+  pin_verified: boolean;
+
+  /** El repartidor escaneo el QR del cliente/pedido */
+  @Column({ type: 'boolean', default: false })
+  qr_verified: boolean;
+
   @Column({
     type: 'enum',
     enum: ['pending', 'delivered', 'failed'],

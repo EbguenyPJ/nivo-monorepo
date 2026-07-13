@@ -6,6 +6,7 @@ import {
   Alert,
   TextInput,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { useLocalSearchParams, Stack, router } from 'expo-router';
 import * as Location from 'expo-location';
@@ -19,7 +20,8 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { useOrderDetail, useDeliverOrder, useTrackLocation } from '../../src/hooks/use-deliveries';
+import { useOrderDetail, useDeliverOrder, useTrackLocation, useDeliveryRequirements } from '../../src/hooks/use-deliveries';
+import { DeliveryVerification, type VerificationState } from '../../src/components/DeliveryVerification';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SLIDER_PADDING = 48;
@@ -30,12 +32,14 @@ const SLIDE_THRESHOLD = TRACK_WIDTH - THUMB_SIZE - 16;
 export default function DeliveryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { data: order, isLoading } = useOrderDetail(id);
+  const { data: requirements } = useDeliveryRequirements(id);
   const deliverMutation = useDeliverOrder();
 
   const trackMutation = useTrackLocation();
 
   const [recipientName, setRecipientName] = useState('');
   const [notes, setNotes] = useState('');
+  const [verification, setVerification] = useState<VerificationState>({});
   const [isDelivering, setIsDelivering] = useState(false);
   const [isTracking, setIsTracking] = useState(false);
   const deliveredRef = useRef(false);
@@ -83,8 +87,19 @@ export default function DeliveryDetailScreen() {
     };
   }, [order?.status, id]);
 
+  const requiredMethods = requirements?.required_methods ?? [];
+  const verificationComplete =
+    (!requiredMethods.includes('pin') || !!verification.pin_code) &&
+    (!requiredMethods.includes('signature') || !!verification.signature_data) &&
+    (!requiredMethods.includes('qr') || !!verification.qr_payload);
+
   const handleDeliver = async () => {
     if (deliveredRef.current) return;
+    if (!verificationComplete) {
+      translateX.value = withSpring(0);
+      Alert.alert('Verificación pendiente', 'Completa los métodos de confirmación requeridos antes de entregar.');
+      return;
+    }
     deliveredRef.current = true;
     setIsDelivering(true);
 
@@ -112,6 +127,9 @@ export default function DeliveryDetailScreen() {
           longitude: location.coords.longitude,
           recipient_name: recipientName.trim() || undefined,
           notes: notes.trim() || undefined,
+          pin_code: verification.pin_code,
+          signature_data: verification.signature_data,
+          qr_payload: verification.qr_payload,
         },
         {
           onSuccess: () => {
@@ -173,7 +191,8 @@ export default function DeliveryDetailScreen() {
           headerTintColor: '#f8fafc',
         }}
       />
-      <View className="flex-1 px-6 pt-4" style={{ backgroundColor: '#020617' }}>
+      <View className="flex-1" style={{ backgroundColor: '#020617' }}>
+        <ScrollView className="flex-1 px-6 pt-4" contentContainerStyle={{ paddingBottom: 16 }}>
         {/* Order info glass card */}
         <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderRadius: 24 }} className="p-5 mb-4">
           <Text className="text-white text-xl font-bold mb-1">
@@ -182,11 +201,7 @@ export default function DeliveryDetailScreen() {
           {order.customer_name && (
             <Text style={{ color: '#64748b' }} className="text-base">{order.customer_name}</Text>
           )}
-          <View className="flex-row items-center mt-3">
-            <Text style={{ color: '#34d399' }} className="text-2xl font-bold">
-              ${order.total_amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-            </Text>
-          </View>
+          {/* El costo del pedido no se muestra al repartidor */}
         </View>
 
         {/* Delivery address glass card */}
@@ -241,15 +256,28 @@ export default function DeliveryDetailScreen() {
           />
         </View>
 
-        {/* Spacer */}
-        <View className="flex-1" />
+        {/* Verificación de entrega (PIN / firma / QR según settings del tenant) */}
+        <DeliveryVerification
+          requiredMethods={requirements?.required_methods ?? []}
+          value={verification}
+          onChange={setVerification}
+        />
+
+        </ScrollView>
 
         {/* Swipe to deliver */}
-        <View className="mb-10">
+        <View className="mb-10 px-6">
           {isDelivering ? (
             <View style={{ backgroundColor: '#059669', borderRadius: 20 }} className="py-5 items-center flex-row justify-center">
               <ActivityIndicator color="#ffffff" />
               <Text className="text-white text-lg font-bold ml-3">Confirmando entrega...</Text>
+            </View>
+          ) : !verificationComplete ? (
+            <View style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderRadius: 20, height: 72 }} className="flex-row items-center justify-center">
+              <Ionicons name="lock-closed" size={18} color="#64748b" />
+              <Text className="text-slate-500 text-base font-semibold ml-2">
+                Completa la verificación para entregar
+              </Text>
             </View>
           ) : (
             <View style={{ backgroundColor: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderRadius: 20, height: 72 }} className="justify-center overflow-hidden">

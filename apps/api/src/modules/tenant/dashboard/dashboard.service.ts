@@ -591,4 +591,130 @@ export class DashboardService {
       total_mapped: points.length,
     };
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  //  ZONE HEATMAP — demand / revenue / delivery metrics per geo zone
+  // ═══════════════════════════════════════════════════════════════════
+
+  async getZoneHeatmap(connection: DataSource, filters: {
+    start_date?: string;
+    end_date?: string;
+    branch_id?: string;
+  }) {
+    const BLIND_ZONE_KM = 5;
+    const params: any[] = [];
+    let idx = 1;
+
+    let salesWhere = `s.status = 'completed'`;
+    if (filters.branch_id) { salesWhere += ` AND s.branch_id = $${idx++}`; params.push(filters.branch_id); }
+    if (filters.start_date) { salesWhere += ` AND s.created_at >= $${idx++}`; params.push(filters.start_date); }
+    if (filters.end_date)   { salesWhere += ` AND s.created_at <= $${idx++}`; params.push(filters.end_date); }
+
+    let ordersWhere = `o.status NOT IN ('cancelled', 'pending_payment')`;
+    if (filters.branch_id) {
+      ordersWhere += ` AND (o.branch_id = $${idx} OR o.pickup_branch_id = $${idx})`;
+      params.push(filters.branch_id);
+      idx++;
+    }
+    if (filters.start_date) { ordersWhere += ` AND o.created_at >= $${idx++}`; params.push(filters.start_date); }
+    if (filters.end_date)   { ordersWhere += ` AND o.created_at <= $${idx++}`; params.push(filters.end_date); }
+
+    // One address per customer (default first) rounded to ~1.1km cells
+    const sql = `
+      WITH addr AS (
+        SELECT DISTINCT ON (ca.customer_id)
+          ca.customer_id,
+          ROUND(ca.latitude::numeric, 2)::float AS lat,
+          ROUND(ca.longitude::numeric, 2)::float AS lng
+        FROM customer_addresses ca
+        WHERE ca.latitude IS NOT NULL AND ca.longitude IS NOT NULL
+        ORDER BY ca.customer_id, ca.is_default DESC, ca.created_at ASC
+      ),
+      sales_agg AS (
+        SELECT s.customer_id, COUNT(*)::int AS n, COALESCE(SUM(s.total_amount), 0)::float AS rev
+        FROM sales s
+        WHERE ${salesWhere}
+        GROUP BY s.customer_id
+      ),
+      orders_agg AS (
+        SELECT o.customer_id, COUNT(*)::int AS n, COALESCE(SUM(o.total_amount), 0)::float AS rev,
+          AVG(EXTRACT(EPOCH FROM (o.completed_at - o.created_at)) / 3600.0)
+            FILTER (WHERE o.completed_at IS NOT NULL AND o.fulfillment_type = 'delivery') AS avg_delivery_hours
+        FROM orders o
+        WHERE ${ordersWhere}
+        GROUP BY o.customer_id
+      )
+      SELECT a.lat, a.lng,
+        SUM(COALESCE(sa.n, 0) + COALESCE(oa.n, 0))::int AS orders,
+        SUM(COALESCE(sa.rev, 0) + COALESCE(oa.rev, 0))::float AS revenue,
+        AVG(oa.avg_delivery_hours)::float AS avg_delivery_hours
+      FROM addr a
+      LEFT JOIN sales_agg sa ON sa.customer_id = a.customer_id
+      LEFT JOIN orders_agg oa ON oa.customer_id = a.customer_id
+      GROUP BY a.lat, a.lng
+      HAVING SUM(COALESCE(sa.n, 0) + COALESCE(oa.n, 0)) > 0
+      ORDER BY orders DESC
+    `;
+
+    const zones: Array<{
+      lat: number; lng: number; orders: number; revenue: number;
+      avg_delivery_hours: number | null; distance_to_branch_km?: number;
+    }> = await connection.query(sql, params);
+
+    const branchRows = await connection.getRepository(Branch).find({
+      select: ['id', 'name', 'address', 'city', 'latitude', 'longitude'],
+      where: { is_active: true },
+    });
+    const branches = branchRows.map((b) => ({
+      id: b.id,
+      name: b.name,
+      address: b.address,
+      city: (b as any).city ?? null,
+      lat: b.latitude ? Number(b.latitude) : null,
+      lng: b.longitude ? Number(b.longitude) : null,
+    }));
+
+    // Distance from each zone to its nearest branch (haversine)
+    const located = branches.filter((b) => b.lat != null && b.lng != null);
+    const haversineKm = (lat1: number, lng1: number, lat2: number, lng2: number) => {
+      const R = 6371;
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLng = toRad(lng2 - lng1);
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    };
+
+    for (const z of zones) {
+      z.distance_to_branch_km = located.length
+        ? Math.min(...located.map((b) => haversineKm(z.lat, z.lng, b.lat!, b.lng!)))
+        : null as any;
+    }
+
+    const blindZones = zones
+      .filter((z) => z.distance_to_branch_km != null && z.distance_to_branch_km > BLIND_ZONE_KM)
+      .sort((a, b) => b.orders - a.orders);
+
+    const totalOrders = zones.reduce((s, z) => s + z.orders, 0);
+    const totalRevenue = zones.reduce((s, z) => s + z.revenue, 0);
+    const deliveryZones = zones.filter((z) => z.avg_delivery_hours != null);
+    const avgDeliveryHours = deliveryZones.length
+      ? deliveryZones.reduce((s, z) => s + Number(z.avg_delivery_hours), 0) / deliveryZones.length
+      : null;
+
+    return {
+      zones,
+      branches,
+      blind_zones: blindZones,
+      totals: {
+        orders: totalOrders,
+        revenue: totalRevenue,
+        zones: zones.length,
+        blind_zones: blindZones.length,
+        avg_delivery_hours: avgDeliveryHours,
+        blind_zone_km: BLIND_ZONE_KM,
+      },
+    };
+  }
 }

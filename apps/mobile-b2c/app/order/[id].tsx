@@ -114,9 +114,23 @@ export default function OrderDetailScreen() {
           }}
         >
           <View className="w-3 h-3 bg-indigo-400 rounded-full mr-3" />
-          <View>
+          <View className="flex-1">
             <Text className="text-indigo-300 font-semibold">Tu pedido esta en camino</Text>
             <Text className="text-indigo-400/50 text-xs mt-0.5">El repartidor se dirige a tu ubicacion</Text>
+            {(order as any).delivery_pin && (
+              <View
+                className="mt-3 px-4 py-3 items-center"
+                style={{ backgroundColor: 'rgba(99,102,241,0.12)', borderRadius: 14 }}
+              >
+                <Text className="text-indigo-400/60 text-xs uppercase tracking-widest">Codigo de entrega</Text>
+                <Text className="text-white text-2xl font-bold mt-1" style={{ letterSpacing: 8 }}>
+                  {(order as any).delivery_pin}
+                </Text>
+                <Text className="text-indigo-400/50 text-xs mt-1 text-center">
+                  Dictalo al repartidor para confirmar tu entrega
+                </Text>
+              </View>
+            )}
           </View>
         </Animated.View>
       )}

@@ -4,7 +4,7 @@ import {
 import { PreSalesService } from './pre-sales.service';
 import { JwtAuthGuard } from '../../../core/auth/jwt-auth.guard';
 
-@Controller('api/v1/mobile/pre-sales')
+@Controller('mobile/pre-sales')
 export class PreSalesController {
   constructor(private readonly service: PreSalesService) {}
 

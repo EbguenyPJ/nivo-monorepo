@@ -107,6 +107,21 @@ export class DashboardController {
     });
   }
 
+  /** Zone heatmap: demand/revenue/delivery metrics aggregated by geographic zone + blind zones */
+  @Get('zone-heatmap')
+  getZoneHeatmap(
+    @Req() req: any,
+    @Query('branch_id') branchId?: string,
+    @Query('start_date') startDate?: string,
+    @Query('end_date') endDate?: string,
+  ) {
+    return this.dashboardService.getZoneHeatmap(req.tenantConnection, {
+      branch_id: branchId,
+      start_date: startDate,
+      end_date: endDate,
+    });
+  }
+
   /** Profitability drill-down report, groupable by brand/collection/seller */
   @Get('profitability-report')
   getProfitabilityReport(

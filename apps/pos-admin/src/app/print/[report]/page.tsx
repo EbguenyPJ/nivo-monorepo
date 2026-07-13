@@ -108,7 +108,7 @@ function SalesReport({ data }: { data: ReportData }) {
         <div style={{ marginBottom: 24 }}>
           <h3 style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 12 }}>Método de Pago</h3>
           <PieChart width={300} height={180}>
-            <Pie data={data.chartData} dataKey="value" nameKey="label" cx="50%" cy="50%" outerRadius={70} label={({ label, percent }) => `${label} ${(percent * 100).toFixed(0)}%`}>
+            <Pie data={data.chartData} dataKey="value" nameKey="label" cx="50%" cy="50%" outerRadius={70} label={({ label, percent }: any) => `${label} ${(percent * 100).toFixed(0)}%`}>
               {data.chartData.map((d: any) => (
                 <Cell key={d.label} fill={PAYMENT_COLORS[d.key] ?? color} />
               ))}
@@ -163,7 +163,7 @@ function ProfitabilityReport({ data }: { data: ReportData }) {
             <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
             <XAxis dataKey="units" name="Unidades" tick={{ fontSize: 10 }} />
             <YAxis dataKey="margin" name="Margen %" tickFormatter={(v) => `${v.toFixed(0)}%`} tick={{ fontSize: 10 }} />
-            <Tooltip formatter={(v: any, name: string) => [name === 'Margen %' ? `${Number(v).toFixed(1)}%` : v, name]} />
+            <Tooltip formatter={(v: any, name: any) => [name === 'Margen %' ? `${Number(v).toFixed(1)}%` : v, name]} />
             <Scatter data={data.chartData} fill={color} fillOpacity={0.8} />
           </ScatterChart>
         </div>

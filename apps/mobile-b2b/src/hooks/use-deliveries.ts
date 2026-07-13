@@ -22,6 +22,17 @@ interface DeliverOrderPayload {
   longitude: number;
   recipient_name?: string;
   notes?: string;
+  pin_code?: string;
+  signature_data?: string;
+  qr_payload?: string;
+}
+
+export type VerificationMethod = 'pin' | 'signature' | 'qr';
+
+export interface DeliveryRequirements {
+  order_id: string;
+  required_methods: VerificationMethod[];
+  pin_generated: boolean;
 }
 
 export function useDeliveryOrders() {
@@ -51,6 +62,17 @@ export function useOrderDetail(orderId: string) {
   });
 }
 
+export function useDeliveryRequirements(orderId: string) {
+  return useQuery<DeliveryRequirements>({
+    queryKey: ['delivery-requirements', orderId],
+    queryFn: async () => {
+      const { data } = await api.get<DeliveryRequirements>(`/mobile/delivery/${orderId}/requirements`);
+      return data;
+    },
+    enabled: !!orderId,
+  });
+}
+
 export function useTrackLocation() {
   return useMutation<void, Error, TrackLocationPayload>({
     mutationFn: async (payload) => {
@@ -61,7 +83,7 @@ export function useTrackLocation() {
 
 export function useDeliverOrder() {
   return useMutation<void, Error, DeliverOrderPayload>({
-    mutationFn: async ({ orderId, latitude, longitude, recipient_name, notes }) => {
+    mutationFn: async ({ orderId, latitude, longitude, recipient_name, notes, pin_code, signature_data, qr_payload }) => {
       await api.post('/logistics/track-location', {
         orderId,
         lat: latitude,
@@ -73,6 +95,9 @@ export function useDeliverOrder() {
         longitude,
         recipient_name,
         notes,
+        pin_code,
+        signature_data,
+        qr_payload,
       });
     },
     onSuccess: () => {

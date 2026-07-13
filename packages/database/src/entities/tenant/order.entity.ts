@@ -99,6 +99,10 @@ export class Order {
   @Column({ type: 'varchar', length: 500, nullable: true })
   signature_url: string | null;
 
+  /** Codigo que el cliente dicta al repartidor cuando la verificacion por PIN esta activa */
+  @Column({ type: 'varchar', length: 6, nullable: true })
+  delivery_pin: string | null;
+
   @Column({ type: 'timestamp', nullable: true })
   paid_at: Date | null;
 

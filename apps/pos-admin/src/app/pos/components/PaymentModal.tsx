@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button, Input } from '@nivo/ui';
-import { X, Banknote, CreditCard, Building2, Loader2, Trash2, CheckCircle2 } from 'lucide-react';
+import { X, Banknote, CreditCard, Building2, Loader2, Trash2, CheckCircle2, Sparkles } from 'lucide-react';
 import { apiClient } from '@/lib/api';
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -55,6 +55,8 @@ function getSmartBills(amount: number): number[] {
     .sort((a, b) => a - b)
     .slice(0, 5);
 }
+
+const money = (n: number) => n.toLocaleString('es-MX', { minimumFractionDigits: 2 });
 
 // ─── Main Component ──────────────────────────────────────────────
 
@@ -205,261 +207,171 @@ export function PaymentModal({ open, total, processingPayment, onConfirm, onClos
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"
+        className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
         onClick={!processingPayment ? onClose : undefined}
       />
 
-      <div className="relative z-10 w-full max-w-3xl">
-        <div className="rounded-2xl bg-slate-900/95 border border-slate-700/40 shadow-2xl shadow-black/50 backdrop-blur-xl overflow-hidden">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-slate-800/60">
-            <h2 className="text-lg font-bold text-white">Cobrar Venta</h2>
+      <div className="relative z-10 w-full max-w-md">
+        <div
+          className="rounded-3xl bg-slate-950/60 border border-white/10 shadow-2xl shadow-black/60 backdrop-blur-2xl overflow-hidden max-h-[92vh] flex flex-col"
+          style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), 0 25px 50px -12px rgba(0,0,0,0.6)' }}
+        >
+          {/* ─── Header: CHECKOUT ─── */}
+          <div className="relative pt-5 pb-1">
+            <p className="text-center text-[11px] font-semibold uppercase tracking-[0.35em] text-white/40">
+              Checkout
+            </p>
             <button
               type="button"
               onClick={onClose}
               disabled={processingPayment}
-              className="p-2 rounded-full bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-all disabled:opacity-50"
+              className="absolute right-4 top-4 p-1.5 text-white/40 hover:text-white transition-colors disabled:opacity-40"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Two-column layout */}
-          <div className="flex min-h-[400px]">
-            {/* ═══ LEFT COLUMN (30%) — Financial Summary ═══ */}
-            <div className="w-[35%] border-r border-slate-800/60 flex flex-col">
-              {/* Total */}
-              <div className="p-4 text-center border-b border-slate-800/60 bg-black">
-                <p className="text-[10px] text-[#39FF14]/50 font-mono uppercase tracking-widest mb-1">Total</p>
-                <p
-                  className="text-3xl font-bold font-mono text-[#39FF14] tabular-nums"
-                  style={{ textShadow: '0 0 12px rgba(57, 255, 20, 0.6), 0 0 30px rgba(57, 255, 20, 0.2)' }}
-                >
-                  ${total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+          <div className="flex-1 overflow-y-auto px-5 pb-5">
+            {/* ─── Hero number ─── */}
+            <div className="text-center py-4">
+              <p
+                className="text-5xl font-bold font-mono tabular-nums text-emerald-400"
+                style={{ textShadow: '0 0 18px rgba(52, 211, 153, 0.55), 0 0 45px rgba(52, 211, 153, 0.2)' }}
+              >
+                ${money(total)}
+              </p>
+              {!isFullyPaid && paidSoFar > 0 && (
+                <p className="mt-2 text-sm font-mono text-amber-400">
+                  Restante: <span className="font-semibold">${money(remaining)}</span>
                 </p>
-              </div>
-
-              {/* Payment entries */}
-              <div className="flex-1 overflow-auto p-3 space-y-2">
-                {payments.length === 0 ? (
-                  <p className="text-xs text-slate-600 text-center mt-4">Sin pagos registrados</p>
-                ) : (
-                  payments.map((p, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center justify-between bg-slate-800/50 rounded-lg px-3 py-2 border border-slate-700/20"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <PaymentIcon name={p.payment_method_name} className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-slate-200 truncate">{p.payment_method_name}</p>
-                          {p.reference && (
-                            <p className="text-[10px] text-slate-500 truncate">Ref: {p.reference}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <span className="text-sm font-semibold text-white font-mono tabular-nums">
-                          ${p.amount.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                        </span>
-                        <button
-                          onClick={() => removePayment(i)}
-                          disabled={processingPayment}
-                          className="p-1 rounded text-slate-600 hover:text-red-400 transition-colors disabled:opacity-50"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              {/* Remaining / Paid tally */}
-              <div className="border-t border-slate-800/60 p-3 space-y-1.5">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-500">Pagado</span>
-                  <span className="text-slate-300 font-mono tabular-nums">
-                    ${paidSoFar.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm font-semibold">
-                  <span className={isFullyPaid ? 'text-emerald-400' : 'text-amber-400'}>
-                    {isFullyPaid ? 'Pagado completo' : 'Restante'}
-                  </span>
-                  <span className={`font-mono tabular-nums ${isFullyPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {isFullyPaid
-                      ? <CheckCircle2 className="h-4 w-4 inline" />
-                      : `$${remaining.toLocaleString('es-MX', { minimumFractionDigits: 2 })}`
-                    }
-                  </span>
-                </div>
-              </div>
+              )}
+              {isFullyPaid && (
+                <p className="mt-2 text-sm font-mono text-emerald-400 flex items-center justify-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4" /> Pagado completo
+                </p>
+              )}
             </div>
 
-            {/* ═══ RIGHT COLUMN (70%) — Payment Capture ═══ */}
-            <div className="flex-1 flex flex-col">
-              {loadingMethods ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+            {loadingMethods ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+              </div>
+            ) : !activeMethod ? (
+              /* ─── Method grid (segmented, one row) ─── */
+              <div className="grid grid-cols-4 gap-2">
+                {methods.map((m, idx) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => selectMethod(m)}
+                    disabled={isFullyPaid}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] px-2 py-3.5 transition-all hover:bg-white/[0.09] hover:border-white/20 active:scale-95 disabled:opacity-35 disabled:pointer-events-none group"
+                  >
+                    <PaymentIcon name={m.name} className="h-5 w-5 text-white/50 group-hover:text-white transition-colors" />
+                    <span className="w-full truncate text-center text-[11px] font-medium text-white/70 group-hover:text-white transition-colors">
+                      {m.name}
+                    </span>
+                    <span className="text-[9px] font-mono text-white/30">F{idx + 1}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              /* ─── Amount capture (in place of grid) ─── */
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="mb-4 flex items-center gap-3">
+                  <button
+                    className="p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-all"
+                    onClick={() => { setActiveMethod(null); setCaptureAmount(''); setCaptureReference(''); }}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <PaymentIcon name={activeMethod.name} className="h-5 w-5 text-emerald-400" />
+                    <span className="text-base font-semibold text-white">{activeMethod.name}</span>
+                  </div>
                 </div>
-              ) : !activeMethod ? (
-                /* ─── Method Selection ─── */
-                <div className="flex-1 flex flex-col">
-                  <div className="p-4 flex-1">
-                    {isFullyPaid ? (
-                      <div className="flex flex-col items-center justify-center h-full">
-                        <CheckCircle2 className="h-16 w-16 text-emerald-500 mb-4" />
-                        <p className="text-lg font-semibold text-white mb-1">Pago completo</p>
-                        <p className="text-sm text-slate-400">Confirma la venta para finalizar</p>
-                      </div>
-                    ) : (
-                      <>
-                        <p className="text-xs text-slate-500 text-center mb-4">
-                          Selecciona metodo de pago
-                          {remaining < total && (
-                            <span className="text-amber-400 ml-1">
-                              (faltan ${remaining.toLocaleString('es-MX', { minimumFractionDigits: 2 })})
-                            </span>
-                          )}
-                        </p>
-                        <div className="grid grid-cols-2 gap-3">
-                          {methods.map((m, idx) => (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => selectMethod(m)}
-                              className="flex flex-col items-center gap-2 p-5 rounded-xl bg-slate-800/50 border border-slate-700/30 hover:bg-slate-700/60 hover:border-slate-600/50 transition-all active:scale-95 group"
-                            >
-                              <PaymentIcon
-                                name={m.name}
-                                className="h-7 w-7 text-slate-400 group-hover:text-white transition-colors"
-                              />
-                              <span className="font-medium text-sm text-slate-300 group-hover:text-white transition-colors">
-                                {m.name}
-                              </span>
-                              <span className="text-[10px] text-slate-600 font-mono">F{idx + 1}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </>
+
+                <div className="space-y-4">
+                  {/* Amount input */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-medium uppercase tracking-wider text-white/40">Monto</label>
+                    <Input
+                      ref={amountInputRef}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={captureAmount}
+                      onChange={(e) => setCaptureAmount(e.target.value)}
+                      onKeyDown={handleCaptureKeyDown}
+                      className="text-2xl h-14 text-center font-mono bg-black/30 border-white/10 text-white focus:border-emerald-500/50"
+                    />
+                    {!isCash && captureAmountNum > remaining && (
+                      <p className="text-[10px] text-red-400 text-center">
+                        No puede exceder el restante (${money(remaining)})
+                      </p>
                     )}
                   </div>
 
-                  {/* Confirm sale button */}
-                  <div className="p-4 border-t border-slate-800/60">
-                    <Button
-                      className="w-full h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-500/20 disabled:bg-slate-800 disabled:text-slate-600 disabled:shadow-none"
-                      disabled={!isFullyPaid || processingPayment}
-                      onClick={handleConfirmSale}
-                    >
-                      {processingPayment ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        'Confirmar Venta'
-                      )}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                /* ─── Amount Capture ─── */
-                <div className="flex-1 flex flex-col p-4">
-                  <div className="flex items-center gap-3 mb-4">
-                    <button
-                      className="p-2 rounded-lg bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-700 transition-all"
-                      onClick={() => { setActiveMethod(null); setCaptureAmount(''); setCaptureReference(''); }}
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                    <div className="flex items-center gap-2">
-                      <PaymentIcon name={activeMethod.name} className="h-5 w-5 text-cyan-400" />
-                      <span className="text-base font-semibold text-white">{activeMethod.name}</span>
+                  {/* Smart bill buttons (cash only) */}
+                  {isCash && smartBills.length > 0 && (
+                    <div className="grid grid-cols-5 gap-2">
+                      {smartBills.map((amount) => (
+                        <button
+                          key={amount}
+                          className={`text-xs font-mono py-2 px-1 rounded-lg border transition-all ${
+                            parseFloat(captureAmount) === amount
+                              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                              : 'bg-white/[0.04] border-white/10 text-white/70 hover:bg-white/10 hover:text-white'
+                          }`}
+                          onClick={() => setCaptureAmount(amount.toString())}
+                        >
+                          ${amount.toLocaleString('es-MX')}
+                        </button>
+                      ))}
                     </div>
-                  </div>
+                  )}
 
-                  <div className="flex-1 space-y-4">
-                    {/* Amount input */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-slate-300">Monto</label>
-                      <Input
-                        ref={amountInputRef}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        value={captureAmount}
-                        onChange={(e) => setCaptureAmount(e.target.value)}
-                        onKeyDown={handleCaptureKeyDown}
-                        className="text-2xl h-14 text-center font-mono bg-slate-800/50 border-slate-700/50 text-white focus:border-cyan-500/50"
-                      />
-                      {!isCash && captureAmountNum > remaining && (
-                        <p className="text-[10px] text-red-400 text-center">
-                          No puede exceder el restante (${remaining.toLocaleString('es-MX', { minimumFractionDigits: 2 })})
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Smart bill buttons (cash only) */}
-                    {isCash && smartBills.length > 0 && (
-                      <div className="grid grid-cols-5 gap-2">
-                        {smartBills.map((amount) => (
-                          <button
-                            key={amount}
-                            className={`text-xs font-mono py-2 px-1 rounded-lg border transition-all ${
-                              parseFloat(captureAmount) === amount
-                                ? 'bg-cyan-500/20 border-cyan-500/40 text-cyan-300'
-                                : 'bg-slate-800/50 border-slate-700/30 text-slate-300 hover:bg-slate-700 hover:text-white'
-                            }`}
-                            onClick={() => setCaptureAmount(amount.toString())}
-                          >
-                            ${amount.toLocaleString('es-MX')}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Cash change display */}
-                    {isCash && captureAmountNum > 0 && (
-                      <div className={`text-center p-3 rounded-xl ${
-                        captureAmountNum >= remaining
-                          ? 'bg-emerald-500/10 border border-emerald-500/20'
-                          : 'bg-slate-800/50 border border-slate-700/20'
+                  {/* Cash change display */}
+                  {isCash && captureAmountNum > 0 && (
+                    <div className={`text-center p-3 rounded-xl border ${
+                      captureAmountNum >= remaining
+                        ? 'bg-emerald-500/10 border-emerald-500/20'
+                        : 'bg-white/[0.04] border-white/10'
+                    }`}>
+                      <p className="text-[10px] text-white/40 mb-0.5 uppercase tracking-wider">Cambio</p>
+                      <p className={`text-2xl font-bold font-mono tabular-nums ${
+                        cashChange > 0 ? 'text-emerald-400' : 'text-white/40'
                       }`}>
-                        <p className="text-[10px] text-slate-500 mb-0.5 uppercase tracking-wider">Cambio</p>
-                        <p className={`text-2xl font-bold font-mono tabular-nums ${
-                          cashChange > 0 ? 'text-emerald-400' : 'text-slate-500'
-                        }`}>
-                          ${cashChange.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                    )}
+                        ${money(cashChange)}
+                      </p>
+                    </div>
+                  )}
 
-                    {/* Reference field (for cards / transfers) */}
-                    {activeMethod.requires_reference && (
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-slate-300">Referencia</label>
-                        <Input
-                          ref={referenceInputRef}
-                          placeholder="Numero de referencia, ultimos 4 digitos..."
-                          value={captureReference}
-                          onChange={(e) => setCaptureReference(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' && canAddPayment) addPayment(); }}
-                          className="h-10 bg-slate-800/50 border-slate-700/50 text-white focus:border-cyan-500/50 placeholder:text-slate-600"
-                        />
-                      </div>
-                    )}
-                  </div>
+                  {/* Reference field (for cards / transfers) */}
+                  {activeMethod.requires_reference && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium uppercase tracking-wider text-white/40">Referencia</label>
+                      <Input
+                        ref={referenceInputRef}
+                        placeholder="Numero de referencia, ultimos 4 digitos..."
+                        value={captureReference}
+                        onChange={(e) => setCaptureReference(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && canAddPayment) addPayment(); }}
+                        className="h-10 bg-black/30 border-white/10 text-white focus:border-emerald-500/50 placeholder:text-white/25"
+                      />
+                    </div>
+                  )}
 
-                  {/* Add payment button */}
-                  <div className="flex gap-2 pt-4 mt-auto">
+                  <div className="flex gap-2 pt-1">
                     <button
-                      className="flex-1 py-3 rounded-xl bg-slate-800/50 border border-slate-700/30 text-slate-300 hover:bg-slate-700 transition-all text-sm font-medium"
+                      className="flex-1 py-3 rounded-xl bg-white/[0.04] border border-white/10 text-white/70 hover:bg-white/10 hover:text-white transition-all text-sm font-medium"
                       onClick={() => { setActiveMethod(null); setCaptureAmount(''); setCaptureReference(''); }}
                     >
                       Cancelar
                     </button>
                     <Button
-                      className="flex-1 h-12 text-base font-bold bg-cyan-600 hover:bg-cyan-500 shadow-lg shadow-cyan-500/20"
+                      className="flex-1 h-12 text-base font-bold bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-500/20"
                       disabled={!canAddPayment}
                       onClick={addPayment}
                     >
@@ -467,8 +379,81 @@ export function PaymentModal({ open, total, processingPayment, onConfirm, onClos
                     </Button>
                   </div>
                 </div>
-              )}
+              </div>
+            )}
+
+            {/* ─── Registered payments ─── */}
+            {payments.length > 0 && (
+              <div className="mt-4 space-y-2">
+                {payments.map((p, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <PaymentIcon name={p.payment_method_name} className="h-4 w-4 text-white/50 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{p.payment_method_name}</p>
+                        {p.reference && (
+                          <p className="text-xs font-mono text-white/40 truncate">Ref: {p.reference}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-sm font-bold text-white font-mono tabular-nums">
+                        ${money(p.amount)}
+                      </span>
+                      <button
+                        onClick={() => removePayment(i)}
+                        disabled={processingPayment}
+                        className="p-1 rounded text-white/30 hover:text-red-400 transition-colors disabled:opacity-50"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ─── Receipt-style breakdown ─── */}
+            <div className="mt-5 border-t border-dashed border-white/20 pt-3 space-y-1.5 font-mono text-xs">
+              <div className="flex justify-between">
+                <span className="text-white/40">Subtotal</span>
+                <span className="text-white/70 tabular-nums">${money(total)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">Pagado</span>
+                <span className="text-white/70 tabular-nums">${money(paidSoFar)}</span>
+              </div>
+              <div className="flex justify-between font-semibold">
+                <span className={isFullyPaid ? 'text-emerald-400' : 'text-amber-400'}>Restante</span>
+                <span className={`tabular-nums ${isFullyPaid ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  ${money(remaining)}
+                </span>
+              </div>
             </div>
+
+            {/* ─── CTA: Cobrar $X ─── */}
+            <button
+              type="button"
+              disabled={!isFullyPaid || processingPayment}
+              onClick={handleConfirmSale}
+              className="mt-4 flex h-13 w-full items-center justify-center gap-2 rounded-xl py-3.5 text-base font-bold text-white transition-all
+                bg-gradient-to-b from-emerald-500 to-emerald-700
+                shadow-lg shadow-emerald-500/25 hover:shadow-emerald-400/40 hover:from-emerald-400 hover:to-emerald-600
+                focus:outline-none focus:ring-2 focus:ring-emerald-400/60 active:scale-[0.99]
+                disabled:from-white/[0.06] disabled:to-white/[0.06] disabled:text-white/30 disabled:shadow-none disabled:pointer-events-none"
+            >
+              {processingPayment ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4" />
+                  Cobrar ${money(total)}
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>

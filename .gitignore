@@ -42,8 +42,9 @@ pnpm-debug.log*
 postgres-data/
 redis-data/
 
-# Uploads
-uploads/
+# Uploads (archivos subidos en runtime; NO ignorar código fuente como src/**/uploads/)
+apps/api/uploads/
+/uploads/
 
 .claude/
 CLAUDE.md

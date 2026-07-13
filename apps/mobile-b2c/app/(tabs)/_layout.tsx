@@ -43,7 +43,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         paddingTop: 10,
       }}
     >
-      {state.routes.map((route, index) => {
+      {state.routes.map((route: any, index: number) => {
         const { options } = descriptors[route.key];
         const label = options.title ?? route.name;
         const isFocused = state.index === index;

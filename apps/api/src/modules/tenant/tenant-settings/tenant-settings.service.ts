@@ -58,6 +58,13 @@ export const DEFAULT_TENANT_SETTINGS: Partial<TenantSetting>[] = [
     label: 'Mensaje de pie de ticket',
     group: 'ticket',
   },
+  // ── Entrega a domicilio ────────────────────────────────────────
+  {
+    key: 'entrega.verification_methods',
+    value: '',
+    label: 'Verificacion requerida al entregar (pin,signature,qr — vacio = ninguna)',
+    group: 'entrega',
+  },
   // ── Apariencia / Branding ──────────────────────────────────────
   {
     key: 'branding.primary_color',
